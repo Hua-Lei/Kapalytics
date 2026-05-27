@@ -25,7 +25,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       stageName: string
       taskDescription: string
       userAnswer: string
-    }): Promise<DiagnosisResult> => ipcRenderer.invoke('llm:diagnose', params)
+    }): Promise<DiagnosisResult> => ipcRenderer.invoke('llm:diagnose', params),
+    generateGraph: (paperAbstract: string): Promise<{
+      nodes: { id: string; type: string; label: string; description: string; x: number; y: number }[]
+      edges: { id: string; sourceId: string; targetId: string; label?: string; directed: boolean }[]
+    }> => ipcRenderer.invoke('llm:generate-graph', paperAbstract),
+    generateTasks: (params: {
+      paperAbstract: string
+      stages: { id: string; name: string; description: string }[]
+    }): Promise<{ tasks: Record<string, string> }> =>
+      ipcRenderer.invoke('llm:generate-tasks', params)
   },
 
   // Storage

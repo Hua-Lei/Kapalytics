@@ -29,6 +29,14 @@ declare global {
           taskDescription: string
           userAnswer: string
         }) => Promise<DiagnosisResult>
+        generateGraph: (paperAbstract: string) => Promise<{
+          nodes: { id: string; type: string; label: string; description: string; x: number; y: number }[]
+          edges: { id: string; sourceId: string; targetId: string; label?: string; directed: boolean }[]
+        }>
+        generateTasks: (params: {
+          paperAbstract: string
+          stages: { id: string; name: string; description: string }[]
+        }) => Promise<{ tasks: Record<string, string> }>
       }
     }
   }

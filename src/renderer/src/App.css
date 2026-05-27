@@ -279,6 +279,10 @@
   display: flex;
 }
 
+.panel-left .panel-body > .empty-state {
+  flex: 1;
+}
+
 .pdf-container {
   flex: 1;
   width: 100%;
@@ -828,6 +832,59 @@
 .stage-completed__text {
   font-size: 14px;
   color: #4ecca3;
+  margin: 0;
+}
+
+/* Panel section (paper info) */
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel-section__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.panel-section__title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.panel-section__hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.paper-abstract-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.6;
+  outline: none;
+}
+
+.paper-abstract-input:focus {
+  border-color: var(--color-accent);
+}
+
+.paper-abstract-input::placeholder {
+  color: #555;
+}
+
+.gen-error {
+  font-size: var(--text-xs);
+  color: var(--color-accent);
   margin: 0;
 }
 

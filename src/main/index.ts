@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import { aiDiagnose } from './llm/generate'
+import { aiDiagnose, aiGenerateGraph, aiGenerateTasks } from './llm/generate'
 import { callLlm, setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
 
@@ -114,6 +114,20 @@ function registerIpcHandlers(): void {
       params: { stageId: string; stageName: string; taskDescription: string; userAnswer: string }
     ) => {
       return aiDiagnose(params.stageId, params.stageName, params.taskDescription, params.userAnswer)
+    }
+  )
+
+  ipcMain.handle('llm:generate-graph', async (_e, paperAbstract: string) => {
+    return aiGenerateGraph(paperAbstract)
+  })
+
+  ipcMain.handle(
+    'llm:generate-tasks',
+    async (
+      _e,
+      params: { paperAbstract: string; stages: { id: string; name: string; description: string }[] }
+    ) => {
+      return aiGenerateTasks(params.paperAbstract, params.stages)
     }
   )
 

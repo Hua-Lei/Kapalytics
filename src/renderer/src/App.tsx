@@ -10,7 +10,7 @@ import { mockKnowledgeGraph } from './mock/knowledgeGraph'
 import { Stage } from './types'
 import { diagnose } from './modules/diagnosis/diagnose'
 import type { DiagnosisResult } from './modules/diagnosis/types'
-import type { KnowledgeGraph as KGType } from './modules/graph/types'
+import type { KnowledgeGraph as KGType, GraphNode } from './modules/graph/types'
 import './App.css'
 
 type ActiveTab = 'graph' | 'learning'
@@ -38,12 +38,15 @@ function App() {
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
-  const [graph] = useState<KGType>(mockKnowledgeGraph)
+  const [graph, setGraph] = useState<KGType>(mockKnowledgeGraph)
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
   const selectedGraphNode =
     graph.nodes.find((n) => n.id === selectedGraphNodeId) ?? null
 
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [paperAbstract, setPaperAbstract] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState('')
   const [fontScale, setFontScale] = useState(1)
 
   // Check API key status on mount
@@ -65,6 +68,8 @@ function App() {
             setDiagnosisResults(data.diagnosisResults as Record<string, DiagnosisResult>)
           if (typeof data.pdfUrl === 'string') setPdfUrl(data.pdfUrl)
           if (typeof data.activeTab === 'string') setActiveTab(data.activeTab as ActiveTab)
+        if (typeof data.paperAbstract === 'string') setPaperAbstract(data.paperAbstract)
+        if (data.graph && typeof data.graph === 'object') setGraph(data.graph as KGType)
         }
       })
       .catch(() => {})
@@ -77,12 +82,12 @@ function App() {
     if (!hydrated) return
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(() => {
-      window.electronAPI.storage.save({ stages, answers, diagnosisResults, pdfUrl, activeTab })
+      window.electronAPI.storage.save({ stages, answers, diagnosisResults, pdfUrl, activeTab, paperAbstract, graph })
     }, 500)
     return () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current)
     }
-  }, [stages, answers, diagnosisResults, pdfUrl, activeTab, hydrated])
+  }, [stages, answers, diagnosisResults, pdfUrl, activeTab, paperAbstract, graph, hydrated])
 
   const enterStage = (stageId: string) => {
     updateStageStatus(stageId, 'in_progress')
@@ -342,7 +347,41 @@ function App() {
 
   function rightPanelBody() {
     if (activeTab === 'graph') {
-      return <NodeDetailPanel node={selectedGraphNode} />
+      if (selectedGraphNode) {
+        return <NodeDetailPanel node={selectedGraphNode} />
+      }
+      return (
+        <div className="panel-section">
+          <div className="panel-section__header">
+            <h3 className="panel-section__title">论文信息</h3>
+            <span className="panel-section__hint">粘贴摘要后 AI 自动生成图谱和任务</span>
+          </div>
+          <textarea
+            className="paper-abstract-input"
+            placeholder="在此粘贴论文摘要（英文更佳）..."
+            rows={8}
+            value={paperAbstract}
+            onChange={(e) => setPaperAbstract(e.target.value)}
+          />
+          <div className="stage-actions" style={{ marginTop: 8 }}>
+            <button
+              className="stage-btn stage-btn--primary"
+              onClick={handleGenerateGraph}
+              disabled={generating || !paperAbstract.trim()}
+            >
+              {generating ? '生成中...' : 'AI 生成知识图谱'}
+            </button>
+            <button
+              className="stage-btn stage-btn--secondary"
+              onClick={handleGenerateTasks}
+              disabled={generating || !paperAbstract.trim()}
+            >
+              {generating ? '生成中...' : 'AI 生成任务'}
+            </button>
+          </div>
+          {genError && <p className="gen-error">{genError}</p>}
+        </div>
+      )
     }
     if (!selectedStage) {
       return <div className="empty-state">选择左侧学习阶段以查看详情</div>
@@ -429,6 +468,44 @@ function App() {
 
   const handleTestConnection = async (): Promise<boolean> => {
     return window.electronAPI.llm.testConnection()
+  }
+
+  const handleGenerateGraph = async () => {
+    if (!paperAbstract.trim()) return
+    setGenerating(true)
+    setGenError('')
+    try {
+      const generated = await window.electronAPI.llm.generateGraph(paperAbstract.trim())
+      setGraph({
+        nodes: generated.nodes.map((n) => ({
+          ...n,
+          type: n.type as GraphNode['type']
+        })),
+        edges: generated.edges
+      })
+      setActiveTab('graph')
+    } catch (err) {
+      setGenError(String(err))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleGenerateTasks = async () => {
+    if (!paperAbstract.trim()) return
+    setGenerating(true)
+    setGenError('')
+    try {
+      const generated = await window.electronAPI.llm.generateTasks({
+        paperAbstract: paperAbstract.trim(),
+        stages: stages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
+      })
+      setStages((prev) => prev.map((s) => ({ ...s, task: generated.tasks[s.id] ?? s.task })))
+    } catch (err) {
+      setGenError(String(err))
+    } finally {
+      setGenerating(false)
+    }
   }
 
   return (
