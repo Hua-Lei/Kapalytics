@@ -19,7 +19,6 @@ html, body, #root {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  font-size: calc(14px * var(--font-scale));
 }
 
 body {

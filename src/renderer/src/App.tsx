@@ -37,7 +37,7 @@ function App() {
   const fontSizes = [0.85, 1, 1.15, 1.3]
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--font-scale', String(fontScale))
+    document.getElementById('root')!.style.zoom = String(fontScale)
   }, [fontScale])
 
   const cycleFontSize = () => {

@@ -23,7 +23,7 @@ export const mockStages: Stage[] = [
     name: '方法主线',
     status: 'not_started',
     description: '提炼论文方法的输入、核心模块、处理流程、输出和优化目标，从细节中抽取出方法主线。',
-    task: '请补全 Transformer 的方法流程：输入是什么？经过哪些核心模块？输出是什么？训练时的优化目标是什么？'
+    task: '请补全 Transformer 的方法流程：输入 $x = (x_1, ..., x_n)$ 经过哪些核心模块？最终输出 $y = (y_1, ..., y_m)$ 是什么？训练时的优化目标（损失函数）是什么？'
   },
   {
     id: 'formula_algorithm',
@@ -31,7 +31,7 @@ export const mockStages: Stage[] = [
     name: '公式算法',
     status: 'not_started',
     description: '理解关键公式中每一项的作用和训练目标，能解释公式为什么对解决问题有效。',
-    task: 'Self-Attention 公式为 Attention(Q,K,V) = softmax(QK^T/√d_k)V。请解释：Q、K、V 分别是什么？为什么要除以 √d_k？Softmax 在这里起什么作用？'
+    task: 'Self-Attention 核心公式：$$Attention(Q,K,V) = softmax\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V$$ 请解释：$Q$、$K$、$V$ 分别是什么？为什么要除以 $\\sqrt{d_k}$？Softmax 在这里起什么作用？'
   },
   {
     id: 'experiment_analysis',
@@ -39,7 +39,7 @@ export const mockStages: Stage[] = [
     name: '实验解读',
     status: 'not_started',
     description: '区分主实验、消融实验和对比实验，判断每个实验验证了论文的哪个 claim。',
-    task: 'Transformer 在 WMT 2014 英德翻译上达到 28.4 BLEU。消融实验中，作者测试了不同注意力头数的影响。请判断：主实验验证了什么 claim？消融实验又验证了什么？'
+    task: 'Transformer 在 WMT 2014 英德翻译上达到 $28.4$ BLEU。消融实验中，作者测试了不同注意力头数（$h=1,2,4,8,16$）和模型维度（$d_{model}=128,256,512,1024$）的影响。请判断：主实验验证了什么 claim？消融实验又验证了什么？'
   },
   {
     id: 'contribution_limitation',
@@ -47,7 +47,7 @@ export const mockStages: Stage[] = [
     name: '贡献局限',
     status: 'not_started',
     description: '区分已有工作、本文改进和真正贡献，客观评价论文的局限性和适用范围。',
-    task: '注意力机制在此前已被提出。Transformer 的真正贡献是什么？它有哪些局限性？在什么场景下 Transformer 可能不是最佳选择？'
+    task: '注意力机制在此前已被提出（如 Bahdanau Attention）。Transformer 的真正贡献是什么？它有哪些局限性？其复杂度为 $O(n^2 \\cdot d)$，在什么场景下 Transformer 可能不是最佳选择？'
   },
   {
     id: 'transfer_comparison',
@@ -55,6 +55,6 @@ export const mockStages: Stage[] = [
     name: '迁移对比',
     status: 'not_started',
     description: '思考该方法能否迁移到其他任务或问题中，判断哪些模块可复用、哪些需要修改。',
-    task: 'Transformer 最初用于机器翻译，后来被迁移到 CV（ViT）、语音等领域。请思考：Self-Attention 的哪些特性使它具有如此广泛的适用性？迁移到新领域时需要修改哪些部分？'
+    task: 'Transformer 最初用于机器翻译，后来被迁移到 CV（ViT）、语音等领域。Multi-Head Attention 的计算方式为：$$MultiHead(Q,K,V) = Concat(head_1,...,head_h)W^O$$ $$head_i = Attention(QW_i^Q, KW_i^K, VW_i^V)$$ 请思考：Self-Attention 的哪些特性使它具有如此广泛的适用性？迁移到新领域时需要修改哪些部分？'
   }
 ]
