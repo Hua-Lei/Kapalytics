@@ -345,6 +345,45 @@ function App() {
     </aside>
   )
 
+  const handleTestConnection = async (): Promise<boolean> => {
+    return window.electronAPI.llm.testConnection()
+  }
+
+  const handleGenerateGraph = async () => {
+    if (!paperAbstract.trim()) return
+    setGenerating(true)
+    setGenError('')
+    try {
+      const generated = await window.electronAPI.llm.generateGraph(paperAbstract.trim())
+      setGraph({
+        nodes: generated.nodes.map((n) => ({ ...n, type: n.type as GraphNode['type'] })),
+        edges: generated.edges
+      })
+      setActiveTab('graph')
+    } catch (err) {
+      setGenError(String(err))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleGenerateTasks = async () => {
+    if (!paperAbstract.trim()) return
+    setGenerating(true)
+    setGenError('')
+    try {
+      const generated = await window.electronAPI.llm.generateTasks({
+        paperAbstract: paperAbstract.trim(),
+        stages: stages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
+      })
+      setStages((prev) => prev.map((s) => ({ ...s, task: generated.tasks[s.id] ?? s.task })))
+    } catch (err) {
+      setGenError(String(err))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   function rightPanelBody() {
     if (activeTab === 'graph') {
       if (selectedGraphNode) {
@@ -464,48 +503,6 @@ function App() {
         )}
       </div>
     )
-  }
-
-  const handleTestConnection = async (): Promise<boolean> => {
-    return window.electronAPI.llm.testConnection()
-  }
-
-  const handleGenerateGraph = async () => {
-    if (!paperAbstract.trim()) return
-    setGenerating(true)
-    setGenError('')
-    try {
-      const generated = await window.electronAPI.llm.generateGraph(paperAbstract.trim())
-      setGraph({
-        nodes: generated.nodes.map((n) => ({
-          ...n,
-          type: n.type as GraphNode['type']
-        })),
-        edges: generated.edges
-      })
-      setActiveTab('graph')
-    } catch (err) {
-      setGenError(String(err))
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  const handleGenerateTasks = async () => {
-    if (!paperAbstract.trim()) return
-    setGenerating(true)
-    setGenError('')
-    try {
-      const generated = await window.electronAPI.llm.generateTasks({
-        paperAbstract: paperAbstract.trim(),
-        stages: stages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
-      })
-      setStages((prev) => prev.map((s) => ({ ...s, task: generated.tasks[s.id] ?? s.task })))
-    } catch (err) {
-      setGenError(String(err))
-    } finally {
-      setGenerating(false)
-    }
   }
 
   return (
