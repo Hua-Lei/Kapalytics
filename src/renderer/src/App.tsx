@@ -292,35 +292,24 @@ function App() {
         {!rightCollapsed && <span className="panel-header-title">AI 学习面板</span>}
       </div>
       {!rightCollapsed && (
-        <div className="panel-body">
-          {rightPanelBody()}
-        </div>
-      )}
-    </aside>
-  )
-
-  function rightPanelBody() {
-    if (activeTab === 'graph') {
-      return <NodeDetailPanel node={selectedGraphNode} />
-    }
-    if (!selectedStage) {
-      return (
-        <div className="empty-state-with-settings">
-          <p className="empty-state-text">选择左侧学习阶段以查看详情</p>
-          <div className="api-settings-area">
+        <div className="panel-body panel-body--flex">
+          <div className="panel-body-content">
+            {rightPanelBody()}
+          </div>
+          <div className="api-settings-footer">
             <button
               className="api-settings-toggle"
               onClick={() => setShowApiSettings(!showApiSettings)}
             >
-              {hasApiConfigured ? 'AI 已配置 ●' : '配置 AI ●'}
+              {hasApiConfigured ? 'AI 已配置 (DeepSeek)' : '⚡ 配置 AI API Key'}
             </button>
             {showApiSettings && (
               <div className="api-settings-panel">
-                <div className="task-label">Anthropic API Key</div>
+                <div className="task-label">DeepSeek API Key</div>
                 <input
                   type="password"
                   className="api-key-input"
-                  placeholder="sk-ant-..."
+                  placeholder="sk-..."
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
                 />
@@ -355,7 +344,16 @@ function App() {
             )}
           </div>
         </div>
-      )
+      )}
+    </aside>
+  )
+
+  function rightPanelBody() {
+    if (activeTab === 'graph') {
+      return <NodeDetailPanel node={selectedGraphNode} />
+    }
+    if (!selectedStage) {
+      return <div className="empty-state">选择左侧学习阶段以查看详情</div>
     }
     const statusText: Record<string, string> = {
       not_started: '未开始',

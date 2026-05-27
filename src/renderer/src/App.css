@@ -46,6 +46,18 @@
   overflow-y: auto;
 }
 
+.panel-body--flex {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.panel-body-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+
 .empty-state {
   display: flex;
   align-items: center;
@@ -504,27 +516,11 @@
   overflow-y: auto;
 }
 
-/* API settings */
-.empty-state-with-settings {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 16px;
-}
-
-.empty-state-text {
-  color: var(--color-text-muted);
-  font-size: 14px;
-  margin: 0;
-}
-
-.api-settings-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+/* API settings footer */
+.api-settings-footer {
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .api-settings-toggle {
@@ -535,11 +531,15 @@
   border-radius: 4px;
   padding: 4px 12px;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: color 0.15s, border-color 0.15s;
+  display: block;
+  width: 100%;
+  text-align: center;
 }
 
 .api-settings-toggle:hover {
   color: var(--color-text);
+  border-color: var(--color-text-muted);
 }
 
 .api-settings-panel {
@@ -547,7 +547,7 @@
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 14px;
-  width: 100%;
+  margin-top: 8px;
 }
 
 .api-key-input {
