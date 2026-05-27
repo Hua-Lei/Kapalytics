@@ -35,6 +35,14 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
 
+  const [graph] = useState<KGType>(mockKnowledgeGraph)
+  const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
+  const selectedGraphNode =
+    graph.nodes.find((n) => n.id === selectedGraphNodeId) ?? null
+
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [fontScale, setFontScale] = useState(1)
+
   // Check API key status on mount
   useEffect(() => {
     window.electronAPI.llm.hasApiKey().then(setHasApiConfigured)
@@ -128,13 +136,6 @@ function App() {
     updateStageStatus(stageId, 'needs_review')
   }
 
-  const [graph] = useState<KGType>(mockKnowledgeGraph)
-  const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
-  const selectedGraphNode =
-    graph.nodes.find((n) => n.id === selectedGraphNodeId) ?? null
-
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [fontScale, setFontScale] = useState(1)
   const fontSizes = [0.85, 1, 1.15, 1.3]
 
   useEffect(() => {
