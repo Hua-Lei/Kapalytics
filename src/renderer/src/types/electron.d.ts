@@ -39,7 +39,9 @@ declare namespace JSX {
     webview: React.DetailedHTMLProps<
       React.HTMLAttributes<HTMLElement> & {
         src?: string
+        key?: string | null
         ref?: React.Ref<HTMLElement>
+        plugins?: boolean | string
       },
       HTMLElement
     >

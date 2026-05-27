@@ -40,10 +40,10 @@ function MathText({ text, displayMode }: MathTextProps) {
           return <Fragment key={i}>{part}</Fragment>
         }
         try {
-          const html = katex.renderToString(part.formula, {
+          const html = katex.renderToString(part.formula.slice(0, 500), {
             displayMode: displayMode ?? part.display,
             throwOnError: false,
-            trust: true
+            trust: false
           })
           return (
             <span

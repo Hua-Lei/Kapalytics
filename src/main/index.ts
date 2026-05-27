@@ -6,6 +6,13 @@ import { aiDiagnose } from './llm/generate'
 import { callLlm, setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
 
+// Linux GPU fallback — must run before app ready
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('disable-gpu')
+  app.commandLine.appendSwitch('disable-software-rasterizer')
+  app.disableHardwareAcceleration()
+}
+
 function getStoragePath(): string {
   const dir = join(app.getPath('userData'), 'saves')
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
@@ -21,9 +28,17 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      webviewTag: true
+      webviewTag: true,
+      plugins: true
     },
     title: 'Kapalytics - AI Paper Learning Assistant'
+  })
+
+  // Restrict webview: only allow local PDFs
+  mainWindow.webContents.on('will-attach-webview', (_e, webPreferences) => {
+    webPreferences.preload = undefined
+    webPreferences.nodeIntegration = false
+    webPreferences.sandbox = true
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -31,7 +46,10 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    const url = details.url
+    if (url.startsWith('http:') || url.startsWith('https:')) {
+      shell.openExternal(url)
+    }
     return { action: 'deny' }
   })
 

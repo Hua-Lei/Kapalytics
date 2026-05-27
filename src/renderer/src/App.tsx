@@ -8,7 +8,9 @@ import SettingsModal from './components/SettingsModal'
 import { mockStages } from './mock/stages'
 import { mockKnowledgeGraph } from './mock/knowledgeGraph'
 import { Stage } from './types'
-import { diagnose, DiagnosisResult } from './modules/diagnosis/diagnose'
+import { diagnose } from './modules/diagnosis/diagnose'
+import type { DiagnosisResult } from './modules/diagnosis/types'
+import type { KnowledgeGraph as KGType } from './modules/graph/types'
 import './App.css'
 
 type ActiveTab = 'graph' | 'learning'
@@ -29,11 +31,12 @@ function App() {
   }
 
   const [answers, setAnswers] = useState<Record<string, string>>({})
-  const [draftAnswer, setDraftAnswer] = useState('')
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [diagnosisResults, setDiagnosisResults] = useState<Record<string, DiagnosisResult>>({})
   const [diagnosedStageIds, setDiagnosedStageIds] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
 
   const [graph] = useState<KGType>(mockKnowledgeGraph)
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
@@ -65,21 +68,24 @@ function App() {
         }
       })
       .catch(() => {})
+      .finally(() => setHydrated(true))
   }, [])
 
-  // Auto-save when state changes (debounced to avoid too frequent writes)
+  // Auto-save when state changes (debounced, only after hydration)
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => {
+    if (!hydrated) return
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(() => {
-      const data = { stages, answers, diagnosisResults, pdfUrl, activeTab }
-      window.electronAPI.storage.save(data).catch(() => {})
+      window.electronAPI.storage.save({ stages, answers, diagnosisResults, pdfUrl, activeTab })
     }, 500)
-  }, [stages, answers, diagnosisResults, pdfUrl, activeTab])
+    return () => {
+      if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    }
+  }, [stages, answers, diagnosisResults, pdfUrl, activeTab, hydrated])
 
   const enterStage = (stageId: string) => {
     updateStageStatus(stageId, 'in_progress')
-    setDraftAnswer(answers[stageId] ?? '')
     setDiagnosedStageIds((prev) => {
       const next = new Set(prev)
       next.delete(stageId)
@@ -87,7 +93,8 @@ function App() {
     })
   }
   const submitAnswer = async (stageId: string) => {
-    setAnswers((prev) => ({ ...prev, [stageId]: draftAnswer }))
+    const answer = drafts[stageId] ?? ''
+    setAnswers((prev) => ({ ...prev, [stageId]: answer }))
 
     let result: DiagnosisResult
     const stage = stages.find((s) => s.id === stageId)!
@@ -98,13 +105,13 @@ function App() {
           stageId,
           stageName: stage.name,
           taskDescription: stage.task,
-          userAnswer: draftAnswer
+          userAnswer: answer
         })
       } else {
         throw new Error('no_api_key')
       }
     } catch {
-      result = diagnose(stageId, draftAnswer)
+      result = diagnose(stageId, answer)
     }
 
     setDiagnosisResults((prev) => ({ ...prev, [stageId]: result }))
@@ -130,8 +137,9 @@ function App() {
     })
   }
   const markNeedsReview = (stageId: string) => {
-    setAnswers((prev) => ({ ...prev, [stageId]: draftAnswer }))
-    const result = diagnose(stageId, draftAnswer)
+    const answer = drafts[stageId] ?? ''
+    setAnswers((prev) => ({ ...prev, [stageId]: answer }))
+    const result = diagnose(stageId, answer)
     setDiagnosisResults((prev) => ({ ...prev, [stageId]: result }))
     updateStageStatus(stageId, 'needs_review')
   }
@@ -139,9 +147,11 @@ function App() {
   const fontSizes = [0.85, 1, 1.15, 1.3]
 
   useEffect(() => {
-    document.querySelectorAll('.panel-body').forEach((el) => {
-      ;(el as HTMLElement).style.zoom = String(fontScale)
-    })
+    document
+      .querySelectorAll('.panel-center .panel-body, .panel-right .panel-body')
+      .forEach((el) => {
+        ;(el as HTMLElement).style.zoom = String(fontScale)
+      })
   }, [fontScale])
 
   const cycleFontSize = () => {
@@ -376,15 +386,17 @@ function App() {
                   className="task-answer-input"
                   placeholder="在此输入你的答案..."
                   rows={4}
-                  value={draftAnswer}
-                  onChange={(e) => setDraftAnswer(e.target.value)}
+                  value={drafts[selectedStage.id] ?? answers[selectedStage.id] ?? ''}
+                  onChange={(e) =>
+                    setDrafts((prev) => ({ ...prev, [selectedStage.id]: e.target.value }))
+                  }
                 />
                 <div className="stage-actions">
-                  <button className="stage-btn stage-btn--primary" onClick={() => submitAnswer(selectedStage.id)} disabled={!draftAnswer.trim()}>
+                  <button className="stage-btn stage-btn--primary" onClick={() => submitAnswer(selectedStage.id)} disabled={!(drafts[selectedStage.id] ?? '').trim()}>
                     提交答案
                   </button>
                   {selectedStage.status === 'in_progress' && (
-                    <button className="stage-btn stage-btn--secondary" onClick={() => markNeedsReview(selectedStage.id)} disabled={!draftAnswer.trim()}>
+                    <button className="stage-btn stage-btn--secondary" onClick={() => markNeedsReview(selectedStage.id)} disabled={!(drafts[selectedStage.id] ?? '').trim()}>
                       稍后复习
                     </button>
                   )}

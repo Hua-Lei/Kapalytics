@@ -8,7 +8,7 @@ export type ErrorType =
   | 'transfer_insufficient'
 
 export interface DiagnosisResult {
-  errorType: ErrorType
+  errorType: string
   isCorrect: boolean
   feedback: string
   remedialTask: string

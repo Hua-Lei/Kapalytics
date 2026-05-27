@@ -59,23 +59,16 @@ export function diagnose(stageId: string, userAnswer: string): DiagnosisResult {
     }
   }
 
-  // Mock: short or generic answers are more likely to be flagged
+  // Deterministic fallback: very short answers likely need review
   const isBrief = userAnswer.trim().length < 20
-  const hasKeywords = /因为|所以|关键|核心|区别|在于|vs/i.test(userAnswer)
-
-  if (isBrief || !hasKeywords) {
-    return {
-      isCorrect: false,
-      ...entry
-    }
+  if (isBrief) {
+    return { isCorrect: false, ...entry }
   }
 
-  // 50% chance of being marked correct for demo purposes
-  const pass = Math.random() > 0.5
   return {
-    isCorrect: pass,
-    errorType: pass ? entry.errorType : entry.errorType,
-    feedback: pass ? '你的回答思路清晰，要点基本覆盖。继续下一阶段巩固理解。' : entry.feedback,
-    remedialTask: pass ? '尝试用自己的话向同学复述一遍本阶段的核心概念。' : entry.remedialTask
+    isCorrect: true,
+    errorType: entry.errorType,
+    feedback: '你的回答已记录。当前为离线模式，连接 AI 后可获得详细诊断反馈。',
+    remedialTask: '建议接入 DeepSeek API 以获得针对性的错误诊断和补救任务。'
   }
 }
