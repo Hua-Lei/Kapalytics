@@ -213,12 +213,19 @@ function App() {
     >
       <div className="panel-header">
         {!leftCollapsed && <span className="panel-header-title">PDF 阅读区</span>}
-        <button
-          className="panel-collapse-btn"
-          onClick={() => setLeftCollapsed(!leftCollapsed)}
-        >
-          {leftCollapsed ? '▶' : '◀'}
-        </button>
+        <div className="panel-header-actions">
+          {pdfUrl && !leftCollapsed && (
+            <button className="panel-action-btn" onClick={handleSelectPdf} title="更换 PDF">
+              📄
+            </button>
+          )}
+          <button
+            className="panel-collapse-btn"
+            onClick={() => setLeftCollapsed(!leftCollapsed)}
+          >
+            {leftCollapsed ? '▶' : '◀'}
+          </button>
+        </div>
       </div>
       {!leftCollapsed && (
         <div className="panel-body">
