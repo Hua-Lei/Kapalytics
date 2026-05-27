@@ -21,18 +21,19 @@ npm run dev
 
 ---
 
-## 第二步：输入论文信息（R5/R8）
+## 第二步：分析论文（R3/R5/R8）
 
 1. 点击中间面板「知识图谱」tab
-2. 右侧面板显示「论文信息」输入框
-3. 粘贴以下摘要（或自行输入）：
+2. 右侧面板显示「论文分析」区域
+3. 点击「开始分析论文」按钮
+4. 系统自动：
+   - 提取 PDF 全文（pdfjs-dist）
+   - 显示进度：提取完成 → 生成知识图谱 → 解析节点 → 生成学习任务
+   - 全部完成提示
+5. 中间面板自动切换到知识图谱视图
+6. 也可手动粘贴摘要后点击「AI 生成知识图谱」/「AI 生成任务」
 
-> The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU.
-
-4. 点击「AI 生成知识图谱」（需配置 API Key）或直接使用默认图谱
-5. 点击「AI 生成任务」或使用默认任务
-
-**验收**：中间面板显示知识图谱节点（field/concept/problem/method 等 7 种类型），学习路径 tab 显示 7 个阶段任务。
+**验收**：进度消息实时显示，图谱节点自动生成，7 个阶段任务更新。
 
 ---
 
