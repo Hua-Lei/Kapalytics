@@ -7,7 +7,6 @@ import { mockStages } from './mock/stages'
 import { mockKnowledgeGraph } from './mock/knowledgeGraph'
 import { Stage } from './types'
 import { diagnose, DiagnosisResult } from './modules/diagnosis/diagnose'
-import { aiDiagnose, hasApiKey, setApiKey, clearApiKey } from './modules/llm'
 import './App.css'
 
 type ActiveTab = 'graph' | 'learning'
@@ -33,6 +32,12 @@ function App() {
   const [diagnosedStageIds, setDiagnosedStageIds] = useState<Set<string>>(new Set())
   const [showApiSettings, setShowApiSettings] = useState(false)
   const [apiKeyInput, setApiKeyInput] = useState('')
+  const [hasApiConfigured, setHasApiConfigured] = useState(false)
+
+  // Check API key status on mount
+  useEffect(() => {
+    window.electronAPI.llm.hasApiKey().then(setHasApiConfigured)
+  }, [])
 
   const enterStage = (stageId: string) => {
     updateStageStatus(stageId, 'in_progress')
@@ -46,11 +51,20 @@ function App() {
   const submitAnswer = async (stageId: string) => {
     setAnswers((prev) => ({ ...prev, [stageId]: draftAnswer }))
 
-    // Try AI diagnosis first, fall back to mock
     let result: DiagnosisResult
     const stage = stages.find((s) => s.id === stageId)!
     try {
-      result = await aiDiagnose(stageId, stage.name, stage.task, draftAnswer)
+      const hasKey = await window.electronAPI.llm.hasApiKey()
+      if (hasKey) {
+        result = await window.electronAPI.llm.diagnose({
+          stageId,
+          stageName: stage.name,
+          taskDescription: stage.task,
+          userAnswer: draftAnswer
+        })
+      } else {
+        throw new Error('no_api_key')
+      }
     } catch {
       result = diagnose(stageId, draftAnswer)
     }
@@ -298,7 +312,7 @@ function App() {
               className="api-settings-toggle"
               onClick={() => setShowApiSettings(!showApiSettings)}
             >
-              {hasApiKey() ? 'AI 已配置 ●' : '配置 AI ●'}
+              {hasApiConfigured ? 'AI 已配置 ●' : '配置 AI ●'}
             </button>
             {showApiSettings && (
               <div className="api-settings-panel">
@@ -313,19 +327,23 @@ function App() {
                 <div className="stage-actions" style={{ marginTop: 8 }}>
                   <button
                     className="stage-btn stage-btn--primary"
-                    onClick={() => {
-                      if (apiKeyInput.trim()) setApiKey(apiKeyInput.trim())
+                    onClick={async () => {
+                      if (apiKeyInput.trim()) {
+                        await window.electronAPI.llm.setApiKey(apiKeyInput.trim())
+                        setHasApiConfigured(true)
+                      }
                       setApiKeyInput('')
                       setShowApiSettings(false)
                     }}
                   >
                     保存
                   </button>
-                  {hasApiKey() && (
+                  {hasApiConfigured && (
                     <button
                       className="stage-btn stage-btn--secondary"
-                      onClick={() => {
-                        clearApiKey()
+                      onClick={async () => {
+                        await window.electronAPI.llm.clearApiKey()
+                        setHasApiConfigured(false)
                         setShowApiSettings(false)
                       }}
                     >

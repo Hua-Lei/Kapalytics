@@ -1,6 +1,9 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
+import { aiDiagnose } from './llm/generate'
+import { setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
+import { deepseekProvider } from './llm/providers/deepseek'
 
 const isDev = !app.isPackaged
 
@@ -43,6 +46,37 @@ function registerIpcHandlers(): void {
     const filePath = result.filePaths[0]
     return pathToFileURL(filePath).toString()
   })
+
+  // LLM handlers
+  ipcMain.handle('llm:set-api-key', (_e, key: string) => {
+    setApiKey(key)
+  })
+
+  ipcMain.handle('llm:clear-api-key', () => {
+    clearApiKey()
+  })
+
+  ipcMain.handle('llm:has-api-key', () => {
+    return hasApiKey()
+  })
+
+  ipcMain.handle('llm:get-providers', () => {
+    return getAvailableProviders()
+  })
+
+  ipcMain.handle('llm:set-provider', (_e, providerId: string) => {
+    if (providerId === 'deepseek') setProvider(deepseekProvider)
+  })
+
+  ipcMain.handle(
+    'llm:diagnose',
+    async (
+      _e,
+      params: { stageId: string; stageName: string; taskDescription: string; userAnswer: string }
+    ) => {
+      return aiDiagnose(params.stageId, params.stageName, params.taskDescription, params.userAnswer)
+    }
+  )
 }
 
 app.whenReady().then(() => {
