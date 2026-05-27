@@ -25,5 +25,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       taskDescription: string
       userAnswer: string
     }): Promise<DiagnosisResult> => ipcRenderer.invoke('llm:diagnose', params)
+  },
+
+  // Storage
+  storage: {
+    save: (data: unknown): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('storage:save', data),
+    load: (): Promise<unknown> => ipcRenderer.invoke('storage:load')
   }
 })

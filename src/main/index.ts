@@ -1,9 +1,16 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { aiDiagnose } from './llm/generate'
 import { setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
+
+function getStoragePath(): string {
+  const dir = join(app.getPath('userData'), 'saves')
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  return join(dir, 'learning-state.json')
+}
 
 const isDev = !app.isPackaged
 
@@ -77,6 +84,26 @@ function registerIpcHandlers(): void {
       return aiDiagnose(params.stageId, params.stageName, params.taskDescription, params.userAnswer)
     }
   )
+
+  // Storage handlers
+  ipcMain.handle('storage:save', (_e, data: unknown) => {
+    try {
+      writeFileSync(getStoragePath(), JSON.stringify(data, null, 2), 'utf-8')
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: String(err) }
+    }
+  })
+
+  ipcMain.handle('storage:load', () => {
+    try {
+      const path = getStoragePath()
+      if (!existsSync(path)) return null
+      return JSON.parse(readFileSync(path, 'utf-8'))
+    } catch {
+      return null
+    }
+  })
 }
 
 app.whenReady().then(() => {

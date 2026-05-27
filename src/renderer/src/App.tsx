@@ -40,6 +40,29 @@ function App() {
     window.electronAPI.llm.hasApiKey().then(setHasApiConfigured)
   }, [])
 
+  // Load saved state on mount
+  useEffect(() => {
+    ;(async () => {
+      const saved = await window.electronAPI.storage.load()
+      if (saved && typeof saved === 'object') {
+        const data = saved as Record<string, unknown>
+        if (Array.isArray(data.stages)) setStages(data.stages as Stage[])
+        if (data.answers && typeof data.answers === 'object')
+          setAnswers(data.answers as Record<string, string>)
+        if (data.diagnosisResults && typeof data.diagnosisResults === 'object')
+          setDiagnosisResults(data.diagnosisResults as Record<string, DiagnosisResult>)
+        if (typeof data.pdfUrl === 'string') setPdfUrl(data.pdfUrl)
+        if (typeof data.activeTab === 'string') setActiveTab(data.activeTab as ActiveTab)
+      }
+    })()
+  }, [])
+
+  // Auto-save when state changes
+  useEffect(() => {
+    const data = { stages, answers, diagnosisResults, pdfUrl, activeTab }
+    window.electronAPI.storage.save(data)
+  }, [stages, answers, diagnosisResults, pdfUrl, activeTab])
+
   const enterStage = (stageId: string) => {
     updateStageStatus(stageId, 'in_progress')
     setDraftAnswer(answers[stageId] ?? '')

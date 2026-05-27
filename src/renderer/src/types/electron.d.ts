@@ -12,6 +12,10 @@ declare global {
     electronAPI: {
       platform: string
       selectPdf: () => Promise<string | null>
+      storage: {
+        save: (data: unknown) => Promise<{ ok: boolean; error?: string }>
+        load: () => Promise<unknown>
+      }
       llm: {
         setApiKey: (key: string) => Promise<void>
         clearApiKey: () => Promise<void>
