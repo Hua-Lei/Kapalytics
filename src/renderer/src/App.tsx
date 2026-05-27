@@ -216,7 +216,7 @@ function App() {
         <div className="panel-header-actions">
           {pdfUrl && !leftCollapsed && (
             <button className="panel-action-btn" onClick={handleSelectPdf} title="更换 PDF">
-              📄
+              更换
             </button>
           )}
           <button
