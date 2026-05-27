@@ -139,6 +139,12 @@ function App() {
     }
 
     setDiagnosisResults((prev) => ({ ...prev, [stageId]: result }))
+    // Auto-mark needs_review on wrong answer
+    if (!result.isCorrect) {
+      setStages((prev) =>
+        prev.map((s) => (s.id === stageId ? { ...s, status: 'needs_review' as const } : s))
+      )
+    }
     setDiagnosedStageIds((prev) => {
       const next = new Set(prev)
       next.add(stageId)
@@ -146,7 +152,13 @@ function App() {
     })
   }
   const confirmDiagnosis = (stageId: string) => {
-    updateStageStatus(stageId, 'completed')
+    setStages((prev) =>
+      prev.map((s) =>
+        s.id === stageId
+          ? { ...s, status: 'completed' as const, mastery: Math.min(100, s.mastery + 20) }
+          : s
+      )
+    )
     setDiagnosedStageIds((prev) => {
       const next = new Set(prev)
       next.delete(stageId)
@@ -457,7 +469,22 @@ function App() {
       )
     }
     if (!selectedStage) {
-      return <div className="empty-state">选择左侧学习阶段以查看详情</div>
+      const nextStage = stages.find(
+        (s) => s.status === 'not_started' || s.status === 'needs_review'
+      )
+      return (
+        <div className="empty-state">
+          <div>
+            <p>选择左侧学习阶段以查看详情</p>
+            {nextStage && (
+              <p style={{ marginTop: 12, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                推荐下一步：阶段 {nextStage.order} — {nextStage.name}
+                {nextStage.status === 'needs_review' ? '（需复习）' : ''}
+              </p>
+            )}
+          </div>
+        </div>
+      )
     }
     const statusText: Record<string, string> = {
       not_started: '未开始',
@@ -471,6 +498,9 @@ function App() {
           阶段 {selectedStage.order} · {statusText[selectedStage.status]}
         </div>
         <h3 className="stage-detail__title">{selectedStage.name}</h3>
+        <div className="mastery-bar">
+          <div className="mastery-bar__fill" style={{ width: `${selectedStage.mastery}%` }} />
+        </div>
         <p className="stage-detail__description"><MathText text={selectedStage.description} /></p>
 
         {selectedStage.status === 'not_started' && (

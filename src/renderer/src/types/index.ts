@@ -5,6 +5,7 @@ export interface Stage {
   order: number
   name: string
   status: StageStatus
+  mastery: number
   description: string
   task: string
 }
