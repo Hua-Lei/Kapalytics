@@ -42,25 +42,31 @@ function App() {
 
   // Load saved state on mount
   useEffect(() => {
-    ;(async () => {
-      const saved = await window.electronAPI.storage.load()
-      if (saved && typeof saved === 'object') {
-        const data = saved as Record<string, unknown>
-        if (Array.isArray(data.stages)) setStages(data.stages as Stage[])
-        if (data.answers && typeof data.answers === 'object')
-          setAnswers(data.answers as Record<string, string>)
-        if (data.diagnosisResults && typeof data.diagnosisResults === 'object')
-          setDiagnosisResults(data.diagnosisResults as Record<string, DiagnosisResult>)
-        if (typeof data.pdfUrl === 'string') setPdfUrl(data.pdfUrl)
-        if (typeof data.activeTab === 'string') setActiveTab(data.activeTab as ActiveTab)
-      }
-    })()
+    window.electronAPI.storage
+      .load()
+      .then((saved) => {
+        if (saved && typeof saved === 'object') {
+          const data = saved as Record<string, unknown>
+          if (Array.isArray(data.stages)) setStages(data.stages as Stage[])
+          if (data.answers && typeof data.answers === 'object')
+            setAnswers(data.answers as Record<string, string>)
+          if (data.diagnosisResults && typeof data.diagnosisResults === 'object')
+            setDiagnosisResults(data.diagnosisResults as Record<string, DiagnosisResult>)
+          if (typeof data.pdfUrl === 'string') setPdfUrl(data.pdfUrl)
+          if (typeof data.activeTab === 'string') setActiveTab(data.activeTab as ActiveTab)
+        }
+      })
+      .catch(() => {})
   }, [])
 
-  // Auto-save when state changes
+  // Auto-save when state changes (debounced to avoid too frequent writes)
+  const saveTimeout = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => {
-    const data = { stages, answers, diagnosisResults, pdfUrl, activeTab }
-    window.electronAPI.storage.save(data)
+    if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    saveTimeout.current = setTimeout(() => {
+      const data = { stages, answers, diagnosisResults, pdfUrl, activeTab }
+      window.electronAPI.storage.save(data).catch(() => {})
+    }, 500)
   }, [stages, answers, diagnosisResults, pdfUrl, activeTab])
 
   const enterStage = (stageId: string) => {
