@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getProviders: (): Promise<{ name: string; id: string }[]> =>
       ipcRenderer.invoke('llm:get-providers'),
     setProvider: (id: string): Promise<void> => ipcRenderer.invoke('llm:set-provider', id),
+    testConnection: (): Promise<boolean> => ipcRenderer.invoke('llm:test-connection'),
     diagnose: (params: {
       stageId: string
       stageName: string

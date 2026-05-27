@@ -409,21 +409,7 @@ function App() {
   }
 
   const handleTestConnection = async (): Promise<boolean> => {
-    try {
-      const hasKey = await window.electronAPI.llm.hasApiKey()
-      if (!hasKey) return false
-      // Simple connectivity test: try a lightweight diagnose call
-      const testStage = stages[0]
-      await window.electronAPI.llm.diagnose({
-        stageId: testStage.id,
-        stageName: testStage.name,
-        taskDescription: 'test connection',
-        userAnswer: 'ping'
-      })
-      return true
-    } catch {
-      return false
-    }
+    return window.electronAPI.llm.testConnection()
   }
 
   return (

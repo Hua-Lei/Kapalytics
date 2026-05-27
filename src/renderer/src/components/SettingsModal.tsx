@@ -31,9 +31,9 @@ function SettingsModal({
     setTesting(false)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (keyInput.trim()) {
-      onSaveKey(keyInput.trim())
+      await onSaveKey(keyInput.trim())
       setKeyInput('')
       setTestResult('idle')
     }

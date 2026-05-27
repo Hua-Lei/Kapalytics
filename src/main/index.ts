@@ -3,7 +3,7 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { aiDiagnose } from './llm/generate'
-import { setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
+import { callLlm, setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
 
 function getStoragePath(): string {
@@ -73,6 +73,20 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('llm:set-provider', (_e, providerId: string) => {
     if (providerId === 'deepseek') setProvider(deepseekProvider)
+  })
+
+  ipcMain.handle('llm:test-connection', async () => {
+    try {
+      if (!hasApiKey()) return false
+      await callLlm({
+        messages: [{ role: 'user', content: 'ping' }],
+        maxTokens: 10,
+        temperature: 0
+      })
+      return true
+    } catch {
+      return false
+    }
   })
 
   ipcMain.handle(

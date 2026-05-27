@@ -22,6 +22,7 @@ declare global {
         hasApiKey: () => Promise<boolean>
         getProviders: () => Promise<{ name: string; id: string }[]>
         setProvider: (id: string) => Promise<void>
+        testConnection: () => Promise<boolean>
         diagnose: (params: {
           stageId: string
           stageName: string
