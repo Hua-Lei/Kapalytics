@@ -222,7 +222,7 @@ function App() {
       {!leftCollapsed && (
         <div className="panel-body">
           {pdfUrl ? (
-            <embed src={pdfUrl} type="application/pdf" className="pdf-viewer" />
+            <webview src={pdfUrl} className="pdf-viewer" />
           ) : (
             <div className="empty-state">
               <div className="upload-area">

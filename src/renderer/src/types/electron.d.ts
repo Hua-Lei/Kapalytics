@@ -8,3 +8,15 @@ declare global {
     }
   }
 }
+
+declare namespace JSX {
+  interface IntrinsicElements {
+    webview: React.DetailedHTMLProps<
+      React.HTMLAttributes<HTMLElement> & {
+        src?: string
+        ref?: React.Ref<HTMLElement>
+      },
+      HTMLElement
+    >
+  }
+}
