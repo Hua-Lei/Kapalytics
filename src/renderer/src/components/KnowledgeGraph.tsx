@@ -392,15 +392,11 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
         <g transform={`translate(${offset.x},${offset.y}) scale(${scale})`}>
           <g className="graph-edges">
             {graph.edges.map((edge) => {
-              const sc = getNodeCenter(
-                graph.nodes.find((n) => n.id === edge.sourceId)!,
-                getPos(edge.sourceId)
-              )
-              const tc = getNodeCenter(
-                graph.nodes.find((n) => n.id === edge.targetId)!,
-                getPos(edge.targetId)
-              )
-              if (!sc || !tc) return null
+              const srcNode = graph.nodes.find((n) => n.id === edge.sourceId)
+              const tgtNode = graph.nodes.find((n) => n.id === edge.targetId)
+              if (!srcNode || !tgtNode) return null
+              const sc = getNodeCenter(srcNode, getPos(edge.sourceId))
+              const tc = getNodeCenter(tgtNode, getPos(edge.targetId))
               return (
                 <g key={edge.id}>
                   <line

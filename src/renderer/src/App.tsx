@@ -51,16 +51,35 @@ function App() {
 
   // Check API key status on mount
   useEffect(() => {
-    window.electronAPI.llm.hasApiKey().then(setHasApiConfigured)
+    safeApi.hasKey().then(setHasApiConfigured).catch(() => {})
   }, [])
+
+  function isValidSavedData(data: Record<string, unknown>): boolean {
+    if (data.activeTab !== undefined && !['graph', 'learning'].includes(String(data.activeTab)))
+      return false
+    if (data.graph !== undefined && typeof data.graph === 'object') {
+      const g = data.graph as Record<string, unknown>
+      if (!Array.isArray(g.nodes) || !Array.isArray(g.edges)) return false
+      const nodeIds = new Set((g.nodes as Array<{ id?: string }>).map((n) => n.id).filter(Boolean))
+      for (const e of g.edges as Array<{ sourceId?: string; targetId?: string }>) {
+        if (e.sourceId && !nodeIds.has(e.sourceId)) return false
+        if (e.targetId && !nodeIds.has(e.targetId)) return false
+      }
+    }
+    return true
+  }
 
   // Load saved state on mount
   useEffect(() => {
-    window.electronAPI.storage
+    safeApi
       .load()
       .then((saved) => {
         if (saved && typeof saved === 'object') {
           const data = saved as Record<string, unknown>
+          if (!isValidSavedData(data)) {
+            console.warn('[App] Saved data failed validation, using defaults')
+            return
+          }
           if (Array.isArray(data.stages)) setStages(data.stages as Stage[])
           if (data.answers && typeof data.answers === 'object')
             setAnswers(data.answers as Record<string, string>)
@@ -68,8 +87,8 @@ function App() {
             setDiagnosisResults(data.diagnosisResults as Record<string, DiagnosisResult>)
           if (typeof data.pdfUrl === 'string') setPdfUrl(data.pdfUrl)
           if (typeof data.activeTab === 'string') setActiveTab(data.activeTab as ActiveTab)
-        if (typeof data.paperAbstract === 'string') setPaperAbstract(data.paperAbstract)
-        if (data.graph && typeof data.graph === 'object') setGraph(data.graph as KGType)
+          if (typeof data.paperAbstract === 'string') setPaperAbstract(data.paperAbstract)
+          if (data.graph && typeof data.graph === 'object') setGraph(data.graph as KGType)
         }
       })
       .catch(() => {})
@@ -82,7 +101,7 @@ function App() {
     if (!hydrated) return
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(() => {
-      window.electronAPI.storage.save({ stages, answers, diagnosisResults, pdfUrl, activeTab, paperAbstract, graph })
+      safeApi.save({ stages, answers, diagnosisResults, pdfUrl, activeTab, paperAbstract, graph })
     }, 500)
     return () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current)
@@ -104,9 +123,9 @@ function App() {
     let result: DiagnosisResult
     const stage = stages.find((s) => s.id === stageId)!
     try {
-      const hasKey = await window.electronAPI.llm.hasApiKey()
+      const hasKey = await safeApi.hasKey()
       if (hasKey) {
-        result = await window.electronAPI.llm.diagnose({
+        result = await safeApi.diagnose({
           stageId,
           stageName: stage.name,
           taskDescription: stage.task,
@@ -273,9 +292,63 @@ function App() {
     )
   }
 
+  const safeApi = {
+    hasKey: () => window.electronAPI?.llm?.hasApiKey?.().catch(() => false) ?? Promise.resolve(false),
+    testConn: () => window.electronAPI?.llm?.testConnection?.().catch(() => false) ?? Promise.resolve(false),
+    diagnose: (p: Parameters<Window['electronAPI']['llm']['diagnose']>[0]) =>
+      window.electronAPI?.llm?.diagnose?.(p) ?? Promise.reject(new Error('API unavailable')),
+    generateGraph: (abstract: string) =>
+      window.electronAPI?.llm?.generateGraph?.(abstract) ?? Promise.reject(new Error('API unavailable')),
+    generateTasks: (p: Parameters<Window['electronAPI']['llm']['generateTasks']>[0]) =>
+      window.electronAPI?.llm?.generateTasks?.(p) ?? Promise.reject(new Error('API unavailable')),
+    setKey: (k: string) => window.electronAPI?.llm?.setApiKey?.(k) ?? Promise.resolve(),
+    clearKey: () => window.electronAPI?.llm?.clearApiKey?.() ?? Promise.resolve(),
+    load: () => window.electronAPI?.storage?.load?.() ?? Promise.resolve(null),
+    save: (d: unknown) => window.electronAPI?.storage?.save?.(d) ?? Promise.resolve({ ok: false }),
+    selectPdf: () => window.electronAPI?.selectPdf?.() ?? Promise.resolve(null)
+  }
+
   const handleSelectPdf = async () => {
-    const url = await window.electronAPI.selectPdf()
-    if (url) setPdfUrl(url)
+    try { const url = await safeApi.selectPdf(); if (url) setPdfUrl(url) } catch { /* non-blocking */ }
+  }
+
+  const handleTestConnection = async (): Promise<boolean> => {
+    try { return await safeApi.testConn() } catch { return false }
+  }
+
+  const handleGenerateGraph = async () => {
+    if (!paperAbstract.trim()) return
+    setGenerating(true)
+    setGenError('')
+    try {
+      const generated = await safeApi.generateGraph(paperAbstract.trim())
+      setGraph({
+        nodes: generated.nodes.map((n) => ({ ...n, type: n.type as GraphNode['type'] })),
+        edges: generated.edges
+      })
+      setActiveTab('graph')
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : '生成失败，请检查 API 配置')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleGenerateTasks = async () => {
+    if (!paperAbstract.trim()) return
+    setGenerating(true)
+    setGenError('')
+    try {
+      const generated = await safeApi.generateTasks({
+        paperAbstract: paperAbstract.trim(),
+        stages: stages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
+      })
+      setStages((prev) => prev.map((s) => ({ ...s, task: generated.tasks[s.id] ?? s.task })))
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : '生成失败，请检查 API 配置')
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const leftPanel = (
@@ -344,45 +417,6 @@ function App() {
       )}
     </aside>
   )
-
-  const handleTestConnection = async (): Promise<boolean> => {
-    return window.electronAPI.llm.testConnection()
-  }
-
-  const handleGenerateGraph = async () => {
-    if (!paperAbstract.trim()) return
-    setGenerating(true)
-    setGenError('')
-    try {
-      const generated = await window.electronAPI.llm.generateGraph(paperAbstract.trim())
-      setGraph({
-        nodes: generated.nodes.map((n) => ({ ...n, type: n.type as GraphNode['type'] })),
-        edges: generated.edges
-      })
-      setActiveTab('graph')
-    } catch (err) {
-      setGenError(String(err))
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  const handleGenerateTasks = async () => {
-    if (!paperAbstract.trim()) return
-    setGenerating(true)
-    setGenError('')
-    try {
-      const generated = await window.electronAPI.llm.generateTasks({
-        paperAbstract: paperAbstract.trim(),
-        stages: stages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
-      })
-      setStages((prev) => prev.map((s) => ({ ...s, task: generated.tasks[s.id] ?? s.task })))
-    } catch (err) {
-      setGenError(String(err))
-    } finally {
-      setGenerating(false)
-    }
-  }
 
   function rightPanelBody() {
     if (activeTab === 'graph') {
@@ -547,11 +581,11 @@ function App() {
         hasApiConfigured={hasApiConfigured}
         onClose={() => setSettingsOpen(false)}
         onSaveKey={async (key) => {
-          await window.electronAPI.llm.setApiKey(key)
+          await safeApi.setKey(key)
           setHasApiConfigured(true)
         }}
         onClearKey={async () => {
-          await window.electronAPI.llm.clearApiKey()
+          await safeApi.clearKey()
           setHasApiConfigured(false)
         }}
         onTestConnection={handleTestConnection}

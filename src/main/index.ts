@@ -9,7 +9,6 @@ import { deepseekProvider } from './llm/providers/deepseek'
 // Linux GPU fallback — must run before app ready
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('disable-gpu')
-  app.commandLine.appendSwitch('disable-software-rasterizer')
   app.disableHardwareAcceleration()
 }
 
@@ -40,6 +39,21 @@ function createWindow(): void {
     webPreferences.nodeIntegration = false
     webPreferences.sandbox = true
   })
+
+  // Dev diagnostics: log renderer crashes and console errors
+  if (isDev) {
+    mainWindow.webContents.on('render-process-gone', (_e, details) => {
+      console.error('[Main] Renderer crashed:', details.reason, 'exit:', details.exitCode)
+    })
+    mainWindow.webContents.on('unresponsive', () => {
+      console.warn('[Main] Renderer unresponsive')
+    })
+    mainWindow.webContents.on('console-message', (_e, _level, message) => {
+      if (message.startsWith('[ErrorBoundary]') || message.includes('Error:')) {
+        console.error('[Renderer]', message)
+      }
+    })
+  }
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
