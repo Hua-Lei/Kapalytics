@@ -1,5 +1,6 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 
 const isDev = !app.isPackaged
 
@@ -9,7 +10,8 @@ function createWindow(): void {
     height: 900,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      webviewTag: true
     },
     title: 'Kapalytics - AI Paper Learning Assistant'
   })
@@ -30,7 +32,21 @@ function createWindow(): void {
   }
 }
 
+function registerIpcHandlers(): void {
+  ipcMain.handle('select-pdf', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '选择论文 PDF',
+      filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
+      properties: ['openFile']
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const filePath = result.filePaths[0]
+    return pathToFileURL(filePath).toString()
+  })
+}
+
 app.whenReady().then(() => {
+  registerIpcHandlers()
   createWindow()
 
   app.on('activate', () => {

@@ -76,6 +76,7 @@ function App() {
   const selectedGraphNode =
     graph.nodes.find((n) => n.id === selectedGraphNodeId) ?? null
 
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [fontScale, setFontScale] = useState(1)
   const fontSizes = [0.85, 1, 1.15, 1.3]
 
@@ -199,6 +200,11 @@ function App() {
     )
   }
 
+  const handleSelectPdf = async () => {
+    const url = await window.electronAPI.selectPdf()
+    if (url) setPdfUrl(url)
+  }
+
   const leftPanel = (
     <aside
       className={`panel panel-left ${leftCollapsed ? 'panel--collapsed' : ''}`}
@@ -215,7 +221,18 @@ function App() {
       </div>
       {!leftCollapsed && (
         <div className="panel-body">
-          <div className="empty-state">上传论文 PDF 以开始学习</div>
+          {pdfUrl ? (
+            <embed src={pdfUrl} type="application/pdf" className="pdf-viewer" />
+          ) : (
+            <div className="empty-state">
+              <div className="upload-area">
+                <p>上传论文 PDF 以开始学习</p>
+                <button className="upload-btn" onClick={handleSelectPdf}>
+                  选择 PDF 文件
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </aside>

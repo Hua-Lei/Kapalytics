@@ -548,6 +548,41 @@
   background: var(--color-border);
 }
 
+/* PDF viewer */
+.pdf-viewer {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 4px;
+}
+
+.upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.upload-area p {
+  margin: 0;
+}
+
+.upload-btn {
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.upload-btn:hover {
+  opacity: 0.85;
+}
+
 /* Font size control */
 .font-size-control {
   position: fixed;
