@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { KnowledgeGraph as KG, GraphNode } from '../modules/graph/types'
 
 interface KnowledgeGraphProps {
@@ -17,26 +17,34 @@ const COLORS: Record<string, string> = {
   limitation: '#E67E22'
 }
 
-function getNodeCenter(node: GraphNode): { cx: number; cy: number } {
+const DRAG_THRESHOLD = 3
+
+function getNodeCenter(node: GraphNode, pos: { x: number; y: number }): { cx: number; cy: number } {
   switch (node.type) {
     case 'field':
-      return { cx: node.x, cy: node.y + 25 }
+      return { cx: pos.x, cy: pos.y + 25 }
     case 'concept':
-      return { cx: node.x, cy: node.y }
+      return { cx: pos.x, cy: pos.y }
     case 'problem':
-      return { cx: node.x, cy: node.y }
+      return { cx: pos.x, cy: pos.y }
     case 'method':
-      return { cx: node.x, cy: node.y + 21 }
+      return { cx: pos.x, cy: pos.y + 21 }
     case 'formula':
-      return { cx: node.x, cy: node.y + 21 }
+      return { cx: pos.x, cy: pos.y + 21 }
     case 'experiment':
-      return { cx: node.x, cy: node.y + 20 }
+      return { cx: pos.x, cy: pos.y + 20 }
     case 'limitation':
-      return { cx: node.x, cy: node.y }
+      return { cx: pos.x, cy: pos.y }
   }
 }
 
-function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
+function renderNode(
+  node: GraphNode,
+  pos: { x: number; y: number },
+  selected: boolean,
+  onClick: () => void,
+  onMouseDown: (e: React.MouseEvent) => void
+) {
   const color = COLORS[node.type]
   const strokeW = selected ? 2.5 : 0
   const filter = selected ? 'url(#glow)' : undefined
@@ -46,10 +54,15 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
       const w = 150,
         h = 50
       return (
-        <g onClick={onClick} style={{ cursor: 'pointer' }}>
+        <g
+          onClick={onClick}
+          onMouseDown={onMouseDown}
+          style={{ cursor: 'grab' }}
+          data-node-id={node.id}
+        >
           <rect
-            x={node.x - w / 2}
-            y={node.y}
+            x={pos.x - w / 2}
+            y={pos.y}
             width={w}
             height={h}
             rx={12}
@@ -60,7 +73,7 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
             filter={filter}
             opacity={0.92}
           />
-          <text x={node.x} y={node.y + 29} textAnchor="middle" fill="#fff" fontSize={13}>
+          <text x={pos.x} y={pos.y + 29} textAnchor="middle" fill="#fff" fontSize={13}>
             {node.label}
           </text>
         </g>
@@ -69,10 +82,15 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
     case 'concept': {
       const r = 32
       return (
-        <g onClick={onClick} style={{ cursor: 'pointer' }}>
+        <g
+          onClick={onClick}
+          onMouseDown={onMouseDown}
+          style={{ cursor: 'grab' }}
+          data-node-id={node.id}
+        >
           <circle
-            cx={node.x}
-            cy={node.y}
+            cx={pos.x}
+            cy={pos.y}
             r={r}
             fill={color}
             stroke="#fff"
@@ -80,7 +98,7 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
             filter={filter}
             opacity={0.92}
           />
-          <text x={node.x} y={node.y + 4} textAnchor="middle" fill="#fff" fontSize={11}>
+          <text x={pos.x} y={pos.y + 4} textAnchor="middle" fill="#fff" fontSize={11}>
             {node.label}
           </text>
         </g>
@@ -88,9 +106,14 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
     }
     case 'problem': {
       const s = 44
-      const pts = `${node.x},${node.y - s / 2} ${node.x + s / 2},${node.y} ${node.x},${node.y + s / 2} ${node.x - s / 2},${node.y}`
+      const pts = `${pos.x},${pos.y - s / 2} ${pos.x + s / 2},${pos.y} ${pos.x},${pos.y + s / 2} ${pos.x - s / 2},${pos.y}`
       return (
-        <g onClick={onClick} style={{ cursor: 'pointer' }}>
+        <g
+          onClick={onClick}
+          onMouseDown={onMouseDown}
+          style={{ cursor: 'grab' }}
+          data-node-id={node.id}
+        >
           <polygon
             points={pts}
             fill={color}
@@ -99,7 +122,7 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
             filter={filter}
             opacity={0.92}
           />
-          <text x={node.x} y={node.y + 4} textAnchor="middle" fill="#fff" fontSize={10}>
+          <text x={pos.x} y={pos.y + 4} textAnchor="middle" fill="#fff" fontSize={10}>
             {node.label}
           </text>
         </g>
@@ -109,10 +132,15 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
       const w = 140,
         h = 42
       return (
-        <g onClick={onClick} style={{ cursor: 'pointer' }}>
+        <g
+          onClick={onClick}
+          onMouseDown={onMouseDown}
+          style={{ cursor: 'grab' }}
+          data-node-id={node.id}
+        >
           <rect
-            x={node.x - w / 2}
-            y={node.y}
+            x={pos.x - w / 2}
+            y={pos.y}
             width={w}
             height={h}
             rx={5}
@@ -123,7 +151,7 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
             filter={filter}
             opacity={0.92}
           />
-          <text x={node.x} y={node.y + 25} textAnchor="middle" fill="#fff" fontSize={12}>
+          <text x={pos.x} y={pos.y + 25} textAnchor="middle" fill="#fff" fontSize={12}>
             {node.label}
           </text>
         </g>
@@ -133,9 +161,14 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
       const w = 140,
         h = 42,
         skew = 8
-      const pts = `${node.x - w / 2 + skew},${node.y} ${node.x + w / 2 + skew},${node.y} ${node.x + w / 2 - skew},${node.y + h} ${node.x - w / 2 - skew},${node.y + h}`
+      const pts = `${pos.x - w / 2 + skew},${pos.y} ${pos.x + w / 2 + skew},${pos.y} ${pos.x + w / 2 - skew},${pos.y + h} ${pos.x - w / 2 - skew},${pos.y + h}`
       return (
-        <g onClick={onClick} style={{ cursor: 'pointer' }}>
+        <g
+          onClick={onClick}
+          onMouseDown={onMouseDown}
+          style={{ cursor: 'grab' }}
+          data-node-id={node.id}
+        >
           <polygon
             points={pts}
             fill={color}
@@ -144,7 +177,7 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
             filter={filter}
             opacity={0.92}
           />
-          <text x={node.x} y={node.y + 25} textAnchor="middle" fill="#fff" fontSize={11}>
+          <text x={pos.x} y={pos.y + 25} textAnchor="middle" fill="#fff" fontSize={11}>
             {node.label}
           </text>
         </g>
@@ -154,10 +187,15 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
       const w = 130,
         h = 40
       return (
-        <g onClick={onClick} style={{ cursor: 'pointer' }}>
+        <g
+          onClick={onClick}
+          onMouseDown={onMouseDown}
+          style={{ cursor: 'grab' }}
+          data-node-id={node.id}
+        >
           <rect
-            x={node.x - w / 2}
-            y={node.y}
+            x={pos.x - w / 2}
+            y={pos.y}
             width={w}
             height={h}
             rx={20}
@@ -168,7 +206,7 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
             filter={filter}
             opacity={0.92}
           />
-          <text x={node.x} y={node.y + 24} textAnchor="middle" fill="#fff" fontSize={11}>
+          <text x={pos.x} y={pos.y + 24} textAnchor="middle" fill="#fff" fontSize={11}>
             {node.label}
           </text>
         </g>
@@ -179,19 +217,24 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
       const r = s / 2
       const c = 0.383 * r
       const pts = [
-        [node.x + c, node.y - r],
-        [node.x + r, node.y - c],
-        [node.x + r, node.y + c],
-        [node.x + c, node.y + r],
-        [node.x - c, node.y + r],
-        [node.x - r, node.y + c],
-        [node.x - r, node.y - c],
-        [node.x - c, node.y - r]
+        [pos.x + c, pos.y - r],
+        [pos.x + r, pos.y - c],
+        [pos.x + r, pos.y + c],
+        [pos.x + c, pos.y + r],
+        [pos.x - c, pos.y + r],
+        [pos.x - r, pos.y + c],
+        [pos.x - r, pos.y - c],
+        [pos.x - c, pos.y - r]
       ]
         .map((p) => p.join(','))
         .join(' ')
       return (
-        <g onClick={onClick} style={{ cursor: 'pointer' }}>
+        <g
+          onClick={onClick}
+          onMouseDown={onMouseDown}
+          style={{ cursor: 'grab' }}
+          data-node-id={node.id}
+        >
           <polygon
             points={pts}
             fill={color}
@@ -200,7 +243,7 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
             filter={filter}
             opacity={0.92}
           />
-          <text x={node.x} y={node.y + 4} textAnchor="middle" fill="#fff" fontSize={9}>
+          <text x={pos.x} y={pos.y + 4} textAnchor="middle" fill="#fff" fontSize={9}>
             {node.label}
           </text>
         </g>
@@ -211,14 +254,90 @@ function renderNode(node: GraphNode, selected: boolean, onClick: () => void) {
 
 function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+
+  const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(() => {
+    const m = new Map<string, { x: number; y: number }>()
+    graph.nodes.forEach((n) => m.set(n.id, { x: n.x, y: n.y }))
+    return m
+  })
+
+  // Sync positions when graph changes (e.g., new paper loaded in future)
+  useEffect(() => {
+    const m = new Map<string, { x: number; y: number }>()
+    graph.nodes.forEach((n) => m.set(n.id, { x: n.x, y: n.y }))
+    setPositions(m)
+  }, [graph])
+
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const panning = useRef(false)
-  const lastPos = useRef({ x: 0, y: 0 })
-  const draggingOnNode = useRef(false)
+
+  const dragRef = useRef<{
+    type: 'node' | 'pan' | null
+    nodeId?: string
+    startX: number
+    startY: number
+    startPosX: number
+    startPosY: number
+    moved: boolean
+  }>({ type: null, startX: 0, startY: 0, startPosX: 0, startPosY: 0, moved: false })
 
   if (graph.nodes.length === 0) {
     return <div className="empty-state">论文解析后将在此展示知识图谱</div>
+  }
+
+  const getPos = (nodeId: string) => positions.get(nodeId) ?? { x: 0, y: 0 }
+
+  const handleNodeMouseDown = (nodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    dragRef.current = {
+      type: 'node',
+      nodeId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startPosX: getPos(nodeId).x,
+      startPosY: getPos(nodeId).y,
+      moved: false
+    }
+  }
+
+  const handleSvgMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    dragRef.current = { type: 'pan', startX: e.clientX, startY: e.clientY, startPosX: offset.x, startPosY: offset.y, moved: false }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const d = dragRef.current
+    if (!d.type) return
+
+    const dx = e.clientX - d.startX
+    const dy = e.clientY - d.startY
+
+    if (!d.moved && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
+      d.moved = true
+    }
+
+    if (!d.moved) return
+
+    if (d.type === 'node' && d.nodeId) {
+      setPositions((prev) => {
+        const next = new Map(prev)
+        next.set(d.nodeId!, {
+          x: d.startPosX + dx / scale,
+          y: d.startPosY + dy / scale
+        })
+        return next
+      })
+    } else if (d.type === 'pan') {
+      setOffset({ x: d.startPosX + dx, y: d.startPosY + dy })
+    }
+  }
+
+  const handleMouseUp = () => {
+    const d = dragRef.current
+    if (d.type === 'node' && d.nodeId && !d.moved) {
+      onNodeSelect(d.nodeId)
+    }
+    dragRef.current = { type: null, startX: 0, startY: 0, startPosX: 0, startPosY: 0, moved: false }
   }
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -237,30 +356,12 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
     }))
   }
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0) {
-      panning.current = true
-      lastPos.current = { x: e.clientX, y: e.clientY }
-      e.stopPropagation()
-    }
-  }
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!panning.current) return
-    const dx = e.clientX - lastPos.current.x
-    const dy = e.clientY - lastPos.current.y
-    lastPos.current = { x: e.clientX, y: e.clientY }
-    setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }))
-  }
-
-  const handleMouseUp = () => {
-    panning.current = false
-  }
-
   const resetView = () => {
     setScale(1)
     setOffset({ x: 0, y: 0 })
   }
+
+  const isDragging = dragRef.current.type === 'pan' && dragRef.current.moved
 
   return (
     <div className="knowledge-graph">
@@ -268,9 +369,9 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
         ref={svgRef}
         viewBox="0 0 800 860"
         preserveAspectRatio="xMidYMid meet"
-        style={{ width: '100%', height: '100%', cursor: panning.current ? 'grabbing' : 'grab' }}
+        style={{ width: '100%', height: '100%', cursor: isDragging ? 'grabbing' : 'grab' }}
         onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
+        onMouseDown={handleSvgMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -291,11 +392,15 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
         <g transform={`translate(${offset.x},${offset.y}) scale(${scale})`}>
           <g className="graph-edges">
             {graph.edges.map((edge) => {
-              const src = graph.nodes.find((n) => n.id === edge.sourceId)
-              const tgt = graph.nodes.find((n) => n.id === edge.targetId)
-              if (!src || !tgt) return null
-              const sc = getNodeCenter(src)
-              const tc = getNodeCenter(tgt)
+              const sc = getNodeCenter(
+                graph.nodes.find((n) => n.id === edge.sourceId)!,
+                getPos(edge.sourceId)
+              )
+              const tc = getNodeCenter(
+                graph.nodes.find((n) => n.id === edge.targetId)!,
+                getPos(edge.targetId)
+              )
+              if (!sc || !tc) return null
               return (
                 <g key={edge.id}>
                   <line
@@ -336,7 +441,13 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
 
           <g className="graph-nodes">
             {graph.nodes.map((node) =>
-              renderNode(node, node.id === selectedNodeId, () => onNodeSelect(node.id))
+              renderNode(
+                node,
+                getPos(node.id),
+                node.id === selectedNodeId,
+                () => {},
+                (e) => handleNodeMouseDown(node.id, e)
+              )
             )}
           </g>
         </g>
