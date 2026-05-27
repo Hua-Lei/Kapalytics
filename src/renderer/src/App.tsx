@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import CenterPanel from './components/CenterPanel'
 import NodeDetailPanel from './components/NodeDetailPanel'
+import MathText from './components/MathText'
 import { mockStages } from './mock/stages'
 import { mockKnowledgeGraph } from './mock/knowledgeGraph'
 import { Stage } from './types'
-import { KnowledgeGraph as KGType, GraphNode } from './modules/graph/types'
 import './App.css'
 
 type ActiveTab = 'graph' | 'learning'
@@ -32,6 +32,18 @@ function App() {
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
   const selectedGraphNode =
     graph.nodes.find((n) => n.id === selectedGraphNodeId) ?? null
+
+  const [fontScale, setFontScale] = useState(1)
+  const fontSizes = [0.85, 1, 1.15, 1.3]
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font-scale', String(fontScale))
+  }, [fontScale])
+
+  const cycleFontSize = () => {
+    const idx = fontSizes.indexOf(fontScale)
+    setFontScale(fontSizes[(idx + 1) % fontSizes.length])
+  }
 
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT)
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT)
@@ -141,7 +153,7 @@ function App() {
           阶段 {selectedStage.order} · {statusText[selectedStage.status]}
         </div>
         <h3 className="stage-detail__title">{selectedStage.name}</h3>
-        <p className="stage-detail__description">{selectedStage.description}</p>
+        <p className="stage-detail__description"><MathText text={selectedStage.description} /></p>
 
         {selectedStage.status === 'not_started' && (
           <div className="stage-actions">
@@ -154,7 +166,7 @@ function App() {
         {(selectedStage.status === 'in_progress' || selectedStage.status === 'needs_review') && (
           <div className="stage-task-area">
             <div className="task-label">阶段任务</div>
-            <p className="task-prompt">{selectedStage.task}</p>
+            <p className="task-prompt"><MathText text={selectedStage.task} /></p>
             <textarea
               className="task-answer-input"
               placeholder="在此输入你的答案..."
@@ -216,6 +228,12 @@ function App() {
       )}
 
       {rightPanel}
+
+      <div className="font-size-control">
+        <button className="font-size-btn" onClick={cycleFontSize} title="调整字体大小">
+          A<span className="font-size-label">{Math.round(fontScale * 100)}%</span>
+        </button>
+      </div>
     </div>
   )
 }
