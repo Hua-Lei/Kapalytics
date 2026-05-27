@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import CenterPanel from './components/CenterPanel'
 import NodeDetailPanel from './components/NodeDetailPanel'
 import MathText from './components/MathText'
+import PdfViewer from './components/PdfViewer'
 import { mockStages } from './mock/stages'
 import { mockKnowledgeGraph } from './mock/knowledgeGraph'
 import { Stage } from './types'
@@ -222,7 +223,12 @@ function App() {
       {!leftCollapsed && (
         <div className="panel-body">
           {pdfUrl ? (
-            <webview src={pdfUrl} className="pdf-viewer" />
+            <PdfViewer
+              pdfUrl={pdfUrl}
+              onTextSelect={(sel) => console.log('PDF text selected:', sel)}
+              onPageChange={(page) => console.log('PDF page changed:', page)}
+              onHighlightClick={(id) => console.log('PDF highlight clicked:', id)}
+            />
           ) : (
             <div className="empty-state">
               <div className="upload-area">
