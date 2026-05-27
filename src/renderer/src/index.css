@@ -5,13 +5,42 @@
 }
 
 :root {
+  /* Colors */
   --color-bg: #1a1a2e;
   --color-surface: #16213e;
   --color-border: #0f3460;
   --color-accent: #e94560;
+  --color-accent-hover: #f0607a;
   --color-text: #eaeaea;
   --color-text-muted: #8888aa;
-  --panel-header-height: 40px;
+  --color-success: #4ecca3;
+  --color-warning: #f0a500;
+  --color-overlay: rgba(0, 0, 0, 0.55);
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  /* Radius */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+
+  /* Typography */
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-md: 14px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* Layout */
+  --header-height: 40px;
+  --panel-header-height: 36px;
   --font-scale: 1;
 }
 
@@ -22,26 +51,14 @@ html, body, #root {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-family);
   background: var(--color-bg);
   color: var(--color-text);
+  font-size: var(--text-md);
 }
 
 /* KaTeX overrides for dark theme */
-.katex {
-  font-size: 1.05em;
-}
-
-.math-inline {
-  display: inline;
-}
-
-.math-inline .katex-display {
-  display: inline;
-  margin: 0;
-}
-
-.math-block {
-  display: block;
-  margin: 10px 0;
-}
+.katex { font-size: 1.05em; }
+.math-inline { display: inline; }
+.math-inline .katex-display { display: inline; margin: 0; }
+.math-block { display: block; margin: 10px 0; }

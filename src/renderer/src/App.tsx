@@ -3,6 +3,8 @@ import CenterPanel from './components/CenterPanel'
 import NodeDetailPanel from './components/NodeDetailPanel'
 import MathText from './components/MathText'
 import PdfViewer from './components/PdfViewer'
+import AppHeader from './components/AppHeader'
+import SettingsModal from './components/SettingsModal'
 import { mockStages } from './mock/stages'
 import { mockKnowledgeGraph } from './mock/knowledgeGraph'
 import { Stage } from './types'
@@ -30,8 +32,7 @@ function App() {
   const [draftAnswer, setDraftAnswer] = useState('')
   const [diagnosisResults, setDiagnosisResults] = useState<Record<string, DiagnosisResult>>({})
   const [diagnosedStageIds, setDiagnosedStageIds] = useState<Set<string>>(new Set())
-  const [showApiSettings, setShowApiSettings] = useState(false)
-  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
 
   // Check API key status on mount
@@ -292,57 +293,8 @@ function App() {
         {!rightCollapsed && <span className="panel-header-title">AI 学习面板</span>}
       </div>
       {!rightCollapsed && (
-        <div className="panel-body panel-body--flex">
-          <div className="panel-body-content">
-            {rightPanelBody()}
-          </div>
-          <div className="api-settings-footer">
-            <button
-              className="api-settings-toggle"
-              onClick={() => setShowApiSettings(!showApiSettings)}
-            >
-              {hasApiConfigured ? 'AI 已配置 (DeepSeek)' : '⚡ 配置 AI API Key'}
-            </button>
-            {showApiSettings && (
-              <div className="api-settings-panel">
-                <div className="task-label">DeepSeek API Key</div>
-                <input
-                  type="password"
-                  className="api-key-input"
-                  placeholder="sk-..."
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                />
-                <div className="stage-actions" style={{ marginTop: 8 }}>
-                  <button
-                    className="stage-btn stage-btn--primary"
-                    onClick={async () => {
-                      if (apiKeyInput.trim()) {
-                        await window.electronAPI.llm.setApiKey(apiKeyInput.trim())
-                        setHasApiConfigured(true)
-                      }
-                      setApiKeyInput('')
-                      setShowApiSettings(false)
-                    }}
-                  >
-                    保存
-                  </button>
-                  {hasApiConfigured && (
-                    <button
-                      className="stage-btn stage-btn--secondary"
-                      onClick={async () => {
-                        await window.electronAPI.llm.clearApiKey()
-                        setHasApiConfigured(false)
-                        setShowApiSettings(false)
-                      }}
-                    >
-                      清除
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+        <div className="panel-body">
+          {rightPanelBody()}
         </div>
       )}
     </aside>
@@ -433,40 +385,75 @@ function App() {
     )
   }
 
+  const handleTestConnection = async (): Promise<boolean> => {
+    try {
+      const hasKey = await window.electronAPI.llm.hasApiKey()
+      if (!hasKey) return false
+      // Simple connectivity test: try a lightweight diagnose call
+      const testStage = stages[0]
+      await window.electronAPI.llm.diagnose({
+        stageId: testStage.id,
+        stageName: testStage.name,
+        taskDescription: 'test connection',
+        userAnswer: 'ping'
+      })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   return (
     <div className="app-container" ref={containerRef}>
-      {leftPanel}
-
-      {!leftCollapsed && (
-        <div className="resize-handle" onMouseDown={() => handleMouseDown('left')} />
-      )}
-
-      <CenterPanel
-        activeTab={activeTab}
-        onTabChange={(tab) => {
-          setActiveTab(tab)
-          setSelectedStageId(null)
-          setSelectedGraphNodeId(null)
-        }}
-        stages={stages}
-        selectedStageId={selectedStageId}
-        onSelectStage={setSelectedStageId}
-        graph={graph}
-        selectedGraphNodeId={selectedGraphNodeId}
-        onSelectGraphNode={setSelectedGraphNodeId}
+      <AppHeader
+        fontScale={fontScale}
+        onCycleFontSize={cycleFontSize}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      {!rightCollapsed && (
-        <div className="resize-handle" onMouseDown={() => handleMouseDown('right')} />
-      )}
+      <div className="app-main">
+        {leftPanel}
 
-      {rightPanel}
+        {!leftCollapsed && (
+          <div className="resize-handle" onMouseDown={() => handleMouseDown('left')} />
+        )}
 
-      <div className="font-size-control">
-        <button className="font-size-btn" onClick={cycleFontSize} title="调整字体大小">
-          A<span className="font-size-label">{Math.round(fontScale * 100)}%</span>
-        </button>
+        <CenterPanel
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab)
+            setSelectedStageId(null)
+            setSelectedGraphNodeId(null)
+          }}
+          stages={stages}
+          selectedStageId={selectedStageId}
+          onSelectStage={setSelectedStageId}
+          graph={graph}
+          selectedGraphNodeId={selectedGraphNodeId}
+          onSelectGraphNode={setSelectedGraphNodeId}
+        />
+
+        {!rightCollapsed && (
+          <div className="resize-handle" onMouseDown={() => handleMouseDown('right')} />
+        )}
+
+        {rightPanel}
       </div>
+
+      <SettingsModal
+        open={settingsOpen}
+        hasApiConfigured={hasApiConfigured}
+        onClose={() => setSettingsOpen(false)}
+        onSaveKey={async (key) => {
+          await window.electronAPI.llm.setApiKey(key)
+          setHasApiConfigured(true)
+        }}
+        onClearKey={async () => {
+          await window.electronAPI.llm.clearApiKey()
+          setHasApiConfigured(false)
+        }}
+        onTestConnection={handleTestConnection}
+      />
     </div>
   )
 }
