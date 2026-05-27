@@ -1,10 +1,11 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
-import { pathToFileURL } from 'url'
+import { pathToFileURL, fileURLToPath } from 'url'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { aiDiagnose, aiGenerateGraph, aiGenerateTasks } from './llm/generate'
 import { callLlm, setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 // Linux GPU fallback — must run before app ready
 if (process.platform === 'linux') {
@@ -20,7 +21,7 @@ function getStoragePath(): string {
 
 const isDev = !app.isPackaged
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -72,9 +73,10 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+  return mainWindow
 }
 
-function registerIpcHandlers(): void {
+function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('select-pdf', async () => {
     const result = await dialog.showOpenDialog({
       title: '选择论文 PDF',
@@ -84,6 +86,28 @@ function registerIpcHandlers(): void {
     if (result.canceled || result.filePaths.length === 0) return null
     const filePath = result.filePaths[0]
     return pathToFileURL(filePath).toString()
+  })
+
+  // PDF text extraction
+  ipcMain.handle('pdf:extract-text', async (_e, fileUrl: string) => {
+    try {
+      const filePath = fileURLToPath(fileUrl)
+      const data = new Uint8Array(readFileSync(filePath))
+      const doc = await pdfjsLib.getDocument({ data, verbosity: 0 }).promise
+      const pages: string[] = []
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i)
+        const content = await page.getTextContent()
+        const text = content.items
+          .map((item) => ('str' in item ? (item as { str: string }).str : ''))
+          .join(' ')
+        pages.push(text)
+      }
+      return pages.join('\n\n')
+    } catch (err) {
+      console.error('[PDF extract]', err)
+      return null
+    }
   })
 
   // LLM handlers
@@ -132,7 +156,8 @@ function registerIpcHandlers(): void {
   )
 
   ipcMain.handle('llm:generate-graph', async (_e, paperAbstract: string) => {
-    return aiGenerateGraph(paperAbstract)
+    const send = (msg: string) => mainWindow.webContents.send('llm:progress', msg)
+    return aiGenerateGraph(paperAbstract, send)
   })
 
   ipcMain.handle(
@@ -141,7 +166,8 @@ function registerIpcHandlers(): void {
       _e,
       params: { paperAbstract: string; stages: { id: string; name: string; description: string }[] }
     ) => {
-      return aiGenerateTasks(params.paperAbstract, params.stages)
+      const send = (msg: string) => mainWindow.webContents.send('llm:progress', msg)
+      return aiGenerateTasks(params.paperAbstract, params.stages, send)
     }
   )
 
@@ -167,8 +193,8 @@ function registerIpcHandlers(): void {
 }
 
 app.whenReady().then(() => {
-  registerIpcHandlers()
-  createWindow()
+  const mainWindow = createWindow()
+  registerIpcHandlers(mainWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

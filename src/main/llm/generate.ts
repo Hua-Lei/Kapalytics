@@ -67,49 +67,63 @@ const GRAPH_SYSTEM_PROMPT = `你是 AI 论文学习助手的"知识定位者"。
 }
 坐标范围 0-800, 0-860，分层排列。8-14 节点，10-16 边。只返回 JSON。`
 
-export async function aiGenerateGraph(paperAbstract: string): Promise<GeneratedGraph> {
+type ProgressFn = (msg: string) => void
+
+export async function aiGenerateGraph(
+  paperAbstract: string,
+  onProgress?: ProgressFn
+): Promise<GeneratedGraph> {
   if (!hasApiKey()) throw new Error('no_api_key')
 
+  onProgress?.('正在分析论文结构...')
   const res = await callLlm({
     messages: [
       { role: 'system', content: GRAPH_SYSTEM_PROMPT },
-      { role: 'user', content: `论文摘要：${paperAbstract}\n\n生成知识图谱 JSON。` }
+      { role: 'user', content: `论文内容：${paperAbstract.slice(0, 12000)}\n\n生成知识图谱 JSON。` }
     ],
-    maxTokens: 4096,
+    maxTokens: 8192,
     temperature: 0.3
   })
 
+  onProgress?.('正在解析知识图谱节点...')
   const text = res.content.trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('无法解析图谱 JSON')
-  return JSON.parse(jsonMatch[0])
+  const graph = JSON.parse(jsonMatch[0])
+  onProgress?.(`已生成 ${graph.nodes?.length ?? 0} 个节点，${graph.edges?.length ?? 0} 条边`)
+  return graph
 }
 
 export async function aiGenerateTasks(
   paperAbstract: string,
-  stages: { id: string; name: string; description: string }[]
+  stages: { id: string; name: string; description: string }[],
+  onProgress?: ProgressFn
 ): Promise<GeneratedTasks> {
   if (!hasApiKey()) throw new Error('no_api_key')
 
   const stageList = stages.map((s) => `- ${s.id}: ${s.name}（${s.description}）`).join('\n')
+  onProgress?.('正在为 7 个阶段生成任务...')
 
   const res = await callLlm({
     messages: [
       {
         role: 'system',
-        content: `你是 AI 论文学习助手的"提问者"。根据论文摘要和阶段定义，为每个学习阶段生成具体任务。任务需包含 LaTeX 公式（用 $ 或 $$ 包裹）。输出严格 JSON：{ "tasks": { "stage_id": "任务描述" } }。只返回 JSON。`
+        content: `你是 AI 论文学习助手的"提问者"。根据论文内容和阶段定义，为每个学习阶段生成具体任务。任务需包含 LaTeX 公式（用 $ 或 $$ 包裹）。输出严格 JSON：{ "tasks": { "stage_id": "任务描述" } }。只返回 JSON。`
       },
       {
         role: 'user',
-        content: `论文摘要：${paperAbstract}\n\n阶段列表：\n${stageList}\n\n生成任务 JSON。`
+        content: `论文内容：${paperAbstract.slice(0, 12000)}\n\n阶段列表：\n${stageList}\n\n生成任务 JSON。`
       }
     ],
-    maxTokens: 4096,
+    maxTokens: 8192,
     temperature: 0.5
   })
 
+  onProgress?.('正在解析阶段任务...')
   const text = res.content.trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('无法解析任务 JSON')
-  return JSON.parse(jsonMatch[0])
+  const tasks = JSON.parse(jsonMatch[0])
+  onProgress?.('任务生成完成')
+  return tasks
 }

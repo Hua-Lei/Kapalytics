@@ -10,6 +10,13 @@ export interface DiagnosisResult {
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   selectPdf: (): Promise<string | null> => ipcRenderer.invoke('select-pdf'),
+  extractPdfText: (fileUrl: string): Promise<string | null> =>
+    ipcRenderer.invoke('pdf:extract-text', fileUrl),
+  onLlmProgress: (cb: (msg: string) => void) => {
+    const handler = (_e: unknown, msg: string) => cb(msg)
+    ipcRenderer.on('llm:progress', handler)
+    return () => { ipcRenderer.removeListener('llm:progress', handler) }
+  },
 
   // LLM API
   llm: {

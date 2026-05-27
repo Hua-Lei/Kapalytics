@@ -37,7 +37,7 @@ export async function callLlm(request: LlmRequest): Promise<LlmResponse> {
   const provider = currentProvider
   const body = provider.buildBody(request, provider.model)
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30000)
+  const timeout = setTimeout(() => controller.abort(), 90000)
 
   try {
     const res = await fetch(provider.endpoint, {

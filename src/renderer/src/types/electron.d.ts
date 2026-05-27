@@ -12,6 +12,8 @@ declare global {
     electronAPI: {
       platform: string
       selectPdf: () => Promise<string | null>
+      extractPdfText: (fileUrl: string) => Promise<string | null>
+      onLlmProgress: (cb: (msg: string) => void) => () => void
       storage: {
         save: (data: unknown) => Promise<{ ok: boolean; error?: string }>
         load: () => Promise<unknown>

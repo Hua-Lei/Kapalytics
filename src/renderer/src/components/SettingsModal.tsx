@@ -54,7 +54,7 @@ function SettingsModal({
             <h3 className="modal__section-title">API 配置</h3>
             <div className="modal__field">
               <label className="modal__label">服务商</label>
-              <span className="modal__value">DeepSeek (deepseek-v4-pro)</span>
+              <span className="modal__value">DeepSeek (deepseek-v4-flash)</span>
             </div>
             <div className="modal__field">
               <label className="modal__label">API Key</label>

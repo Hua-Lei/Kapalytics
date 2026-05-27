@@ -903,6 +903,13 @@
   margin: 0;
 }
 
+.gen-progress {
+  font-size: var(--text-xs);
+  color: var(--color-success);
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* Knowledge graph */
 .knowledge-graph {
   width: 100%;

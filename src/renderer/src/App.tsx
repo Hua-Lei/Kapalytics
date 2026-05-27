@@ -47,6 +47,8 @@ function App() {
   const [paperAbstract, setPaperAbstract] = useState('')
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
+  const [genProgress, setGenProgress] = useState('')
+  const [extractedText, setExtractedText] = useState('')
   const [fontScale, setFontScale] = useState(1)
 
   // Check API key status on mount
@@ -317,7 +319,8 @@ function App() {
     clearKey: () => window.electronAPI?.llm?.clearApiKey?.() ?? Promise.resolve(),
     load: () => window.electronAPI?.storage?.load?.() ?? Promise.resolve(null),
     save: (d: unknown) => window.electronAPI?.storage?.save?.(d) ?? Promise.resolve({ ok: false }),
-    selectPdf: () => window.electronAPI?.selectPdf?.() ?? Promise.resolve(null)
+    selectPdf: () => window.electronAPI?.selectPdf?.() ?? Promise.resolve(null),
+    extractPdfText: (url: string) => window.electronAPI?.extractPdfText?.(url) ?? Promise.resolve(null)
   }
 
   const handleSelectPdf = async () => {
@@ -326,6 +329,58 @@ function App() {
 
   const handleTestConnection = async (): Promise<boolean> => {
     try { return await safeApi.testConn() } catch { return false }
+  }
+
+  const handleAnalyzePaper = async () => {
+    if (!pdfUrl) return
+    setGenerating(true)
+    setGenError('')
+    setGenProgress('正在提取 PDF 文本...')
+
+    try {
+      // Step 1: Extract text
+      const text = await safeApi.extractPdfText(pdfUrl)
+      if (!text || text.trim().length < 50) {
+        setGenError('PDF 文本提取失败或内容过短，请确认 PDF 包含可读文本。')
+        setGenerating(false)
+        return
+      }
+      setExtractedText(text)
+      setPaperAbstract(text.slice(0, 1000))
+      setGenProgress(`提取完成（${text.length} 字符），正在生成知识图谱...`)
+
+      // Listen for progress
+      const unsub = window.electronAPI?.onLlmProgress?.((msg) => setGenProgress(msg))
+
+      try {
+        // Step 2: Generate graph
+        const graphResult = await safeApi.generateGraph(text)
+        setGraph({
+          nodes: graphResult.nodes.map((n) => ({
+            ...n,
+            type: n.type as GraphNode['type']
+          })),
+          edges: graphResult.edges
+        })
+        setGenProgress('知识图谱生成完成，正在生成学习任务...')
+
+        // Step 3: Generate tasks
+        const taskResult = await safeApi.generateTasks({
+          paperAbstract: text,
+          stages: stages.map((s) => ({ id: s.id, name: s.name, description: s.description }))
+        })
+        setStages((prev) => prev.map((s) => ({ ...s, task: taskResult.tasks[s.id] ?? s.task })))
+
+        setGenProgress('全部生成完成！')
+        setActiveTab('graph')
+      } finally {
+        unsub?.()
+      }
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : '分析失败')
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const handleGenerateGraph = async () => {
@@ -438,8 +493,31 @@ function App() {
       return (
         <div className="panel-section">
           <div className="panel-section__header">
-            <h3 className="panel-section__title">论文信息</h3>
-            <span className="panel-section__hint">粘贴摘要后 AI 自动生成图谱和任务</span>
+            <h3 className="panel-section__title">论文分析</h3>
+            <span className="panel-section__hint">
+              {pdfUrl
+                ? '点击分析自动提取 PDF 文本并生成知识图谱和任务'
+                : '请先在左侧上传 PDF 论文'}
+            </span>
+          </div>
+          {pdfUrl && (
+            <button
+              className="stage-btn stage-btn--primary"
+              onClick={handleAnalyzePaper}
+              disabled={generating}
+              style={{ width: '100%' }}
+            >
+              {generating ? '分析中...' : '开始分析论文'}
+            </button>
+          )}
+          {genProgress && (
+            <p className="gen-progress">{genProgress}</p>
+          )}
+          {genError && <p className="gen-error">{genError}</p>}
+          <div className="panel-section__header" style={{ marginTop: 12 }}>
+            <span className="panel-section__hint">
+              或手动粘贴论文摘要（英文更佳）后单独生成：
+            </span>
           </div>
           <textarea
             className="paper-abstract-input"
