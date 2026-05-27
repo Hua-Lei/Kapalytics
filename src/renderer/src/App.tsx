@@ -5,6 +5,7 @@ import MathText from './components/MathText'
 import { mockStages } from './mock/stages'
 import { mockKnowledgeGraph } from './mock/knowledgeGraph'
 import { Stage } from './types'
+import { diagnose, DiagnosisResult } from './modules/diagnosis/diagnose'
 import './App.css'
 
 type ActiveTab = 'graph' | 'learning'
@@ -26,17 +27,47 @@ function App() {
 
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [draftAnswer, setDraftAnswer] = useState('')
+  const [diagnosisResults, setDiagnosisResults] = useState<Record<string, DiagnosisResult>>({})
+  const [diagnosedStageIds, setDiagnosedStageIds] = useState<Set<string>>(new Set())
 
   const enterStage = (stageId: string) => {
     updateStageStatus(stageId, 'in_progress')
     setDraftAnswer(answers[stageId] ?? '')
+    setDiagnosedStageIds((prev) => {
+      const next = new Set(prev)
+      next.delete(stageId)
+      return next
+    })
   }
   const submitAnswer = (stageId: string) => {
     setAnswers((prev) => ({ ...prev, [stageId]: draftAnswer }))
+    const result = diagnose(stageId, draftAnswer)
+    setDiagnosisResults((prev) => ({ ...prev, [stageId]: result }))
+    setDiagnosedStageIds((prev) => {
+      const next = new Set(prev)
+      next.add(stageId)
+      return next
+    })
+  }
+  const confirmDiagnosis = (stageId: string) => {
     updateStageStatus(stageId, 'completed')
+    setDiagnosedStageIds((prev) => {
+      const next = new Set(prev)
+      next.delete(stageId)
+      return next
+    })
+  }
+  const retryStage = (stageId: string) => {
+    setDiagnosedStageIds((prev) => {
+      const next = new Set(prev)
+      next.delete(stageId)
+      return next
+    })
   }
   const markNeedsReview = (stageId: string) => {
     setAnswers((prev) => ({ ...prev, [stageId]: draftAnswer }))
+    const result = diagnose(stageId, draftAnswer)
+    setDiagnosisResults((prev) => ({ ...prev, [stageId]: result }))
     updateStageStatus(stageId, 'needs_review')
   }
 
@@ -103,6 +134,70 @@ function App() {
       window.removeEventListener('mouseup', handleMouseUp)
     }
   }, [handleMouseMove, handleMouseUp])
+
+  function DiagnosisView({
+    result,
+    stageId,
+    onRetry,
+    onConfirm
+  }: {
+    result: DiagnosisResult | undefined
+    stageId: string
+    onRetry: () => void
+    onConfirm: () => void
+  }) {
+    if (!result) return null
+    const errorLabels: Record<string, string> = {
+      field_misclassification: '领域归类错误',
+      concept_confusion: '概念混淆错误',
+      method_flow_error: '方法流程错误',
+      formula_misunderstanding: '公式理解错误',
+      experiment_misinterpretation: '实验解读错误',
+      contribution_misjudgement: '贡献误判错误',
+      transfer_insufficient: '迁移能力不足'
+    }
+    return (
+      <div className="diagnosis-view">
+        <div className={`diagnosis-banner ${result.isCorrect ? 'diagnosis-banner--pass' : 'diagnosis-banner--fail'}`}>
+          <span className="diagnosis-icon">{result.isCorrect ? '✓' : '!'}</span>
+          <div>
+            <div className="diagnosis-title">
+              {result.isCorrect ? '回答正确' : `诊断：${errorLabels[result.errorType]}`}
+            </div>
+            {!result.isCorrect && (
+              <div className="diagnosis-error-type">{errorLabels[result.errorType]}</div>
+            )}
+          </div>
+        </div>
+
+        <div className="diagnosis-section">
+          <div className="diagnosis-label">反馈</div>
+          <p className="diagnosis-text"><MathText text={result.feedback} /></p>
+        </div>
+
+        <div className="diagnosis-section">
+          <div className="diagnosis-label">补救任务</div>
+          <p className="diagnosis-text"><MathText text={result.remedialTask} /></p>
+        </div>
+
+        <div className="diagnosis-section">
+          <div className="diagnosis-label">你的回答</div>
+          <p className="diagnosis-answer">{answers[stageId]}</p>
+        </div>
+
+        <div className="stage-actions">
+          {!result.isCorrect && (
+            <button className="stage-btn stage-btn--primary" onClick={onRetry}>
+              重新作答
+            </button>
+          )}
+          <button className="stage-btn stage-btn--secondary" onClick={onConfirm}>
+            {result.isCorrect ? '继续' : '标记已理解'}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const leftPanel = (
     <aside
@@ -178,27 +273,38 @@ function App() {
         )}
 
         {(selectedStage.status === 'in_progress' || selectedStage.status === 'needs_review') && (
-          <div className="stage-task-area">
-            <div className="task-label">阶段任务</div>
-            <p className="task-prompt"><MathText text={selectedStage.task} /></p>
-            <textarea
-              className="task-answer-input"
-              placeholder="在此输入你的答案..."
-              rows={4}
-              value={draftAnswer}
-              onChange={(e) => setDraftAnswer(e.target.value)}
-            />
-            <div className="stage-actions">
-              <button className="stage-btn stage-btn--primary" onClick={() => submitAnswer(selectedStage.id)} disabled={!draftAnswer.trim()}>
-                提交答案
-              </button>
-              {selectedStage.status === 'in_progress' && (
-                <button className="stage-btn stage-btn--secondary" onClick={() => markNeedsReview(selectedStage.id)} disabled={!draftAnswer.trim()}>
-                  稍后复习
-                </button>
-              )}
-            </div>
-          </div>
+          <>
+            {diagnosedStageIds.has(selectedStage.id) ? (
+              <DiagnosisView
+                result={diagnosisResults[selectedStage.id]}
+                stageId={selectedStage.id}
+                onRetry={() => retryStage(selectedStage.id)}
+                onConfirm={() => confirmDiagnosis(selectedStage.id)}
+              />
+            ) : (
+              <div className="stage-task-area">
+                <div className="task-label">阶段任务</div>
+                <p className="task-prompt"><MathText text={selectedStage.task} /></p>
+                <textarea
+                  className="task-answer-input"
+                  placeholder="在此输入你的答案..."
+                  rows={4}
+                  value={draftAnswer}
+                  onChange={(e) => setDraftAnswer(e.target.value)}
+                />
+                <div className="stage-actions">
+                  <button className="stage-btn stage-btn--primary" onClick={() => submitAnswer(selectedStage.id)} disabled={!draftAnswer.trim()}>
+                    提交答案
+                  </button>
+                  {selectedStage.status === 'in_progress' && (
+                    <button className="stage-btn stage-btn--secondary" onClick={() => markNeedsReview(selectedStage.id)} disabled={!draftAnswer.trim()}>
+                      稍后复习
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {selectedStage.status === 'completed' && (
