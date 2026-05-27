@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import CenterPanel from './components/CenterPanel'
-import RightPanel from './components/RightPanel'
+import NodeDetailPanel from './components/NodeDetailPanel'
 import { mockStages } from './mock/stages'
+import { mockKnowledgeGraph } from './mock/knowledgeGraph'
 import { Stage } from './types'
+import { KnowledgeGraph as KGType, GraphNode } from './modules/graph/types'
 import './App.css'
 
 type ActiveTab = 'graph' | 'learning'
@@ -17,6 +19,11 @@ function App() {
   const [stages] = useState<Stage[]>(mockStages)
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
   const selectedStage = stages.find((s) => s.id === selectedStageId) ?? null
+
+  const [graph] = useState<KGType>(mockKnowledgeGraph)
+  const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
+  const selectedGraphNode =
+    graph.nodes.find((n) => n.id === selectedGraphNodeId) ?? null
 
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT)
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT)
@@ -108,6 +115,9 @@ function App() {
   )
 
   function rightPanelBody() {
+    if (activeTab === 'graph') {
+      return <NodeDetailPanel node={selectedGraphNode} />
+    }
     if (!selectedStage) {
       return <div className="empty-state">选择左侧学习阶段以查看详情</div>
     }
@@ -145,10 +155,14 @@ function App() {
         onTabChange={(tab) => {
           setActiveTab(tab)
           setSelectedStageId(null)
+          setSelectedGraphNodeId(null)
         }}
         stages={stages}
         selectedStageId={selectedStageId}
         onSelectStage={setSelectedStageId}
+        graph={graph}
+        selectedGraphNodeId={selectedGraphNodeId}
+        onSelectGraphNode={setSelectedGraphNodeId}
       />
 
       {!rightCollapsed && (

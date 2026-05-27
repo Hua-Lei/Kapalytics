@@ -1,5 +1,7 @@
 import { Stage } from '../types'
 import LearningPath from './LearningPath'
+import KnowledgeGraph from './KnowledgeGraph'
+import { KnowledgeGraph as KGType } from '../modules/graph/types'
 
 type ActiveTab = 'graph' | 'learning'
 
@@ -9,6 +11,9 @@ interface CenterPanelProps {
   stages: Stage[]
   selectedStageId: string | null
   onSelectStage: (stageId: string) => void
+  graph: KGType
+  selectedGraphNodeId: string | null
+  onSelectGraphNode: (nodeId: string) => void
 }
 
 function CenterPanel({
@@ -16,7 +21,10 @@ function CenterPanel({
   onTabChange,
   stages,
   selectedStageId,
-  onSelectStage
+  onSelectStage,
+  graph,
+  selectedGraphNodeId,
+  onSelectGraphNode
 }: CenterPanelProps) {
   return (
     <main className="panel panel-center">
@@ -38,7 +46,11 @@ function CenterPanel({
       </div>
       <div className="panel-body">
         {activeTab === 'graph' ? (
-          <div className="empty-state">知识图谱将在上传论文后生成</div>
+          <KnowledgeGraph
+            graph={graph}
+            selectedNodeId={selectedGraphNodeId}
+            onNodeSelect={onSelectGraphNode}
+          />
         ) : (
           <LearningPath
             stages={stages}
