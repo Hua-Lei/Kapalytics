@@ -66,14 +66,13 @@ function App() {
   const leftPanel = (
     <aside
       className={`panel panel-left ${leftCollapsed ? 'panel--collapsed' : ''}`}
-      style={{ width: leftCollapsed ? 0 : leftWidth }}
+      style={{ width: leftCollapsed ? 32 : leftWidth }}
     >
       <div className="panel-header">
-        {!leftCollapsed && <span>PDF 阅读区</span>}
+        {!leftCollapsed && <span className="panel-header-title">PDF 阅读区</span>}
         <button
           className="panel-collapse-btn"
           onClick={() => setLeftCollapsed(!leftCollapsed)}
-          title={leftCollapsed ? '展开' : '折叠'}
         >
           {leftCollapsed ? '▶' : '◀'}
         </button>
@@ -89,17 +88,16 @@ function App() {
   const rightPanel = (
     <aside
       className={`panel panel-right ${rightCollapsed ? 'panel--collapsed' : ''}`}
-      style={{ width: rightCollapsed ? 0 : rightWidth }}
+      style={{ width: rightCollapsed ? 32 : rightWidth }}
     >
       <div className="panel-header">
         <button
           className="panel-collapse-btn"
           onClick={() => setRightCollapsed(!rightCollapsed)}
-          title={rightCollapsed ? '展开' : '折叠'}
         >
           {rightCollapsed ? '◀' : '▶'}
         </button>
-        {!rightCollapsed && <span>AI 学习面板</span>}
+        {!rightCollapsed && <span className="panel-header-title">AI 学习面板</span>}
       </div>
       {!rightCollapsed && (
         <div className="panel-body">
