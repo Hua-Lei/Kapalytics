@@ -37,7 +37,9 @@ function App() {
   const fontSizes = [0.85, 1, 1.15, 1.3]
 
   useEffect(() => {
-    document.getElementById('root')!.style.zoom = String(fontScale)
+    document.querySelectorAll('.panel-body').forEach((el) => {
+      ;(el as HTMLElement).style.zoom = String(fontScale)
+    })
   }, [fontScale])
 
   const cycleFontSize = () => {
