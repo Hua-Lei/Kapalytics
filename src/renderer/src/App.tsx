@@ -16,9 +16,17 @@ const DEFAULT_RIGHT = 340
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('learning')
-  const [stages] = useState<Stage[]>(mockStages)
+  const [stages, setStages] = useState<Stage[]>(mockStages)
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
   const selectedStage = stages.find((s) => s.id === selectedStageId) ?? null
+
+  const updateStageStatus = (stageId: string, status: Stage['status']) => {
+    setStages((prev) => prev.map((s) => (s.id === stageId ? { ...s, status } : s)))
+  }
+
+  const enterStage = (stageId: string) => updateStageStatus(stageId, 'in_progress')
+  const completeStage = (stageId: string) => updateStageStatus(stageId, 'completed')
+  const markNeedsReview = (stageId: string) => updateStageStatus(stageId, 'needs_review')
 
   const [graph] = useState<KGType>(mockKnowledgeGraph)
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
@@ -129,15 +137,53 @@ function App() {
     }
     return (
       <div className="stage-detail">
-        <div className="stage-detail__meta">
+        <div className={`stage-detail__meta stage-detail__meta--${selectedStage.status}`}>
           阶段 {selectedStage.order} · {statusText[selectedStage.status]}
         </div>
         <h3 className="stage-detail__title">{selectedStage.name}</h3>
         <p className="stage-detail__description">{selectedStage.description}</p>
-        <div className="stage-detail__task">
-          <div className="task-label">阶段任务</div>
-          <div className="task-placeholder">任务将在选择论文后由 AI 自动生成</div>
-        </div>
+
+        {selectedStage.status === 'not_started' && (
+          <div className="stage-actions">
+            <button className="stage-btn stage-btn--primary" onClick={() => enterStage(selectedStage.id)}>
+              开始学习
+            </button>
+          </div>
+        )}
+
+        {(selectedStage.status === 'in_progress' || selectedStage.status === 'needs_review') && (
+          <div className="stage-task-area">
+            <div className="task-label">阶段任务</div>
+            <p className="task-prompt">{selectedStage.task}</p>
+            <textarea
+              className="task-answer-input"
+              placeholder="在此输入你的答案..."
+              rows={4}
+            />
+            <div className="stage-actions">
+              <button className="stage-btn stage-btn--primary" onClick={() => completeStage(selectedStage.id)}>
+                标记完成
+              </button>
+              {selectedStage.status === 'in_progress' && (
+                <button className="stage-btn stage-btn--secondary" onClick={() => markNeedsReview(selectedStage.id)}>
+                  稍后复习
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {selectedStage.status === 'completed' && (
+          <div className="stage-completed">
+            <div className="stage-completed__icon">✓</div>
+            <p className="stage-completed__text">你已完成本阶段的学习</p>
+            <div className="stage-actions">
+              <button className="stage-btn stage-btn--secondary" onClick={() => updateStageStatus(selectedStage.id, 'in_progress')}>
+                重新学习
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

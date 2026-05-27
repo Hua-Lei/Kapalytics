@@ -251,6 +251,11 @@
   margin-bottom: 8px;
 }
 
+.stage-detail__meta--not_started { color: #888; }
+.stage-detail__meta--in_progress { color: var(--color-accent); }
+.stage-detail__meta--completed { color: #4ecca3; }
+.stage-detail__meta--needs_review { color: #f0a500; }
+
 .stage-detail__title {
   font-size: 18px;
   color: var(--color-text);
@@ -282,6 +287,111 @@
   font-size: 12px;
   color: #666;
   font-style: italic;
+}
+
+/* Stage task area */
+.stage-task-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-prompt {
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.7;
+  margin: 0;
+  padding: 12px;
+  background: var(--color-bg);
+  border-radius: 6px;
+  border-left: 3px solid var(--color-accent);
+}
+
+.task-answer-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.task-answer-input:focus {
+  border-color: var(--color-accent);
+}
+
+.task-answer-input::placeholder {
+  color: #555;
+}
+
+/* Stage action buttons */
+.stage-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.stage-btn {
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.stage-btn:hover {
+  opacity: 0.85;
+}
+
+.stage-btn--primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.stage-btn--secondary {
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+.stage-btn--secondary:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+/* Completed state */
+.stage-completed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 0;
+}
+
+.stage-completed__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #4ecca3;
+  color: #1a1a2e;
+  font-size: 22px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage-completed__text {
+  font-size: 14px;
+  color: #4ecca3;
+  margin: 0;
 }
 
 /* Knowledge graph */

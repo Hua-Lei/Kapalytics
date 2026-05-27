@@ -6,4 +6,5 @@ export interface Stage {
   name: string
   status: StageStatus
   description: string
+  task: string
 }
