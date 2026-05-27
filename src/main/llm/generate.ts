@@ -34,6 +34,11 @@ export interface GeneratedTasks {
   tasks: Record<string, string>
 }
 
+export interface PaperAnalysisResult {
+  graph: GeneratedGraph
+  tasks: Record<string, string>
+}
+
 export async function aiDiagnose(
   stageId: string,
   stageName: string,
@@ -58,72 +63,86 @@ export async function aiDiagnose(
   }
 }
 
-const GRAPH_SYSTEM_PROMPT = `你是 AI 论文学习助手的"知识定位者"。根据论文摘要生成知识图谱。
-节点类型：field(领域), concept(核心概念), problem(研究问题), method(方法模块), formula(公式算法), experiment(实验), limitation(局限)
-输出严格 JSON：
+const ANALYSIS_SYSTEM_PROMPT = `你是 AI 论文深度学习助手。根据论文全文摘录，一次性生成展示版学习工作台所需数据。
+你的目标不是摘要论文，而是建立“学习这篇论文需要掌握的知识结构”。请优先抽取论文自己的核心问题、方法机制、公式、训练目标、实验验证和局限。
+
+节点类型只能使用：field, concept, problem, method, formula, experiment, limitation。
+节点设计规则：
+- field：论文所在研究位置，不要泛泛写“机器学习”，要写具体方向，例如“语言驱动的参数高效适配”。
+- problem：论文要解决的具体瓶颈，例如“每个任务都要重新微调 LoRA 的成本”。
+- concept：理解论文必须先懂的概念，例如 LoRA、hypernetwork、task embedding、zero-shot adapter generation。
+- method：论文提出的机制，必须来自本文，例如 Text-to-LoRA hypernetwork、LoRA reconstruction training、SFT training。
+- formula：只放关键公式/目标函数/参数化关系；PDF 文本中公式可能被拆散，请优先使用 [Formula candidates extracted from PDF] 中带 Page/y 的候选行，并结合前后页面上下文还原，description 要解释符号含义和它在方法中的作用。
+- experiment：只放用来验证 claim 的实验，例如 compression ratio、zero-shot benchmarks、ablation on task descriptions。
+- limitation：论文方法边界或失败条件，不要编造。
+边设计规则：边要表达学习依赖或论文论证关系，例如“动机”“解决”“生成”“训练目标”“验证”“限制”。不要生成松散同义关系。
+阶段 ID 必须完整包含：field_positioning, problem_motivation, method_overview, formula_algorithm, experiment_analysis, contribution_limitation, transfer_comparison。
+每个阶段任务必须引用当前论文的具体实体/实验/公式，不得使用 Transformer、RNN 翻译等模板内容，除非论文本身讨论它。
+如果论文是 Text-to-LoRA/T2L，图谱应区分：任务描述嵌入、hypernetwork、LoRA A/B 矩阵生成、LoRA reconstruction loss、SFT loss、压缩比实验、zero-shot benchmark、任务描述消融。
+输出严格 JSON，不要 markdown：
 {
-  "nodes": [{ "id": "n1", "type": "field", "label": "节点标签", "description": "简短描述", "x": 400, "y": 50 }],
-  "edges": [{ "id": "e1", "sourceId": "n1", "targetId": "n2", "label": "关系", "directed": true }]
+  "graph": {
+    "nodes": [{ "id": "n1", "type": "field", "label": "节点标签", "description": "面向学习者的简短解释", "x": 400, "y": 50 }],
+    "edges": [{ "id": "e1", "sourceId": "n1", "targetId": "n2", "label": "关系", "directed": true }]
+  },
+  "tasks": {
+    "field_positioning": "阶段任务",
+    "problem_motivation": "阶段任务",
+    "method_overview": "阶段任务",
+    "formula_algorithm": "阶段任务",
+    "experiment_analysis": "阶段任务",
+    "contribution_limitation": "阶段任务",
+    "transfer_comparison": "阶段任务"
+  }
 }
-坐标范围 0-800, 0-860，分层排列。8-14 节点，10-16 边。只返回 JSON。`
+要求：10-14 个节点，12-18 条边；至少包含 1 个 formula 节点和 2 个 experiment 节点。`
 
 type ProgressFn = (msg: string) => void
 
-export async function aiGenerateGraph(
-  paperAbstract: string,
-  onProgress?: ProgressFn
-): Promise<GeneratedGraph> {
-  if (!hasApiKey()) throw new Error('no_api_key')
-
-  onProgress?.('正在分析论文结构...')
-  const res = await callLlm({
-    messages: [
-      { role: 'system', content: GRAPH_SYSTEM_PROMPT },
-      { role: 'user', content: `论文内容：${paperAbstract.slice(0, 12000)}\n\n生成知识图谱 JSON。` }
-    ],
-    maxTokens: 8192,
-    temperature: 0.3
-  })
-
-  onProgress?.('正在解析知识图谱节点...')
-  const text = res.content.trim()
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('无法解析图谱 JSON')
-  const graph = JSON.parse(jsonMatch[0])
-  onProgress?.(`已生成 ${graph.nodes?.length ?? 0} 个节点，${graph.edges?.length ?? 0} 条边`)
-  return graph
+function extractJsonObject(text: string): unknown {
+  const cleaned = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim()
+  const match = cleaned.match(/\{[\s\S]*\}/)
+  if (!match) throw new Error(`无法解析 JSON: ${text.slice(0, 200)}`)
+  return JSON.parse(match[0])
 }
 
-export async function aiGenerateTasks(
-  paperAbstract: string,
-  stages: { id: string; name: string; description: string }[],
+function compactPaperText(text: string): string {
+  const formulaSection = text.match(/\[Formula candidates extracted from PDF\][\s\S]*$/)?.[0] ?? ''
+  const compactBody = text
+    .replace(/\s+/g, ' ')
+    .replace(/References\s+[\s\S]*$/i, '')
+    .trim()
+    .slice(0, 18000)
+  return formulaSection ? `${compactBody}\n\n${formulaSection}` : compactBody
+}
+
+export async function aiAnalyzePaper(
+  paperText: string,
   onProgress?: ProgressFn
-): Promise<GeneratedTasks> {
+): Promise<PaperAnalysisResult> {
   if (!hasApiKey()) throw new Error('no_api_key')
 
-  const stageList = stages.map((s) => `- ${s.id}: ${s.name}（${s.description}）`).join('\n')
-  onProgress?.('正在为 7 个阶段生成任务...')
+  const compactText = compactPaperText(paperText)
+  onProgress?.(`正在压缩论文文本（发送 ${compactText.length} 字符）...`)
 
   const res = await callLlm({
     messages: [
-      {
-        role: 'system',
-        content: `你是 AI 论文学习助手的"提问者"。根据论文内容和阶段定义，为每个学习阶段生成具体任务。任务需包含 LaTeX 公式（用 $ 或 $$ 包裹）。输出严格 JSON：{ "tasks": { "stage_id": "任务描述" } }。只返回 JSON。`
-      },
-      {
-        role: 'user',
-        content: `论文内容：${paperAbstract.slice(0, 12000)}\n\n阶段列表：\n${stageList}\n\n生成任务 JSON。`
-      }
+      { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
+      { role: 'user', content: `论文全文摘录：${compactText}\n\n请生成完整 JSON。` }
     ],
-    maxTokens: 8192,
-    temperature: 0.5
+    maxTokens: 4096,
+    temperature: 0.2,
+    timeoutMs: 180000
   })
 
-  onProgress?.('正在解析阶段任务...')
-  const text = res.content.trim()
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('无法解析任务 JSON')
-  const tasks = JSON.parse(jsonMatch[0])
-  onProgress?.('任务生成完成')
-  return tasks
+  onProgress?.('正在解析 AI 返回的图谱和任务...')
+  const parsed = extractJsonObject(res.content) as Partial<PaperAnalysisResult>
+  if (!parsed.graph || !Array.isArray(parsed.graph.nodes) || !Array.isArray(parsed.graph.edges)) {
+    throw new Error('AI 返回结果缺少 graph.nodes 或 graph.edges')
+  }
+  if (!parsed.tasks || typeof parsed.tasks !== 'object') {
+    throw new Error('AI 返回结果缺少 tasks')
+  }
+  onProgress?.(`已生成 ${parsed.graph.nodes.length} 个节点和 7 个学习阶段任务`)
+  return { graph: parsed.graph, tasks: parsed.tasks }
 }

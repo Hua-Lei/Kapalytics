@@ -2,7 +2,7 @@ import { LlmProvider, LlmRequest } from '../types'
 
 export const deepseekProvider: LlmProvider = {
   name: 'DeepSeek',
-  model: 'deepseek-v4-flash',
+  model: 'deepseek-v4-pro',
   endpoint: 'https://api.deepseek.com/v1/chat/completions',
 
   buildHeaders(apiKey: string) {

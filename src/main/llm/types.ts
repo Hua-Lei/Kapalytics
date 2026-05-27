@@ -7,6 +7,7 @@ export interface LlmRequest {
   messages: LlmMessage[]
   maxTokens?: number
   temperature?: number
+  timeoutMs?: number
 }
 
 export interface LlmResponse {

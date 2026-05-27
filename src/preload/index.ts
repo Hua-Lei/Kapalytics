@@ -9,7 +9,8 @@ export interface DiagnosisResult {
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
-  selectPdf: (): Promise<string | null> => ipcRenderer.invoke('select-pdf'),
+  selectPdf: (): Promise<{ fileUrl: string; filePath: string } | null> => ipcRenderer.invoke('select-pdf'),
+  readPdfFile: (fileUrl: string): Promise<ArrayBuffer | null> => ipcRenderer.invoke('pdf:read-file', fileUrl),
   extractPdfText: (fileUrl: string): Promise<string | null> =>
     ipcRenderer.invoke('pdf:extract-text', fileUrl),
   onLlmProgress: (cb: (msg: string) => void) => {
@@ -33,15 +34,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       taskDescription: string
       userAnswer: string
     }): Promise<DiagnosisResult> => ipcRenderer.invoke('llm:diagnose', params),
-    generateGraph: (paperAbstract: string): Promise<{
-      nodes: { id: string; type: string; label: string; description: string; x: number; y: number }[]
-      edges: { id: string; sourceId: string; targetId: string; label?: string; directed: boolean }[]
-    }> => ipcRenderer.invoke('llm:generate-graph', paperAbstract),
-    generateTasks: (params: {
-      paperAbstract: string
-      stages: { id: string; name: string; description: string }[]
-    }): Promise<{ tasks: Record<string, string> }> =>
-      ipcRenderer.invoke('llm:generate-tasks', params)
+    analyzePaper: (paperText: string): Promise<{
+      graph: {
+        nodes: { id: string; type: string; label: string; description: string; x: number; y: number }[]
+        edges: { id: string; sourceId: string; targetId: string; label?: string; directed: boolean }[]
+      }
+      tasks: Record<string, string>
+    }> => ipcRenderer.invoke('llm:analyze-paper', paperText)
   },
 
   // Storage

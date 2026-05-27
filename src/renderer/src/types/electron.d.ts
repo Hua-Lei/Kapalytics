@@ -11,7 +11,8 @@ declare global {
   interface Window {
     electronAPI: {
       platform: string
-      selectPdf: () => Promise<string | null>
+      selectPdf: () => Promise<{ fileUrl: string; filePath: string } | null>
+      readPdfFile: (fileUrl: string) => Promise<ArrayBuffer | null>
       extractPdfText: (fileUrl: string) => Promise<string | null>
       onLlmProgress: (cb: (msg: string) => void) => () => void
       storage: {
@@ -31,29 +32,14 @@ declare global {
           taskDescription: string
           userAnswer: string
         }) => Promise<DiagnosisResult>
-        generateGraph: (paperAbstract: string) => Promise<{
-          nodes: { id: string; type: string; label: string; description: string; x: number; y: number }[]
-          edges: { id: string; sourceId: string; targetId: string; label?: string; directed: boolean }[]
+        analyzePaper: (paperText: string) => Promise<{
+          graph: {
+            nodes: { id: string; type: string; label: string; description: string; x: number; y: number }[]
+            edges: { id: string; sourceId: string; targetId: string; label?: string; directed: boolean }[]
+          }
+          tasks: Record<string, string>
         }>
-        generateTasks: (params: {
-          paperAbstract: string
-          stages: { id: string; name: string; description: string }[]
-        }) => Promise<{ tasks: Record<string, string> }>
       }
     }
-  }
-}
-
-declare namespace JSX {
-  interface IntrinsicElements {
-    webview: React.DetailedHTMLProps<
-      React.HTMLAttributes<HTMLElement> & {
-        src?: string
-        key?: string | null
-        ref?: React.Ref<HTMLElement>
-        plugins?: boolean | string
-      },
-      HTMLElement
-    >
   }
 }
