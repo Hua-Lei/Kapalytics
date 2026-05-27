@@ -24,9 +24,21 @@ function App() {
     setStages((prev) => prev.map((s) => (s.id === stageId ? { ...s, status } : s)))
   }
 
-  const enterStage = (stageId: string) => updateStageStatus(stageId, 'in_progress')
-  const completeStage = (stageId: string) => updateStageStatus(stageId, 'completed')
-  const markNeedsReview = (stageId: string) => updateStageStatus(stageId, 'needs_review')
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [draftAnswer, setDraftAnswer] = useState('')
+
+  const enterStage = (stageId: string) => {
+    updateStageStatus(stageId, 'in_progress')
+    setDraftAnswer(answers[stageId] ?? '')
+  }
+  const submitAnswer = (stageId: string) => {
+    setAnswers((prev) => ({ ...prev, [stageId]: draftAnswer }))
+    updateStageStatus(stageId, 'completed')
+  }
+  const markNeedsReview = (stageId: string) => {
+    setAnswers((prev) => ({ ...prev, [stageId]: draftAnswer }))
+    updateStageStatus(stageId, 'needs_review')
+  }
 
   const [graph] = useState<KGType>(mockKnowledgeGraph)
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
@@ -173,13 +185,15 @@ function App() {
               className="task-answer-input"
               placeholder="在此输入你的答案..."
               rows={4}
+              value={draftAnswer}
+              onChange={(e) => setDraftAnswer(e.target.value)}
             />
             <div className="stage-actions">
-              <button className="stage-btn stage-btn--primary" onClick={() => completeStage(selectedStage.id)}>
-                标记完成
+              <button className="stage-btn stage-btn--primary" onClick={() => submitAnswer(selectedStage.id)} disabled={!draftAnswer.trim()}>
+                提交答案
               </button>
               {selectedStage.status === 'in_progress' && (
-                <button className="stage-btn stage-btn--secondary" onClick={() => markNeedsReview(selectedStage.id)}>
+                <button className="stage-btn stage-btn--secondary" onClick={() => markNeedsReview(selectedStage.id)} disabled={!draftAnswer.trim()}>
                   稍后复习
                 </button>
               )}
@@ -191,8 +205,14 @@ function App() {
           <div className="stage-completed">
             <div className="stage-completed__icon">✓</div>
             <p className="stage-completed__text">你已完成本阶段的学习</p>
+            {answers[selectedStage.id] && (
+              <div className="stage-answer-saved">
+                <div className="task-label">你的回答</div>
+                <p className="stage-answer-text">{answers[selectedStage.id]}</p>
+              </div>
+            )}
             <div className="stage-actions">
-              <button className="stage-btn stage-btn--secondary" onClick={() => updateStageStatus(selectedStage.id, 'in_progress')}>
+              <button className="stage-btn stage-btn--secondary" onClick={() => enterStage(selectedStage.id)}>
                 重新学习
               </button>
             </div>
