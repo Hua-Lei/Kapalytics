@@ -7,6 +7,7 @@ import { mockStages } from './mock/stages'
 import { mockKnowledgeGraph } from './mock/knowledgeGraph'
 import { Stage } from './types'
 import { diagnose, DiagnosisResult } from './modules/diagnosis/diagnose'
+import { aiDiagnose, hasApiKey, setApiKey, clearApiKey } from './modules/llm'
 import './App.css'
 
 type ActiveTab = 'graph' | 'learning'
@@ -30,6 +31,8 @@ function App() {
   const [draftAnswer, setDraftAnswer] = useState('')
   const [diagnosisResults, setDiagnosisResults] = useState<Record<string, DiagnosisResult>>({})
   const [diagnosedStageIds, setDiagnosedStageIds] = useState<Set<string>>(new Set())
+  const [showApiSettings, setShowApiSettings] = useState(false)
+  const [apiKeyInput, setApiKeyInput] = useState('')
 
   const enterStage = (stageId: string) => {
     updateStageStatus(stageId, 'in_progress')
@@ -40,9 +43,18 @@ function App() {
       return next
     })
   }
-  const submitAnswer = (stageId: string) => {
+  const submitAnswer = async (stageId: string) => {
     setAnswers((prev) => ({ ...prev, [stageId]: draftAnswer }))
-    const result = diagnose(stageId, draftAnswer)
+
+    // Try AI diagnosis first, fall back to mock
+    let result: DiagnosisResult
+    const stage = stages.find((s) => s.id === stageId)!
+    try {
+      result = await aiDiagnose(stageId, stage.name, stage.task, draftAnswer)
+    } catch {
+      result = diagnose(stageId, draftAnswer)
+    }
+
     setDiagnosisResults((prev) => ({ ...prev, [stageId]: result }))
     setDiagnosedStageIds((prev) => {
       const next = new Set(prev)
@@ -278,7 +290,54 @@ function App() {
       return <NodeDetailPanel node={selectedGraphNode} />
     }
     if (!selectedStage) {
-      return <div className="empty-state">选择左侧学习阶段以查看详情</div>
+      return (
+        <div className="empty-state-with-settings">
+          <p className="empty-state-text">选择左侧学习阶段以查看详情</p>
+          <div className="api-settings-area">
+            <button
+              className="api-settings-toggle"
+              onClick={() => setShowApiSettings(!showApiSettings)}
+            >
+              {hasApiKey() ? 'AI 已配置 ●' : '配置 AI ●'}
+            </button>
+            {showApiSettings && (
+              <div className="api-settings-panel">
+                <div className="task-label">Anthropic API Key</div>
+                <input
+                  type="password"
+                  className="api-key-input"
+                  placeholder="sk-ant-..."
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                />
+                <div className="stage-actions" style={{ marginTop: 8 }}>
+                  <button
+                    className="stage-btn stage-btn--primary"
+                    onClick={() => {
+                      if (apiKeyInput.trim()) setApiKey(apiKeyInput.trim())
+                      setApiKeyInput('')
+                      setShowApiSettings(false)
+                    }}
+                  >
+                    保存
+                  </button>
+                  {hasApiKey() && (
+                    <button
+                      className="stage-btn stage-btn--secondary"
+                      onClick={() => {
+                        clearApiKey()
+                        setShowApiSettings(false)
+                      }}
+                    >
+                      清除
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )
     }
     const statusText: Record<string, string> = {
       not_started: '未开始',
