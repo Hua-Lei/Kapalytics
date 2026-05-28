@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { Stage } from '../../types'
 import type { AnalysisStep, ExtractedPaperContent, GraphNode, KnowledgeGraph } from '../../../../shared/paper'
-import { formatFormulaCandidatesForPrompt } from '../../../../shared/paper'
 import { electronApi } from '../ipc/electronApi'
 import {
   EMPTY_GRAPH,
@@ -14,8 +13,14 @@ import {
 /** Convert structured ExtractedPaperContent to flat string for LLM prompt */
 function formatExtractedForPrompt(content: ExtractedPaperContent): string {
   const pageTexts = content.pages.map((p) => `[Page ${p.page}]\n${p.text}`).join('\n\n')
-  const formulaSection = formatFormulaCandidatesForPrompt(content.formulaCandidates)
-  return `${pageTexts}${formulaSection}`
+  if (content.formulaCandidates.length === 0) return pageTexts
+  const lines = ['', '[Formula candidates extracted from PDF - reference hints, not final LaTeX]']
+  for (const c of content.formulaCandidates.slice(0, 40)) {
+    const loc = `Page ${c.page}${c.y !== undefined ? `, y=${Math.round(c.y)}` : ''}`
+    lines.push(`${loc}: ${c.rawText}`)
+    if (c.latexHint) lines.push(`LaTeX hint: ${c.latexHint}`)
+  }
+  return `${pageTexts}${lines.join('\n')}`
 }
 
 interface UsePaperAnalysisOptions {
@@ -60,13 +65,13 @@ export function usePaperAnalysis({
 
     try {
       const content = await electronApi.extractPdfText(pdfUrl)
-      if (!content || !content.pages.length) {
+      const totalChars = content?.pages.reduce((sum, p) => sum + p.text.trim().length, 0) ?? 0
+      if (!content || !content.pages.length || totalChars < 50) {
         setGenError('PDF 文本提取失败或内容过短，请确认 PDF 包含可读文本。')
         setAnalysisSteps((prev) => updateStep(prev, 'extract', 'error'))
         return
       }
       const promptText = formatExtractedForPrompt(content)
-      const totalChars = content.pages.reduce((sum, p) => sum + p.text.length, 0)
       setAnalysisSteps((prev) => updateStep(updateStep(prev, 'extract', 'done'), 'analyze', 'active'))
       setGenProgress(`提取完成（${totalChars} 字符${content.formulaCandidates.length ? `，${content.formulaCandidates.length} 个公式候选` : ''}），正在生成知识图谱和任务...`)
 

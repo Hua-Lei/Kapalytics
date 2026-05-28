@@ -150,7 +150,7 @@ async function parseJsonObjectWithRepair(text: string): Promise<unknown> {
 }
 
 function compactPaperText(text: string): string {
-  const formulaSection = text.match(/\[Formula candidates extracted from PDF\][\s\S]*$/)?.[0] ?? ''
+  const formulaSection = text.match(/\[Formula candidates extracted from PDF[^\]]*\][\s\S]*$/)?.[0] ?? ''
   const compactBody = text
     .replace(/\s+/g, ' ')
     .replace(/References\s+[\s\S]*$/i, '')

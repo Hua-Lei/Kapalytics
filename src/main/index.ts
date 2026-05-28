@@ -5,12 +5,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { aiAnalyzePaper, aiDiagnose } from './llm/generate'
 import { callLlm, setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
-import {
-  extractFormulaCandidatesFromRows,
-  extractFormulaCandidatesFromText,
-  TextItemLike
-} from './paper/formulaExtraction'
-import type { FormulaCandidate } from '../shared/paper'
+import { extractPdfContent } from './paper/extractPdfContent'
 
 // Linux GPU fallback — must run before app ready
 if (process.platform === 'linux') {
@@ -99,22 +94,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // PDF text extraction — returns structured ExtractedPaperContent
   ipcMain.handle('pdf:extract-text', async (_e, fileUrl: string) => {
     try {
-      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-      const filePath = fileURLToPath(fileUrl)
-      const data = new Uint8Array(readFileSync(filePath))
-      const doc = await pdfjsLib.getDocument({ data, verbosity: 0 }).promise
-      const pages: { page: number; text: string }[] = []
-      const formulaCandidates: FormulaCandidate[] = []
-      for (let i = 1; i <= doc.numPages; i++) {
-        const page = await doc.getPage(i)
-        const content = await page.getTextContent()
-        const textItems = content.items as TextItemLike[]
-        const text = textItems.map((item) => item.str ?? '').join(' ')
-        pages.push({ page: i, text })
-        formulaCandidates.push(...extractFormulaCandidatesFromRows(textItems, i))
-        formulaCandidates.push(...extractFormulaCandidatesFromText(text, i))
-      }
-      return { pages, formulaCandidates }
+      return await extractPdfContent(fileUrl)
     } catch (err) {
       console.error('[PDF extract]', err)
       return null
