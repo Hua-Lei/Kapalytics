@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Stage } from '../../types'
-import type { AnalysisStep, ExtractedPaperContent, GraphNode, KnowledgeGraph } from '../../../../shared/paper'
+import type { AnalysisStep, GraphNode, KnowledgeGraph } from '../../../../shared/paper'
 import { electronApi } from '../ipc/electronApi'
 import {
   EMPTY_GRAPH,
@@ -9,19 +9,6 @@ import {
   sanitizeGraph,
   updateStep
 } from './analysisState'
-
-/** Convert structured ExtractedPaperContent to flat string for LLM prompt */
-function formatExtractedForPrompt(content: ExtractedPaperContent): string {
-  const pageTexts = content.pages.map((p) => `[Page ${p.page}]\n${p.text}`).join('\n\n')
-  if (content.formulaCandidates.length === 0) return pageTexts
-  const lines = ['', '[Formula candidates extracted from PDF - reference hints, not final LaTeX]']
-  for (const c of content.formulaCandidates.slice(0, 40)) {
-    const loc = `Page ${c.page}${c.y !== undefined ? `, y=${Math.round(c.y)}` : ''}`
-    lines.push(`${loc}: ${c.rawText}`)
-    if (c.latexHint) lines.push(`LaTeX hint: ${c.latexHint}`)
-  }
-  return `${pageTexts}${lines.join('\n')}`
-}
 
 interface UsePaperAnalysisOptions {
   setStages: React.Dispatch<React.SetStateAction<Stage[]>>
@@ -65,24 +52,30 @@ export function usePaperAnalysis({
 
     try {
       const content = await electronApi.extractPdfText(pdfUrl)
-      if (!content || !content.pages?.length) {
-        setGenError('PDF 文本提取失败或内容过短，请确认 PDF 包含可读文本。')
+      // Check for IPC-level error
+      const maybeError = content as unknown as { error?: string }
+      if (maybeError?.error) {
+        setGenError(`PDF 提取失败: ${maybeError.error}`)
+        setAnalysisSteps((prev) => updateStep(prev, 'extract', 'error'))
+        return
+      }
+      if (!content || !Array.isArray(content.pages) || content.pages.length === 0) {
+        setGenError('PDF 文本提取失败：无法读取页面文本，请确认 PDF 包含可选中的文字。')
         setAnalysisSteps((prev) => updateStep(prev, 'extract', 'error'))
         return
       }
       const totalChars = content.pages.reduce((sum, p) => sum + p.text.trim().length, 0)
-      if (totalChars < 50) {
-        setGenError('PDF 文本提取失败或内容过短，请确认 PDF 包含可读文本。')
+      if (totalChars < 20 && content.formulaCandidates.length === 0) {
+        setGenError(`PDF 文本过短（共 ${totalChars} 字符），可能是扫描版 PDF，请使用包含文字层的 PDF。`)
         setAnalysisSteps((prev) => updateStep(prev, 'extract', 'error'))
         return
       }
-      const promptText = formatExtractedForPrompt(content)
       setAnalysisSteps((prev) => updateStep(updateStep(prev, 'extract', 'done'), 'analyze', 'active'))
       setGenProgress(`提取完成（${totalChars} 字符${content.formulaCandidates.length ? `，${content.formulaCandidates.length} 个公式候选` : ''}），正在生成知识图谱和任务...`)
 
       const unsubscribe = electronApi.onLlmProgress(setGenProgress)
       try {
-        const analysis = await electronApi.analyzePaper(promptText)
+        const analysis = await electronApi.analyzePaper(content)
         const fullGraph = sanitizeGraph({
           nodes: analysis.graph.nodes.map((node) => ({ ...node, type: node.type as GraphNode['type'] })),
           edges: analysis.graph.edges

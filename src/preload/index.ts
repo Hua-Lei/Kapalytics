@@ -28,8 +28,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       taskDescription: string
       userAnswer: string
     }): Promise<DiagnosisResult> => ipcRenderer.invoke('llm:diagnose', params),
-    analyzePaper: (paperText: string): Promise<PaperAnalysisResult> =>
-      ipcRenderer.invoke('llm:analyze-paper', paperText)
+    analyzePaper: (content: ExtractedPaperContent): Promise<PaperAnalysisResult> =>
+      ipcRenderer.invoke('llm:analyze-paper', content)
   },
 
   storage: {

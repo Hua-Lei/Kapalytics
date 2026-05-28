@@ -26,7 +26,7 @@ export interface ElectronApi {
       taskDescription: string
       userAnswer: string
     }) => Promise<DiagnosisResult>
-    analyzePaper: (paperText: string) => Promise<PaperAnalysisResult>
+    analyzePaper: (content: ExtractedPaperContent) => Promise<PaperAnalysisResult>
   }
   storage: {
     save: (data: unknown) => Promise<{ ok: boolean; error?: string }>

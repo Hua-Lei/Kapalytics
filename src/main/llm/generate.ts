@@ -1,43 +1,8 @@
 import { callLlm, hasApiKey } from './client'
 import { buildDiagnosisPrompt } from './prompts/diagnosis'
-
-export interface DiagnosisResult {
-  isCorrect: boolean
-  errorType: string
-  feedback: string
-  remedialTask: string
-}
-
-export interface GraphNode {
-  id: string
-  type: string
-  label: string
-  description: string
-  x: number
-  y: number
-}
-
-export interface GraphEdge {
-  id: string
-  sourceId: string
-  targetId: string
-  label?: string
-  directed: boolean
-}
-
-export interface GeneratedGraph {
-  nodes: GraphNode[]
-  edges: GraphEdge[]
-}
-
-export interface GeneratedTasks {
-  tasks: Record<string, string>
-}
-
-export interface PaperAnalysisResult {
-  graph: GeneratedGraph
-  tasks: Record<string, string>
-}
+import type { DiagnosisResult } from '../../shared/electron-api'
+import type { ExtractedPaperContent, PaperAnalysisResult } from '../../shared/paper'
+import { formatFormulaCandidatesForPrompt } from '../paper/formulas'
 
 export async function aiDiagnose(
   stageId: string,
@@ -149,23 +114,30 @@ async function parseJsonObjectWithRepair(text: string): Promise<unknown> {
   }
 }
 
-function compactPaperText(text: string): string {
-  const formulaSection = text.match(/\[Formula candidates extracted from PDF[^\]]*\][\s\S]*$/)?.[0] ?? ''
-  const compactBody = text
+function formatExtractedPaperForPrompt(content: ExtractedPaperContent): string {
+  const joinedPages = content.pages
+    .map((page) => `[Page ${page.page}]\n${page.text}`)
+    .join('\n\n')
+
+  const referencesIndex = joinedPages.search(/\bReferences\b/i)
+  const body = referencesIndex === -1 ? joinedPages : joinedPages.slice(0, referencesIndex)
+
+  const pages = body
     .replace(/\s+/g, ' ')
-    .replace(/References\s+[\s\S]*$/i, '')
     .trim()
     .slice(0, 18000)
-  return formulaSection ? `${compactBody}\n\n${formulaSection}` : compactBody
+
+  const formulas = formatFormulaCandidatesForPrompt(content.formulaCandidates)
+  return formulas ? `${pages}\n\n${formulas}` : pages
 }
 
 export async function aiAnalyzePaper(
-  paperText: string,
+  content: ExtractedPaperContent,
   onProgress?: ProgressFn
 ): Promise<PaperAnalysisResult> {
   if (!hasApiKey()) throw new Error('no_api_key')
 
-  const compactText = compactPaperText(paperText)
+  const compactText = formatExtractedPaperForPrompt(content)
   onProgress?.(`正在压缩论文文本（发送 ${compactText.length} 字符）...`)
 
   const res = await callLlm({

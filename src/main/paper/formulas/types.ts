@@ -9,6 +9,9 @@ export interface FormulaExtractionPageInput {
   page: number
   text: string
   items: PdfTextItemLike[]
+  // Future OCR extractors may use rendered page image data.
+  pageImagePath?: string
+  pageImageBuffer?: ArrayBuffer
 }
 
 export interface FormulaExtractor {

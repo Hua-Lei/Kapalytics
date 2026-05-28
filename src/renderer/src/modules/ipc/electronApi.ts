@@ -1,4 +1,5 @@
 import type { ElectronApi } from '../../../../shared/electron-api'
+import type { ExtractedPaperContent } from '../../../../shared/paper'
 
 function getApi(): ElectronApi | undefined {
   return window.electronAPI
@@ -9,8 +10,8 @@ export const electronApi = {
   testConnection: () => getApi()?.llm?.testConnection?.().catch(() => false) ?? Promise.resolve(false),
   diagnose: (params: Parameters<ElectronApi['llm']['diagnose']>[0]) =>
     getApi()?.llm?.diagnose?.(params) ?? Promise.reject(new Error('API unavailable')),
-  analyzePaper: (paperText: string) =>
-    getApi()?.llm?.analyzePaper?.(paperText) ?? Promise.reject(new Error('API unavailable')),
+  analyzePaper: (content: ExtractedPaperContent) =>
+    getApi()?.llm?.analyzePaper?.(content) ?? Promise.reject(new Error('API unavailable')),
   setKey: (key: string) => getApi()?.llm?.setApiKey?.(key) ?? Promise.resolve(),
   clearKey: () => getApi()?.llm?.clearApiKey?.() ?? Promise.resolve(),
   load: () => getApi()?.storage?.load?.() ?? Promise.resolve(null),

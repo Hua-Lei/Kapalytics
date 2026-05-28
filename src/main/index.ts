@@ -96,8 +96,9 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     try {
       return await extractPdfContent(fileUrl)
     } catch (err) {
-      console.error('[PDF extract]', err)
-      return null
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[PDF extract]', msg)
+      return { error: msg }
     }
   })
 
@@ -146,9 +147,9 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }
   )
 
-  ipcMain.handle('llm:analyze-paper', async (_e, paperText: string) => {
+  ipcMain.handle('llm:analyze-paper', async (_e, content) => {
     const send = (msg: string) => mainWindow.webContents.send('llm:progress', msg)
-    return aiAnalyzePaper(paperText, send)
+    return aiAnalyzePaper(content, send)
   })
 
   // Storage handlers
