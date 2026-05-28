@@ -107,6 +107,48 @@ function extractJsonObject(text: string): unknown {
   return JSON.parse(match[0])
 }
 
+async function repairJsonObject(invalidJson: string, parseError: string): Promise<unknown> {
+  const res = await callLlm({
+    messages: [
+      {
+        role: 'system',
+        content: `你是 JSON 修复器。用户会提供一个接近 JSON object 但语法有错误的字符串。
+请修复为合法 JSON object，并保持原有字段和含义。
+要求：
+- 只返回合法 json object，不要 markdown。
+- 不要新增解释文字。
+- 字符串中的 LaTeX 反斜杠必须正确转义，例如 \\Delta、\\theta、\\frac。
+- 如果数组元素之间缺少逗号，请补齐。
+- 如果字符串引号未转义，请转义。`
+      },
+      {
+        role: 'user',
+        content: `解析错误：${parseError}
+
+待修复 JSON：
+${invalidJson}`
+      }
+    ],
+    maxTokens: 8192,
+    temperature: 0,
+    timeoutMs: 180000,
+    jsonMode: true
+  })
+
+  return extractJsonObject(res.content)
+}
+
+async function parseJsonObjectWithRepair(text: string): Promise<unknown> {
+  try {
+    return extractJsonObject(text)
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      return repairJsonObject(text, err.message)
+    }
+    throw err
+  }
+}
+
 function compactPaperText(text: string): string {
   const formulaSection = text.match(/\[Formula candidates extracted from PDF\][\s\S]*$/)?.[0] ?? ''
   const compactBody = text
@@ -138,7 +180,7 @@ export async function aiAnalyzePaper(
   })
 
   onProgress?.('正在解析 AI 返回的图谱和任务...')
-  const parsed = extractJsonObject(res.content) as Partial<PaperAnalysisResult>
+  const parsed = await parseJsonObjectWithRepair(res.content) as Partial<PaperAnalysisResult>
   if (!parsed.graph || !Array.isArray(parsed.graph.nodes) || !Array.isArray(parsed.graph.edges)) {
     throw new Error('AI 返回结果缺少 graph.nodes 或 graph.edges')
   }
