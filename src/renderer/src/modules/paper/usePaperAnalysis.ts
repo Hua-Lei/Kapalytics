@@ -65,8 +65,13 @@ export function usePaperAnalysis({
 
     try {
       const content = await electronApi.extractPdfText(pdfUrl)
-      const totalChars = content?.pages.reduce((sum, p) => sum + p.text.trim().length, 0) ?? 0
-      if (!content || !content.pages.length || totalChars < 50) {
+      if (!content || !content.pages?.length) {
+        setGenError('PDF 文本提取失败或内容过短，请确认 PDF 包含可读文本。')
+        setAnalysisSteps((prev) => updateStep(prev, 'extract', 'error'))
+        return
+      }
+      const totalChars = content.pages.reduce((sum, p) => sum + p.text.trim().length, 0)
+      if (totalChars < 50) {
         setGenError('PDF 文本提取失败或内容过短，请确认 PDF 包含可读文本。')
         setAnalysisSteps((prev) => updateStep(prev, 'extract', 'error'))
         return
