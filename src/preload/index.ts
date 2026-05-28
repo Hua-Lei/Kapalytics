@@ -1,17 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
-
-export interface DiagnosisResult {
-  isCorrect: boolean
-  errorType: string
-  feedback: string
-  remedialTask: string
-}
+import type { DiagnosisResult } from '../shared/electron-api'
+import type { ExtractedPaperContent, PaperAnalysisResult } from '../shared/paper'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   selectPdf: (): Promise<{ fileUrl: string; filePath: string } | null> => ipcRenderer.invoke('select-pdf'),
   readPdfFile: (fileUrl: string): Promise<ArrayBuffer | null> => ipcRenderer.invoke('pdf:read-file', fileUrl),
-  extractPdfText: (fileUrl: string): Promise<string | null> =>
+  extractPdfText: (fileUrl: string): Promise<ExtractedPaperContent | null> =>
     ipcRenderer.invoke('pdf:extract-text', fileUrl),
   onLlmProgress: (cb: (msg: string) => void) => {
     const handler = (_e: unknown, msg: string) => cb(msg)
@@ -19,7 +14,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => { ipcRenderer.removeListener('llm:progress', handler) }
   },
 
-  // LLM API
   llm: {
     setApiKey: (key: string): Promise<void> => ipcRenderer.invoke('llm:set-api-key', key),
     clearApiKey: (): Promise<void> => ipcRenderer.invoke('llm:clear-api-key'),
@@ -34,16 +28,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       taskDescription: string
       userAnswer: string
     }): Promise<DiagnosisResult> => ipcRenderer.invoke('llm:diagnose', params),
-    analyzePaper: (paperText: string): Promise<{
-      graph: {
-        nodes: { id: string; type: string; label: string; description: string; x: number; y: number }[]
-        edges: { id: string; sourceId: string; targetId: string; label?: string; directed: boolean }[]
-      }
-      tasks: Record<string, string>
-    }> => ipcRenderer.invoke('llm:analyze-paper', paperText)
+    analyzePaper: (paperText: string): Promise<PaperAnalysisResult> =>
+      ipcRenderer.invoke('llm:analyze-paper', paperText)
   },
 
-  // Storage
   storage: {
     save: (data: unknown): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('storage:save', data),

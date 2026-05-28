@@ -84,7 +84,7 @@ export async function callLlm(request: LlmRequest): Promise<LlmResponse> {
       body: JSON.stringify(body),
       signal: controller.signal
     })
-
+    process.stdout.write('[主进程] LLM返回内容：' + JSON.stringify(res) + '\n')
     if (!res.ok) {
       const errText = await res.text()
       throw new Error(`API_ERROR:${res.status}:${errText.slice(0, 200)}`)

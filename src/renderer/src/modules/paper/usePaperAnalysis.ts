@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Stage } from '../../types'
-import type { AnalysisStep, GraphNode, KnowledgeGraph } from '../../../../shared/paper'
+import type { AnalysisStep, ExtractedPaperContent, GraphNode, KnowledgeGraph } from '../../../../shared/paper'
+import { formatFormulaCandidatesForPrompt } from '../../../../shared/paper'
 import { electronApi } from '../ipc/electronApi'
 import {
   EMPTY_GRAPH,
@@ -9,6 +10,13 @@ import {
   sanitizeGraph,
   updateStep
 } from './analysisState'
+
+/** Convert structured ExtractedPaperContent to flat string for LLM prompt */
+function formatExtractedForPrompt(content: ExtractedPaperContent): string {
+  const pageTexts = content.pages.map((p) => `[Page ${p.page}]\n${p.text}`).join('\n\n')
+  const formulaSection = formatFormulaCandidatesForPrompt(content.formulaCandidates)
+  return `${pageTexts}${formulaSection}`
+}
 
 interface UsePaperAnalysisOptions {
   setStages: React.Dispatch<React.SetStateAction<Stage[]>>
@@ -51,18 +59,20 @@ export function usePaperAnalysis({
     setGenProgress('正在提取 PDF 文本...')
 
     try {
-      const text = await electronApi.extractPdfText(pdfUrl)
-      if (!text || text.trim().length < 50) {
+      const content = await electronApi.extractPdfText(pdfUrl)
+      if (!content || !content.pages.length) {
         setGenError('PDF 文本提取失败或内容过短，请确认 PDF 包含可读文本。')
         setAnalysisSteps((prev) => updateStep(prev, 'extract', 'error'))
         return
       }
+      const promptText = formatExtractedForPrompt(content)
+      const totalChars = content.pages.reduce((sum, p) => sum + p.text.length, 0)
       setAnalysisSteps((prev) => updateStep(updateStep(prev, 'extract', 'done'), 'analyze', 'active'))
-      setGenProgress(`提取完成（${text.length} 字符），正在生成知识图谱和任务...`)
+      setGenProgress(`提取完成（${totalChars} 字符${content.formulaCandidates.length ? `，${content.formulaCandidates.length} 个公式候选` : ''}），正在生成知识图谱和任务...`)
 
       const unsubscribe = electronApi.onLlmProgress(setGenProgress)
       try {
-        const analysis = await electronApi.analyzePaper(text)
+        const analysis = await electronApi.analyzePaper(promptText)
         const fullGraph = sanitizeGraph({
           nodes: analysis.graph.nodes.map((node) => ({ ...node, type: node.type as GraphNode['type'] })),
           edges: analysis.graph.edges

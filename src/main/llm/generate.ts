@@ -72,7 +72,7 @@ const ANALYSIS_SYSTEM_PROMPT = `你是 AI 论文深度学习助手。根据论�
 - problem：论文要解决的具体瓶颈，例如“每个任务都要重新微调 LoRA 的成本”。
 - concept：理解论文必须先懂的概念，例如 LoRA、hypernetwork、task embedding、zero-shot adapter generation。
 - method：论文提出的机制，必须来自本文，例如 Text-to-LoRA hypernetwork、LoRA reconstruction training、SFT training。
-- formula：只放关键公式/目标函数/参数化关系；PDF 文本中公式可能被拆散，请优先使用 [Formula candidates extracted from PDF] 中带 Page/y 的候选行，并结合前后页面上下文还原，description 要解释符号含义和它在方法中的作用。
+- formula：只放关键公式/目标函数/参数化关系；PDF 候选行为规则提取的启发式 hint（不精确），请结合正文上下文修复。description 必须包含：1) 一段 KaTeX 可渲染的 LaTeX，用 $...$ 或 $$...$$ 包裹；2) 每个关键符号的中文解释；3) 该公式在方法中的作用。如果候选不完整，结合正文修复，但不要编造论文中不存在的公式。
 - experiment：只放用来验证 claim 的实验，例如 compression ratio、zero-shot benchmarks、ablation on task descriptions。
 - limitation：论文方法边界或失败条件，不要编造。
 边设计规则：边要表达学习依赖或论文论证关系，例如“动机”“解决”“生成”“训练目标”“验证”“限制”。不要生成松散同义关系。
@@ -178,7 +178,6 @@ export async function aiAnalyzePaper(
     timeoutMs: 180000,
     jsonMode: true
   })
-
   onProgress?.('正在解析 AI 返回的图谱和任务...')
   const parsed = await parseJsonObjectWithRepair(res.content) as Partial<PaperAnalysisResult>
   if (!parsed.graph || !Array.isArray(parsed.graph.nodes) || !Array.isArray(parsed.graph.edges)) {

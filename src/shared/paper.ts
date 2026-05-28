@@ -48,6 +48,32 @@ export interface PaperSession {
   errorMessage: string
 }
 
+/** PDF 公式候选 — 来自规则提取器，非最终 LaTeX */
+export interface FormulaCandidate {
+  page: number
+  y?: number
+  rawText: string
+  latexHint?: string
+  confidence?: number
+}
+
+/** PDF 提取的结构化内容 */
+export interface ExtractedPaperContent {
+  pages: { page: number; text: string }[]
+  formulaCandidates: FormulaCandidate[]
+}
+
+/** 将公式候选格式化为 prompt 文本（格式化层，非数据层） */
+export function formatFormulaCandidatesForPrompt(candidates: FormulaCandidate[]): string {
+  if (candidates.length === 0) return ''
+  const lines = ['', '[Formula candidates extracted from PDF - reference hints, not final LaTeX]']
+  for (const c of candidates) {
+    const hint = c.latexHint ? ` LaTeX hint: ${c.latexHint}` : ''
+    lines.push(`Page ${c.page}${c.y !== undefined ? `, y=${Math.round(c.y)}` : ''}: ${c.rawText}${hint}`)
+  }
+  return lines.join('\n')
+}
+
 export const EMPTY_GRAPH: KnowledgeGraph = { nodes: [], edges: [] }
 
 export const INITIAL_ANALYSIS_STEPS: AnalysisStep[] = [

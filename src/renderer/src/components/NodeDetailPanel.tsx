@@ -1,4 +1,5 @@
 import { GraphNode } from '../modules/graph/types'
+import MathText from './MathText'
 
 interface NodeDetailPanelProps {
   node: GraphNode | null
@@ -40,7 +41,9 @@ function NodeDetailPanel({ node }: NodeDetailPanelProps) {
         </span>
       </div>
       <h3 className="node-detail__title">{node.label}</h3>
-      <p className="node-detail__description">{node.description}</p>
+      <p className="node-detail__description">
+        <MathText text={node.description} />
+      </p>
 
       <div className="node-detail__section">
         <div className="node-detail__field">

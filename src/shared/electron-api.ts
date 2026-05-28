@@ -1,4 +1,4 @@
-import type { PaperAnalysisResult, SelectedPdf } from './paper'
+import type { ExtractedPaperContent, PaperAnalysisResult, SelectedPdf } from './paper'
 
 export interface DiagnosisResult {
   errorType: string
@@ -11,7 +11,7 @@ export interface ElectronApi {
   platform: string
   selectPdf: () => Promise<SelectedPdf | null>
   readPdfFile: (fileUrl: string) => Promise<ArrayBuffer | null>
-  extractPdfText: (fileUrl: string) => Promise<string | null>
+  extractPdfText: (fileUrl: string) => Promise<ExtractedPaperContent | null>
   onLlmProgress: (cb: (msg: string) => void) => () => void
   llm: {
     setApiKey: (key: string) => Promise<void>

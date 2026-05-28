@@ -8,9 +8,9 @@ import { deepseekProvider } from './llm/providers/deepseek'
 import {
   extractFormulaCandidatesFromRows,
   extractFormulaCandidatesFromText,
-  formatFormulaCandidates,
   TextItemLike
 } from './paper/formulaExtraction'
+import type { FormulaCandidate } from '../shared/paper'
 
 // Linux GPU fallback — must run before app ready
 if (process.platform === 'linux') {
@@ -88,37 +88,33 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('pdf:read-file', async (_e, fileUrl: string) => {
     try {
-      return readFileSync(fileURLToPath(fileUrl)).buffer
+      const buf = readFileSync(fileURLToPath(fileUrl))
+      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
     } catch (err) {
       console.error('[PDF read]', err)
       return null
     }
   })
 
-  // PDF text extraction
+  // PDF text extraction — returns structured ExtractedPaperContent
   ipcMain.handle('pdf:extract-text', async (_e, fileUrl: string) => {
     try {
       const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
       const filePath = fileURLToPath(fileUrl)
       const data = new Uint8Array(readFileSync(filePath))
       const doc = await pdfjsLib.getDocument({ data, verbosity: 0 }).promise
-      const pages: string[] = []
-      const formulaCandidates = []
+      const pages: { page: number; text: string }[] = []
+      const formulaCandidates: FormulaCandidate[] = []
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i)
         const content = await page.getTextContent()
         const textItems = content.items as TextItemLike[]
-        const text = textItems
-          .map((item) => item.str ?? '')
-          .join(' ')
-        pages.push(`[Page ${i}]\n${text}`)
+        const text = textItems.map((item) => item.str ?? '').join(' ')
+        pages.push({ page: i, text })
         formulaCandidates.push(...extractFormulaCandidatesFromRows(textItems, i))
         formulaCandidates.push(...extractFormulaCandidatesFromText(text, i))
       }
-      const formulas = formulaCandidates.length > 0
-        ? `\n\n[Formula candidates extracted from PDF]\n${formatFormulaCandidates(formulaCandidates)}`
-        : ''
-      return `${pages.join('\n\n')}${formulas}`
+      return { pages, formulaCandidates }
     } catch (err) {
       console.error('[PDF extract]', err)
       return null
