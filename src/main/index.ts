@@ -5,6 +5,12 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { aiAnalyzePaper, aiDiagnose } from './llm/generate'
 import { callLlm, setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
+import {
+  extractFormulaCandidatesFromRows,
+  extractFormulaCandidatesFromText,
+  formatFormulaCandidates,
+  TextItemLike
+} from './paper/formulaExtraction'
 
 // Linux GPU fallback — must run before app ready
 if (process.platform === 'linux') {
@@ -16,59 +22,6 @@ function getStoragePath(): string {
   const dir = join(app.getPath('userData'), 'saves')
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   return join(dir, 'learning-state.json')
-}
-
-function extractFormulaCandidates(pageText: string): string[] {
-  const candidates = new Set<string>()
-  const formulaPatterns = [
-    /[^.。;；]{0,80}(?:argmin|softmax|LoRA|∆W|ΔW|W\s*[′']|L\s*SFT|h\s*=|[A-Z]\s*[∈=]|θ|ϕ|Ω|Ψ|\b[A-Z]\^?[TB]?\b\s*[=+−-])[^.。;；]{0,120}/g,
-    /[^.。;；]{0,80}(?:\([0-9]+\)|[A-Za-z]\s*\([^)]{1,80}\)\s*=|\|[^|]{1,80}\|)[^.。;；]{0,120}/g
-  ]
-
-  for (const pattern of formulaPatterns) {
-    for (const match of pageText.matchAll(pattern)) {
-      const value = match[0].replace(/\s+/g, ' ').trim()
-      const symbolCount = (value.match(/[=+−\-×*/^_∈∆ΔθϕΩΨ|]/g) ?? []).length
-      if (value.length >= 20 && symbolCount >= 2) candidates.add(value.slice(0, 220))
-    }
-  }
-
-  return [...candidates].slice(0, 4)
-}
-
-function extractFormulaLineCandidates(
-  items: Array<{ str?: string; transform?: number[] }>,
-  pageNumber: number
-): string[] {
-  const rows = new Map<number, { x: number; text: string }[]>()
-
-  for (const item of items) {
-    if (!item.str?.trim() || !Array.isArray(item.transform)) continue
-    const x = item.transform[4] ?? 0
-    const y = Math.round(item.transform[5] ?? 0)
-    const row = rows.get(y) ?? []
-    row.push({ x, text: item.str })
-    rows.set(y, row)
-  }
-
-  const candidates: string[] = []
-  for (const [y, row] of rows) {
-    const line = row
-      .sort((a, b) => a.x - b.x)
-      .map((part) => part.text)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    const symbolCount = (line.match(/[=+−×*/^_∈∆ΔθϕΩΨΣ∑√|<>≤≥]/g) ?? []).length
-    const hasMathSymbol = /[=+−×*/^_∈∆ΔθϕΩΨΣ∑√|<>≤≥]/.test(line)
-    const mathWordCount = (line.match(/\b(?:argmin|softmax|loss|rank|LoRA|SFT|head|emb|MLP|T2L)\b/gi) ?? []).length
-    if (line.length >= 12 && hasMathSymbol && (symbolCount >= 2 || mathWordCount >= 1)) {
-      candidates.push(`Page ${pageNumber}, y=${y}: ${line.slice(0, 240)}`)
-    }
-  }
-
-  return candidates.slice(0, 8)
 }
 
 const isDev = !app.isPackaged
@@ -150,24 +103,20 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
       const data = new Uint8Array(readFileSync(filePath))
       const doc = await pdfjsLib.getDocument({ data, verbosity: 0 }).promise
       const pages: string[] = []
-      const formulaCandidates: string[] = []
+      const formulaCandidates = []
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i)
         const content = await page.getTextContent()
-        const textItems = content.items as Array<{ str?: string; transform?: number[] }>
+        const textItems = content.items as TextItemLike[]
         const text = textItems
           .map((item) => item.str ?? '')
           .join(' ')
         pages.push(`[Page ${i}]\n${text}`)
-        extractFormulaLineCandidates(textItems, i).forEach((candidate) => {
-          formulaCandidates.push(candidate)
-        })
-        extractFormulaCandidates(text).forEach((candidate) => {
-          formulaCandidates.push(`Page ${i}: ${candidate}`)
-        })
+        formulaCandidates.push(...extractFormulaCandidatesFromRows(textItems, i))
+        formulaCandidates.push(...extractFormulaCandidatesFromText(text, i))
       }
       const formulas = formulaCandidates.length > 0
-        ? `\n\n[Formula candidates extracted from PDF]\n${formulaCandidates.slice(0, 24).join('\n')}`
+        ? `\n\n[Formula candidates extracted from PDF]\n${formatFormulaCandidates(formulaCandidates)}`
         : ''
       return `${pages.join('\n\n')}${formulas}`
     } catch (err) {

@@ -8,47 +8,18 @@ import SettingsModal from './components/SettingsModal'
 import { mockStages } from './mock/stages'
 import { Stage } from './types'
 import { diagnose } from './modules/diagnosis/diagnose'
+import { electronApi } from './modules/ipc/electronApi'
+import { usePaperAnalysis } from './modules/paper/usePaperAnalysis'
 import type { DiagnosisResult } from './modules/diagnosis/types'
-import type { KnowledgeGraph as KGType, GraphNode } from './modules/graph/types'
+import type { KnowledgeGraph } from '../../shared/paper'
 import './App.css'
 
 type ActiveTab = 'graph' | 'learning'
 type ResizeTarget = 'left' | 'right' | null
-type AnalysisStepStatus = 'pending' | 'active' | 'done' | 'error'
-
-interface AnalysisStep {
-  id: string
-  label: string
-  status: AnalysisStepStatus
-}
 
 const MIN_PANEL = 200
 const DEFAULT_LEFT = 280
 const DEFAULT_RIGHT = 340
-const EMPTY_GRAPH: KGType = { nodes: [], edges: [] }
-const VALID_NODE_TYPES = new Set(['field', 'concept', 'problem', 'method', 'formula', 'experiment', 'limitation'])
-const INITIAL_ANALYSIS_STEPS: AnalysisStep[] = [
-  { id: 'extract', label: '提取 PDF 全文', status: 'pending' },
-  { id: 'analyze', label: 'AI 生成知识图谱和学习任务', status: 'pending' },
-  { id: 'reveal', label: '逐步呈现图谱节点', status: 'pending' }
-]
-
-function updateStep(steps: AnalysisStep[], id: string, status: AnalysisStepStatus): AnalysisStep[] {
-  return steps.map((step) => (step.id === id ? { ...step, status } : step))
-}
-
-function sanitizeGraph(raw: KGType): KGType {
-  const nodes = raw.nodes
-    .filter((node) => node.id && VALID_NODE_TYPES.has(node.type))
-    .map((node, index) => ({
-      ...node,
-      x: Number.isFinite(node.x) ? node.x : 140 + (index % 4) * 170,
-      y: Number.isFinite(node.y) ? node.y : 80 + Math.floor(index / 4) * 130
-    }))
-  const nodeIds = new Set(nodes.map((node) => node.id))
-  const edges = raw.edges.filter((edge) => nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId))
-  return { nodes, edges }
-}
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('learning')
@@ -68,21 +39,25 @@ function App() {
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
-  const [graph, setGraph] = useState<KGType>(EMPTY_GRAPH)
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
-  const selectedGraphNode =
-    graph.nodes.find((n) => n.id === selectedGraphNodeId) ?? null
-
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [generating, setGenerating] = useState(false)
-  const [genError, setGenError] = useState('')
-  const [genProgress, setGenProgress] = useState('')
-  const [analysisSteps, setAnalysisSteps] = useState<AnalysisStep[]>(INITIAL_ANALYSIS_STEPS)
+  const {
+    analysisSteps,
+    analyzePaper,
+    generating,
+    genError,
+    genProgress,
+    graph,
+    pdfUrl,
+    selectPdf,
+    setGraph,
+    setPdfUrl
+  } = usePaperAnalysis({ setStages, setActiveTab, setSelectedGraphNodeId })
+  const selectedGraphNode = graph.nodes.find((n) => n.id === selectedGraphNodeId) ?? null
   const [fontScale, setFontScale] = useState(1)
 
   // Check API key status on mount
   useEffect(() => {
-    safeApi.hasKey().then(setHasApiConfigured).catch(() => {})
+    electronApi.hasKey().then(setHasApiConfigured).catch(() => {})
   }, [])
 
   function isValidSavedData(data: Record<string, unknown>): boolean {
@@ -102,7 +77,7 @@ function App() {
 
   // Load saved state on mount
   useEffect(() => {
-    safeApi
+    electronApi
       .load()
       .then((saved) => {
         if (saved && typeof saved === 'object') {
@@ -118,7 +93,7 @@ function App() {
             setDiagnosisResults(data.diagnosisResults as Record<string, DiagnosisResult>)
           if (typeof data.pdfUrl === 'string') setPdfUrl(data.pdfUrl)
           if (typeof data.activeTab === 'string') setActiveTab(data.activeTab as ActiveTab)
-          if (data.graph && typeof data.graph === 'object') setGraph(data.graph as KGType)
+          if (data.graph && typeof data.graph === 'object') setGraph(data.graph as KnowledgeGraph)
         }
       })
       .catch(() => {})
@@ -131,7 +106,7 @@ function App() {
     if (!hydrated) return
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(() => {
-      safeApi.save({ stages, answers, diagnosisResults, pdfUrl, activeTab, graph })
+      electronApi.save({ stages, answers, diagnosisResults, pdfUrl, activeTab, graph })
     }, 500)
     return () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current)
@@ -153,9 +128,9 @@ function App() {
     let result: DiagnosisResult
     const stage = stages.find((s) => s.id === stageId)!
     try {
-      const hasKey = await safeApi.hasKey()
+      const hasKey = await electronApi.hasKey()
       if (hasKey) {
-        result = await safeApi.diagnose({
+        result = await electronApi.diagnose({
           stageId,
           stageName: stage.name,
           taskDescription: stage.task,
@@ -334,100 +309,10 @@ function App() {
     )
   }
 
-  const safeApi = {
-    hasKey: () => window.electronAPI?.llm?.hasApiKey?.().catch(() => false) ?? Promise.resolve(false),
-    testConn: () => window.electronAPI?.llm?.testConnection?.().catch(() => false) ?? Promise.resolve(false),
-    diagnose: (p: Parameters<Window['electronAPI']['llm']['diagnose']>[0]) =>
-      window.electronAPI?.llm?.diagnose?.(p) ?? Promise.reject(new Error('API unavailable')),
-    analyzePaper: (paperText: string) =>
-      window.electronAPI?.llm?.analyzePaper?.(paperText) ?? Promise.reject(new Error('API unavailable')),
-    setKey: (k: string) => window.electronAPI?.llm?.setApiKey?.(k) ?? Promise.resolve(),
-    clearKey: () => window.electronAPI?.llm?.clearApiKey?.() ?? Promise.resolve(),
-    load: () => window.electronAPI?.storage?.load?.() ?? Promise.resolve(null),
-    save: (d: unknown) => window.electronAPI?.storage?.save?.(d) ?? Promise.resolve({ ok: false }),
-    selectPdf: () => window.electronAPI?.selectPdf?.() ?? Promise.resolve(null),
-    extractPdfText: (url: string) => window.electronAPI?.extractPdfText?.(url) ?? Promise.resolve(null)
-  }
-
-  const handleSelectPdf = async () => {
-    try {
-      const selected = await safeApi.selectPdf()
-      if (selected) {
-        setPdfUrl(selected.fileUrl)
-        setGraph(EMPTY_GRAPH)
-        setGenError('')
-        setGenProgress('')
-        setAnalysisSteps(INITIAL_ANALYSIS_STEPS)
-        setActiveTab('graph')
-      }
-    } catch {
-      /* non-blocking */
-    }
-  }
+  const handleSelectPdf = () => selectPdf().catch(() => {})
 
   const handleTestConnection = async (): Promise<boolean> => {
-    try { return await safeApi.testConn() } catch { return false }
-  }
-
-  const handleAnalyzePaper = async () => {
-    if (!pdfUrl) return
-    setGenerating(true)
-    setGenError('')
-    setGraph(EMPTY_GRAPH)
-    setSelectedGraphNodeId(null)
-    setAnalysisSteps(INITIAL_ANALYSIS_STEPS)
-    setGenProgress('正在提取 PDF 文本...')
-    setAnalysisSteps((prev) => updateStep(prev, 'extract', 'active'))
-
-    try {
-      const text = await safeApi.extractPdfText(pdfUrl)
-      if (!text || text.trim().length < 50) {
-        setGenError('PDF 文本提取失败或内容过短，请确认 PDF 包含可读文本。')
-        setAnalysisSteps((prev) => updateStep(prev, 'extract', 'error'))
-        return
-      }
-      setAnalysisSteps((prev) => updateStep(prev, 'extract', 'done'))
-      setAnalysisSteps((prev) => updateStep(prev, 'analyze', 'active'))
-      setGenProgress(`提取完成（${text.length} 字符），正在生成知识图谱和任务...`)
-
-      const unsub = window.electronAPI?.onLlmProgress?.((msg) => setGenProgress(msg))
-
-      try {
-        const analysis = await safeApi.analyzePaper(text)
-        const fullGraph = sanitizeGraph({
-          nodes: analysis.graph.nodes.map((n) => ({ ...n, type: n.type as GraphNode['type'] })),
-          edges: analysis.graph.edges
-        })
-        setStages((prev) => prev.map((s) => ({ ...s, task: analysis.tasks[s.id] ?? s.task })))
-        setAnalysisSteps((prev) => updateStep(prev, 'analyze', 'done'))
-        setAnalysisSteps((prev) => updateStep(prev, 'reveal', 'active'))
-
-        for (let i = 0; i < fullGraph.nodes.length; i += 1) {
-          const visibleNodeIds = new Set(fullGraph.nodes.slice(0, i + 1).map((node) => node.id))
-          setGraph({
-            nodes: fullGraph.nodes.slice(0, i + 1),
-            edges: fullGraph.edges.filter(
-              (edge) => visibleNodeIds.has(edge.sourceId) && visibleNodeIds.has(edge.targetId)
-            )
-          })
-          setGenProgress(`正在呈现节点 ${i + 1}/${fullGraph.nodes.length}: ${fullGraph.nodes[i].label}`)
-          await new Promise((resolve) => setTimeout(resolve, 180))
-        }
-
-        setAnalysisSteps((prev) => updateStep(prev, 'reveal', 'done'))
-        setGenProgress('分析完成：知识图谱和学习任务已生成。')
-        setActiveTab('graph')
-      } finally {
-        unsub?.()
-      }
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : '分析失败')
-      setAnalysisSteps((prev) =>
-        prev.map((step) => (step.status === 'active' ? { ...step, status: 'error' } : step))
-      )
-    } finally {
-      setGenerating(false)
-    }
+    try { return await electronApi.testConnection() } catch { return false }
   }
 
   const leftPanel = (
@@ -515,7 +400,7 @@ function App() {
           {pdfUrl && (
             <button
               className="stage-btn stage-btn--primary"
-              onClick={handleAnalyzePaper}
+              onClick={analyzePaper}
               disabled={generating}
               style={{ width: '100%' }}
             >
@@ -680,11 +565,11 @@ function App() {
         hasApiConfigured={hasApiConfigured}
         onClose={() => setSettingsOpen(false)}
         onSaveKey={async (key) => {
-          await safeApi.setKey(key)
+          await electronApi.setKey(key)
           setHasApiConfigured(true)
         }}
         onClearKey={async () => {
-          await safeApi.clearKey()
+          await electronApi.clearKey()
           setHasApiConfigured(false)
         }}
         onTestConnection={handleTestConnection}

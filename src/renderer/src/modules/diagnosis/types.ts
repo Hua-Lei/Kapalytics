@@ -1,3 +1,5 @@
+export type { DiagnosisResult } from '../../../../shared/electron-api'
+
 export type ErrorType =
   | 'field_misclassification'
   | 'concept_confusion'
@@ -6,10 +8,3 @@ export type ErrorType =
   | 'experiment_misinterpretation'
   | 'contribution_misjudgement'
   | 'transfer_insufficient'
-
-export interface DiagnosisResult {
-  errorType: string
-  isCorrect: boolean
-  feedback: string
-  remedialTask: string
-}
