@@ -1,11 +1,12 @@
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { ExtractedPaperContent, ExtractedPaperPage } from '../../shared/paper'
 import { extractFormulaCandidates } from './formulas'
 import type { PdfTextItemLike } from './formulas/types'
 
 export async function extractPdfContent(fileUrl: string): Promise<ExtractedPaperContent> {
+  // Dynamic import required: pdfjs-dist is ESM, can't be required() by CJS bundle
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const filePath = fileURLToPath(fileUrl)
   const buf = readFileSync(filePath)
   const data = new Uint8Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength))
