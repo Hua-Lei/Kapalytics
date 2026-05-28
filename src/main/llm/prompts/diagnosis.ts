@@ -30,7 +30,7 @@ export function buildDiagnosisPrompt(
 - contribution_misjudgement: 贡献误判错误
 - transfer_insufficient: 迁移能力不足
 
-输出严格 JSON：
+输出严格 JSON object：
 {
   "isCorrect": true/false,
   "errorType": "field_misclassification",
@@ -44,7 +44,7 @@ export function buildDiagnosisPrompt(
 任务：${taskDescription}
 学生回答：${userAnswer}
 
-诊断错误类型并给出反馈。只返回 JSON。`
+诊断错误类型并给出反馈。只返回 JSON object。`
     }
   ]
 }

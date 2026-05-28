@@ -15,7 +15,7 @@ export const deepseekProvider: LlmProvider = {
   buildBody(request: LlmRequest, model: string) {
     const systemMsg = request.messages.find((m) => m.role === 'system')
     const chatMessages = request.messages.filter((m) => m.role !== 'system')
-    return {
+    const body: Record<string, unknown> = {
       model,
       max_tokens: request.maxTokens ?? 2048,
       temperature: request.temperature ?? 0.7,
@@ -24,6 +24,10 @@ export const deepseekProvider: LlmProvider = {
         ...chatMessages.map((m) => ({ role: m.role, content: m.content }))
       ]
     }
+    if (request.jsonMode) {
+      body.response_format = { type: 'json_object' }
+    }
+    return body
   },
 
   parseResponse(data: any) {

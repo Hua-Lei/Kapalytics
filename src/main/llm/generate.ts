@@ -48,7 +48,7 @@ export async function aiDiagnose(
   if (!hasApiKey()) throw new Error('no_api_key')
 
   const messages = buildDiagnosisPrompt(stageId, stageName, taskDescription, userAnswer)
-  const res = await callLlm({ messages, maxTokens: 1024, temperature: 0.3 })
+  const res = await callLlm({ messages, maxTokens: 1024, temperature: 0.3, jsonMode: true })
 
   const text = res.content.trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
@@ -79,7 +79,7 @@ const ANALYSIS_SYSTEM_PROMPT = `你是 AI 论文深度学习助手。根据论�
 阶段 ID 必须完整包含：field_positioning, problem_motivation, method_overview, formula_algorithm, experiment_analysis, contribution_limitation, transfer_comparison。
 每个阶段任务必须引用当前论文的具体实体/实验/公式，不得使用 Transformer、RNN 翻译等模板内容，除非论文本身讨论它。
 如果论文是 Text-to-LoRA/T2L，图谱应区分：任务描述嵌入、hypernetwork、LoRA A/B 矩阵生成、LoRA reconstruction loss、SFT loss、压缩比实验、zero-shot benchmark、任务描述消融。
-输出严格 JSON，不要 markdown：
+输出严格 JSON object，不要 markdown。JSON 示例：
 {
   "graph": {
     "nodes": [{ "id": "n1", "type": "field", "label": "节点标签", "description": "面向学习者的简短解释", "x": 400, "y": 50 }],
@@ -100,6 +100,7 @@ const ANALYSIS_SYSTEM_PROMPT = `你是 AI 论文深度学习助手。根据论�
 type ProgressFn = (msg: string) => void
 
 function extractJsonObject(text: string): unknown {
+  if (!text.trim()) throw new Error('AI 返回了空内容，请重试')
   const cleaned = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim()
   const match = cleaned.match(/\{[\s\S]*\}/)
   if (!match) throw new Error(`无法解析 JSON: ${text.slice(0, 200)}`)
@@ -128,11 +129,12 @@ export async function aiAnalyzePaper(
   const res = await callLlm({
     messages: [
       { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
-      { role: 'user', content: `论文全文摘录：${compactText}\n\n请生成完整 JSON。` }
+      { role: 'user', content: `论文全文摘录：${compactText}\n\n请生成完整 JSON object。` }
     ],
     maxTokens: 4096,
     temperature: 0.2,
-    timeoutMs: 180000
+    timeoutMs: 180000,
+    jsonMode: true
   })
 
   onProgress?.('正在解析 AI 返回的图谱和任务...')

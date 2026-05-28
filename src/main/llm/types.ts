@@ -8,6 +8,7 @@ export interface LlmRequest {
   maxTokens?: number
   temperature?: number
   timeoutMs?: number
+  jsonMode?: boolean
 }
 
 export interface LlmResponse {
