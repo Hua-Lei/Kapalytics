@@ -68,6 +68,14 @@ export const electronApi = {
     runLlmJob: (jobId: string) => getApi()?.kg3?.runLlmJob?.(jobId) ?? Promise.reject(new Error('KG3 API unavailable')),
     cancelLlmJob: (jobId: string) => getApi()?.kg3?.cancelLlmJob?.(jobId) ?? Promise.resolve()
   },
+  kg4: {
+    saveNodeUnderstandingMemory: (record: Parameters<ElectronApi['kg4']['saveNodeUnderstandingMemory']>[0]) =>
+      getApi()?.kg4?.saveNodeUnderstandingMemory?.(record) ?? Promise.resolve({ ok: false }),
+    listNodeUnderstandingMemories: (query?: Parameters<ElectronApi['kg4']['listNodeUnderstandingMemories']>[0]) =>
+      getApi()?.kg4?.listNodeUnderstandingMemories?.(query) ?? Promise.resolve([]),
+    findReusableNodeMemories: (params: Parameters<ElectronApi['kg4']['findReusableNodeMemories']>[0]) =>
+      getApi()?.kg4?.findReusableNodeMemories?.(params) ?? Promise.resolve([])
+  },
   selectPdf: () => getApi()?.selectPdf?.() ?? Promise.resolve(null),
   extractPdfText: async (url: string) => {
     const api = requireApi()

@@ -4,6 +4,7 @@ import LearningPath from './LearningPath'
 import KnowledgeGraph from './KnowledgeGraph'
 import { KnowledgeGraph as KGType } from '../modules/graph/types'
 import type { PaperInsight } from '../../../shared/paper'
+import type { Kg4ExpansionGraphLayer } from '../../../shared/kg4'
 
 type ActiveTab = 'graph' | 'learning'
 type GraphView = 'argument' | 'mechanism' | 'expansion'
@@ -18,6 +19,8 @@ interface CenterPanelProps {
   paperInsight: PaperInsight | null
   selectedGraphNodeId: string | null
   onSelectGraphNode: (nodeId: string) => void
+  expansionGraph?: Kg4ExpansionGraphLayer | null
+  onClearExpansionGraph?: () => void
 }
 
 function CenterPanel({
@@ -29,7 +32,9 @@ function CenterPanel({
   graph,
   paperInsight,
   selectedGraphNodeId,
-  onSelectGraphNode
+  onSelectGraphNode,
+  expansionGraph,
+  onClearExpansionGraph
 }: CenterPanelProps) {
   const [graphView, setGraphView] = useState<GraphView>('argument')
   const completed = stages.filter((stage) => stage.status === 'completed').length
@@ -84,7 +89,9 @@ function CenterPanel({
             paperInsight={paperInsight}
             selectedNodeId={selectedGraphNodeId}
             view={graphView}
+            expansionGraph={expansionGraph}
             onNodeSelect={onSelectGraphNode}
+            onClearExpansionGraph={onClearExpansionGraph}
           />
         ) : (
           <LearningPath

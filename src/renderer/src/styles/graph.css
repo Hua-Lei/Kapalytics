@@ -66,6 +66,58 @@
   color: var(--color-accent);
 }
 
+.kg4-clear-expansion-btn {
+  background: var(--color-bg-elevated);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 999px;
+  bottom: 12px;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 12px;
+  position: absolute;
+  right: 50px;
+  box-shadow: 0 8px 18px rgba(55, 45, 34, 0.08);
+}
+
+.kg4-expansion-edges line {
+  stroke: #6f91a0;
+  stroke-dasharray: 6 5;
+  stroke-width: 1.15;
+  opacity: 0.52;
+}
+
+.kg4-expansion-edges text {
+  fill: #587382;
+  font-size: 8px;
+  paint-order: stroke;
+  stroke: #fffaf1;
+  stroke-width: 3px;
+}
+
+.kg4-expansion-node rect {
+  fill: #e8f1f2;
+  stroke: #7ca0ac;
+  stroke-dasharray: 5 4;
+  stroke-width: 1.2;
+  opacity: 0.86;
+}
+
+.kg4-expansion-node text {
+  fill: #315c72;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.kg4-expansion-node__type {
+  fill: #7a8b91 !important;
+  font-size: 8px !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .graph-legend {
   align-items: center;
   background: color-mix(in srgb, var(--color-bg-elevated) 92%, transparent);
@@ -619,4 +671,120 @@
 .sharp-comparison-table td:last-child {
   color: var(--color-text);
   font-weight: 620;
+}
+
+.kg4-workbench,
+.kg4-card-grid,
+.kg4-comparison,
+.kg4-reflection-panel,
+.kg4-memory-save,
+.kg4-reuse-box,
+.kg4-field-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kg4-card-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.kg4-idea-card {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: inherit;
+  cursor: pointer;
+  padding: 12px;
+  text-align: left;
+}
+
+.kg4-idea-card--selected {
+  background: linear-gradient(180deg, #ffffff, var(--color-accent-soft));
+  border-color: color-mix(in srgb, var(--color-accent) 46%, var(--color-border-subtle));
+  box-shadow: 0 10px 22px rgba(47, 93, 112, 0.10);
+}
+
+.kg4-idea-card strong,
+.kg4-field-view strong,
+.kg4-feedback strong,
+.kg4-reuse-box strong {
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.kg4-idea-card p,
+.kg4-field-view p,
+.kg4-selected-tray p,
+.kg4-memory-save p,
+.kg4-reuse-box p,
+.kg4-feedback p,
+.kg4-reflection-questions li {
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin: 4px 0 0;
+}
+
+.kg4-idea-card b {
+  color: var(--color-text);
+}
+
+.kg4-card-source,
+.kg4-feedback > span {
+  color: var(--color-text-tertiary);
+  display: block;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.kg4-selected-tray,
+.kg4-field-view,
+.kg4-reuse-box,
+.kg4-memory-save,
+.kg4-reflection-panel,
+.kg4-feedback {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.kg4-family-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kg4-family-list span {
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  font-size: 11.5px;
+  padding: 5px 8px;
+}
+
+.kg4-reflection-questions ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.kg4-feedback--reflective {
+  background: #eef5f2;
+  border-color: #cbded6;
+}
+
+.kg4-feedback--remedial {
+  background: #f5eee4;
+  border-color: #e7d6bd;
+}
+
+.kg4-optional-transfer {
+  border-style: dashed;
 }

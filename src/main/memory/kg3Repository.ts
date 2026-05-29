@@ -23,6 +23,8 @@ import type {
   ReadingSession,
   UserMasteryRecord
 } from '../../shared/kg3'
+import type { MemoryReuseSuggestion, NodeUnderstandingMemory, NodeUnderstandingMemoryQuery } from '../../shared/kg4'
+import { normalizeKg4NodeLabel } from '../../shared/kg4'
 
 const EMPTY_SNAPSHOT: Kg3MemorySnapshot = {
   papers: [],
@@ -37,7 +39,8 @@ const EMPTY_SNAPSHOT: Kg3MemorySnapshot = {
   mergedGraphNodes: [],
   mergedGraphEdges: [],
   userMastery: [],
-  llmJobs: []
+  llmJobs: [],
+  nodeUnderstandingMemories: []
 }
 
 function now(): string {
@@ -88,6 +91,7 @@ type JsonTableName =
   | 'merged_graph_edges'
   | 'user_mastery'
   | 'llm_jobs'
+  | 'node_understanding_memories'
 
 const JSON_TABLES: JsonTableName[] = [
   'papers',
@@ -102,7 +106,8 @@ const JSON_TABLES: JsonTableName[] = [
   'merged_graph_nodes',
   'merged_graph_edges',
   'user_mastery',
-  'llm_jobs'
+  'llm_jobs',
+  'node_understanding_memories'
 ]
 
 const SNAPSHOT_KEYS: Record<JsonTableName, keyof Kg3MemorySnapshot> = {
@@ -118,7 +123,8 @@ const SNAPSHOT_KEYS: Record<JsonTableName, keyof Kg3MemorySnapshot> = {
   merged_graph_nodes: 'mergedGraphNodes',
   merged_graph_edges: 'mergedGraphEdges',
   user_mastery: 'userMastery',
-  llm_jobs: 'llmJobs'
+  llm_jobs: 'llmJobs',
+  node_understanding_memories: 'nodeUnderstandingMemories'
 }
 
 type JsonRow = { json: string }
@@ -261,6 +267,25 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
     writeSnapshot(this.path, snapshot)
   }
 
+  async saveNodeUnderstandingMemory(record: NodeUnderstandingMemory): Promise<void> {
+    const snapshot = readSnapshot(this.path)
+    snapshot.nodeUnderstandingMemories = upsertById(snapshot.nodeUnderstandingMemories, { ...record, updatedAt: now() })
+    writeSnapshot(this.path, snapshot)
+  }
+
+  async listNodeUnderstandingMemories(query: NodeUnderstandingMemoryQuery = {}): Promise<NodeUnderstandingMemory[]> {
+    return filterNodeUnderstandingMemories(readSnapshot(this.path).nodeUnderstandingMemories, query)
+  }
+
+  async findReusableNodeMemories(params: {
+    node: GraphNodeRecord
+    topicTags: string[]
+    methodFamilyTags: string[]
+    limit?: number
+  }): Promise<MemoryReuseSuggestion[]> {
+    return buildMemoryReuseSuggestions(readSnapshot(this.path).nodeUnderstandingMemories, params)
+  }
+
   async getSnapshot(): Promise<Kg3MemorySnapshot> {
     return readSnapshot(this.path)
   }
@@ -377,6 +402,29 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
     this.upsertJson('llm_jobs', job, { paperId: job.paperId, nodeId: job.nodeId, status: job.status, jobType: job.type })
   }
 
+  async saveNodeUnderstandingMemory(record: NodeUnderstandingMemory): Promise<void> {
+    const next = { ...record, updatedAt: now() }
+    this.upsertJson('node_understanding_memories', next, {
+      nodeId: next.nodeId,
+      sourcePaperId: next.sourcePaperId,
+      normalizedNodeLabel: next.normalizedNodeLabel,
+      nodeType: next.nodeType
+    })
+  }
+
+  async listNodeUnderstandingMemories(query: NodeUnderstandingMemoryQuery = {}): Promise<NodeUnderstandingMemory[]> {
+    return filterNodeUnderstandingMemories(this.allJson<NodeUnderstandingMemory>('node_understanding_memories'), query)
+  }
+
+  async findReusableNodeMemories(params: {
+    node: GraphNodeRecord
+    topicTags: string[]
+    methodFamilyTags: string[]
+    limit?: number
+  }): Promise<MemoryReuseSuggestion[]> {
+    return buildMemoryReuseSuggestions(this.allJson<NodeUnderstandingMemory>('node_understanding_memories'), params)
+  }
+
   async getSnapshot(): Promise<Kg3MemorySnapshot> {
     return {
       papers: this.allJson<PaperRecord>('papers'),
@@ -391,7 +439,8 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
       mergedGraphNodes: this.allJson<MergedGraphNode>('merged_graph_nodes'),
       mergedGraphEdges: this.allJson<MergedGraphEdge>('merged_graph_edges'),
       userMastery: this.allJson<UserMasteryRecord>('user_mastery'),
-      llmJobs: this.allJson<LLMJob>('llm_jobs')
+      llmJobs: this.allJson<LLMJob>('llm_jobs'),
+      nodeUnderstandingMemories: this.allJson<NodeUnderstandingMemory>('node_understanding_memories')
     }
   }
 
@@ -411,6 +460,12 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
       this.insertSnapshotRows('merged_graph_edges', snapshot.mergedGraphEdges, (record) => ({ sourceMergedNodeId: record.sourceMergedNodeId, targetMergedNodeId: record.targetMergedNodeId }))
       this.insertSnapshotRows('user_mastery', snapshot.userMastery, (record) => ({ targetType: record.targetType, targetId: record.targetId }))
       this.insertSnapshotRows('llm_jobs', snapshot.llmJobs, (record) => ({ paperId: record.paperId, nodeId: record.nodeId, status: record.status, jobType: record.type }))
+      this.insertSnapshotRows('node_understanding_memories', snapshot.nodeUnderstandingMemories, (record) => ({
+        nodeId: record.nodeId,
+        sourcePaperId: record.sourcePaperId,
+        normalizedNodeLabel: record.normalizedNodeLabel,
+        nodeType: record.nodeType
+      }))
     })
     tx()
   }
@@ -434,6 +489,7 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
       CREATE TABLE IF NOT EXISTS merged_graph_edges (id TEXT PRIMARY KEY, source_merged_node_id TEXT NOT NULL, target_merged_node_id TEXT NOT NULL, json TEXT NOT NULL, created_at TEXT, updated_at TEXT);
       CREATE TABLE IF NOT EXISTS user_mastery (id TEXT PRIMARY KEY, target_type TEXT NOT NULL, target_id TEXT NOT NULL, json TEXT NOT NULL, updated_at TEXT);
       CREATE TABLE IF NOT EXISTS llm_jobs (id TEXT PRIMARY KEY, job_type TEXT NOT NULL, status TEXT NOT NULL, paper_id TEXT, node_id TEXT, cache_key TEXT NOT NULL, json TEXT NOT NULL, created_at TEXT, finished_at TEXT);
+      CREATE TABLE IF NOT EXISTS node_understanding_memories (id TEXT PRIMARY KEY, node_id TEXT NOT NULL, source_paper_id TEXT NOT NULL, normalized_node_label TEXT NOT NULL, node_type TEXT NOT NULL, json TEXT NOT NULL, created_at TEXT, updated_at TEXT);
 
       CREATE INDEX IF NOT EXISTS idx_papers_updated_at ON papers(updated_at);
       CREATE INDEX IF NOT EXISTS idx_paper_insights_paper_id ON paper_insights(paper_id);
@@ -447,6 +503,10 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
       CREATE INDEX IF NOT EXISTS idx_merged_nodes_label ON merged_graph_nodes(normalized_label);
       CREATE INDEX IF NOT EXISTS idx_user_mastery_target ON user_mastery(target_type, target_id);
       CREATE INDEX IF NOT EXISTS idx_llm_jobs_type_status ON llm_jobs(job_type, status);
+      CREATE INDEX IF NOT EXISTS idx_node_memory_label ON node_understanding_memories(normalized_node_label);
+      CREATE INDEX IF NOT EXISTS idx_node_memory_type ON node_understanding_memories(node_type);
+      CREATE INDEX IF NOT EXISTS idx_node_memory_source_paper ON node_understanding_memories(source_paper_id);
+      CREATE INDEX IF NOT EXISTS idx_node_memory_updated ON node_understanding_memories(updated_at);
     `)
     this.db.prepare('INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(1, now())
   }
@@ -529,6 +589,8 @@ function insertStatementForTable(db: BetterSqliteDatabase, table: JsonTableName)
       return db.prepare('INSERT OR REPLACE INTO user_mastery (id, target_type, target_id, json, updated_at) VALUES (?, ?, ?, ?, ?)')
     case 'llm_jobs':
       return db.prepare('INSERT OR REPLACE INTO llm_jobs (id, job_type, status, paper_id, node_id, cache_key, json, created_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    case 'node_understanding_memories':
+      return db.prepare('INSERT OR REPLACE INTO node_understanding_memories (id, node_id, source_paper_id, normalized_node_label, node_type, json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
   }
 }
 
@@ -565,7 +627,61 @@ function paramsForTable<T extends { id: string; createdAt?: string; updatedAt?: 
       return [record.id, indexes.targetType ?? null, indexes.targetId ?? null, json, record.updatedAt ?? null]
     case 'llm_jobs':
       return [record.id, indexes.jobType ?? null, indexes.status ?? null, indexes.paperId ?? null, indexes.nodeId ?? null, indexes.cacheKey ?? null, json, record.createdAt ?? null, record.finishedAt ?? null]
+    case 'node_understanding_memories':
+      return [record.id, indexes.nodeId ?? null, indexes.sourcePaperId ?? null, indexes.normalizedNodeLabel ?? '', indexes.nodeType ?? '', json, record.createdAt ?? null, record.updatedAt ?? null]
   }
+}
+
+function filterNodeUnderstandingMemories(
+  memories: NodeUnderstandingMemory[],
+  query: NodeUnderstandingMemoryQuery
+): NodeUnderstandingMemory[] {
+  const normalizedLabel = query.normalizedNodeLabel ?? (query.nodeLabel ? normalizeKg4NodeLabel(query.nodeLabel) : undefined)
+  const topicTags = new Set((query.topicTags ?? []).map(normalizeKg4NodeLabel))
+  const methodFamilyTags = new Set((query.methodFamilyTags ?? []).map(normalizeKg4NodeLabel))
+  const relatedPaperIds = new Set(query.relatedPaperIds ?? [])
+
+  return memories
+    .filter((memory) => !normalizedLabel || memory.normalizedNodeLabel === normalizedLabel)
+    .filter((memory) => !query.nodeType || memory.nodeType === query.nodeType)
+    .filter((memory) => !query.sourcePaperId || memory.sourcePaperId === query.sourcePaperId)
+    .filter((memory) => !topicTags.size || memory.topicTags.some((tag) => topicTags.has(normalizeKg4NodeLabel(tag))))
+    .filter((memory) => !methodFamilyTags.size || memory.methodFamilyTags.some((tag) => methodFamilyTags.has(normalizeKg4NodeLabel(tag))))
+    .filter((memory) => !relatedPaperIds.size || memory.relatedPaperIds.some((paperId) => relatedPaperIds.has(paperId)))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, query.limit ?? 50)
+}
+
+function buildMemoryReuseSuggestions(
+  memories: NodeUnderstandingMemory[],
+  params: { node: GraphNodeRecord; topicTags: string[]; methodFamilyTags: string[]; limit?: number }
+): MemoryReuseSuggestion[] {
+  const normalizedNodeLabel = params.node.normalizedLabel || normalizeKg4NodeLabel(params.node.label)
+  const topicTags = new Set(params.topicTags.map(normalizeKg4NodeLabel))
+  const methodFamilyTags = new Set(params.methodFamilyTags.map(normalizeKg4NodeLabel))
+
+  return memories
+    .map((memory) => {
+      const matchedSignals: MemoryReuseSuggestion['matchedSignals'] = []
+      if (memory.normalizedNodeLabel === normalizedNodeLabel) matchedSignals.push('normalized_label')
+      if (memory.nodeType === params.node.nodeType) matchedSignals.push('node_type')
+      if (memory.topicTags.some((tag) => topicTags.has(normalizeKg4NodeLabel(tag)))) matchedSignals.push('topic_tag')
+      if (memory.methodFamilyTags.some((tag) => methodFamilyTags.has(normalizeKg4NodeLabel(tag)))) matchedSignals.push('method_family')
+      const confidence = Math.min(0.95, matchedSignals.length * 0.22 + (matchedSignals.includes('normalized_label') ? 0.35 : 0))
+      return {
+        id: stableId('memory_reuse', `${memory.id}:${params.node.id}`),
+        memoryId: memory.id,
+        currentNodeId: params.node.id,
+        currentPaperId: params.node.paperId,
+        matchReason: `匹配信号：${matchedSignals.join(', ') || 'weak'}`,
+        matchedSignals,
+        confidence,
+        suggestedReuseText: memory.userEditedUnderstandingNote || memory.generatedUnderstandingNote
+      }
+    })
+    .filter((suggestion) => suggestion.confidence >= 0.3)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, params.limit ?? 5)
 }
 
 export function createPaperMemoryRepository(): PaperMemoryRepository {

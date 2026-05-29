@@ -1,0 +1,307 @@
+import type { GraphNode, NodeType } from './paper'
+import type { GraphNodeRecord, PaperRecord, DedupedPaperCandidate } from './kg3'
+
+export type ExpansionNodeType =
+  | 'related_paper'
+  | 'algorithm_idea'
+  | 'method_family'
+  | 'prerequisite_concept'
+  | 'open_problem'
+
+export interface ExpansionGraphNode {
+  id: string
+  type: ExpansionNodeType
+  label: string
+  description: string
+  sourcePaperIds: string[]
+  isTemporary: boolean
+  visualStyle?: 'faded' | 'highlighted' | 'normal'
+}
+
+export type ExpansionRelation =
+  | 'same_problem_different_method'
+  | 'extends'
+  | 'contrasts_with'
+  | 'uses_as_foundation'
+  | 'solves_limitation_of'
+  | 'shares_assumption_with'
+  | 'requires_prerequisite'
+
+export interface ExpansionGraphEdge {
+  id: string
+  sourceId: string
+  targetId: string
+  relation: ExpansionRelation
+  explanation: string
+}
+
+export interface AlgorithmIdeaCard {
+  id: string
+  paperId: string
+  paperTitle: string
+  problemSetting: string
+  coreIdea: string
+  keyAssumption: string
+  mechanism: string
+  objectiveOrUpdateRule?: string
+  updatedObject?: string
+  strength: string
+  limitation: string
+  bestUseCase?: string
+  relationToCurrentNode:
+    | 'same_problem_different_method'
+    | 'predecessor'
+    | 'parallel'
+    | 'successor'
+    | 'foundation'
+    | 'variant'
+  relationExplanation: string
+  evidenceSource: {
+    paperId: string
+    source: 'arxiv' | 'semantic_scholar' | 'openalex' | 'local_library' | 'mock'
+    url?: string
+    externalId?: string
+  }
+  insufficientInformation?: string
+}
+
+export type AlgorithmIdeaComparisonDimension =
+  | 'research_problem'
+  | 'core_idea'
+  | 'key_assumption'
+  | 'mechanism_flow'
+  | 'objective_or_update_rule'
+  | 'updated_object'
+  | 'strength'
+  | 'limitation'
+  | 'best_use_case'
+  | 'relation_to_current_paper'
+
+export interface AlgorithmIdeaComparisonCell {
+  ideaCardId: string
+  value: string
+  evidencePaperId: string
+}
+
+export interface AlgorithmIdeaComparisonRow {
+  dimension: AlgorithmIdeaComparisonDimension
+  label: string
+  currentNodeOrPaper: string
+  selectedIdeas: AlgorithmIdeaComparisonCell[]
+  contrastInsight: string
+}
+
+export interface AlgorithmIdeaComparisonWorkspace {
+  id: string
+  nodeId: string
+  currentPaperId: string
+  ideaCards: AlgorithmIdeaCard[]
+  selectedIdeaCardIds: string[]
+  comparisonRows: AlgorithmIdeaComparisonRow[]
+  reflectionQuestions: string[]
+  generatedByJobId?: string
+  insufficientInformation?: string
+}
+
+export interface FieldCognitionView {
+  id: string
+  nodeId: string
+  fieldTitle: string
+  coreProblemSummary: string
+  methodFamilies: Array<{
+    id: string
+    label: string
+    ideaCardIds: string[]
+    representativePaperIds: string[]
+    isCurrentPaperRoute: boolean
+    routeExplanation: string
+  }>
+  prerequisiteConcepts: Array<{
+    label: string
+    whyNeeded: string
+  }>
+  insufficientInformation?: string
+}
+
+export interface Kg4NodeExpansionRecord {
+  id: string
+  paperId: string
+  nodeId: string
+  retrievedPaperIds: string[]
+  algorithmIdeaCards: AlgorithmIdeaCard[]
+  expansionGraphNodes: ExpansionGraphNode[]
+  expansionGraphEdges: ExpansionGraphEdge[]
+  fieldCognitionView?: FieldCognitionView
+  dataCompleteness: 'complete' | 'partial' | 'insufficient'
+  missingDataReasons: string[]
+  generatedByJobIds: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NodeReflectionInput {
+  id: string
+  paperId: string
+  nodeId: string
+  selectedIdeaCardIds: string[]
+  comparisonWorkspaceId?: string
+  userReflection: string
+  createdAt: string
+}
+
+export interface ReflectiveFeedback {
+  id: string
+  type: 'reflective'
+  paperId: string
+  nodeId: string
+  selectedIdeaCardIds: string[]
+  strengths: string[]
+  missingDimensions: string[]
+  possibleCounterArguments: string[]
+  evidenceFromPapers: Array<{ paperId: string; evidence: string }>
+  followUpQuestions: string[]
+  suggestedUnderstandingNote: string
+  generatedByJobId?: string
+  createdAt: string
+}
+
+export interface RemedialLesson {
+  id: string
+  type: 'remedial'
+  paperId: string
+  nodeId: string
+  missingPrerequisite: string
+  whyItMattersForCurrentNode: string
+  shortExplanation: string
+  visualExplanation?: string
+  example?: string
+  formulaOrPseudoCode?: string
+  recommendedPapers: string[]
+  recommendedArticles: string[]
+  checkQuestion: string
+  suggestedUnderstandingNote: string
+  generatedByJobId?: string
+  createdAt: string
+}
+
+export type Kg4Feedback = ReflectiveFeedback | RemedialLesson
+
+export interface FeedbackModeDecision {
+  mode: 'reflective' | 'remedial'
+  reason: string
+  prerequisiteGap?: string
+  confidence: number
+}
+
+export interface NodeUnderstandingMemory {
+  id: string
+  userId?: string
+  nodeId: string
+  nodeLabel: string
+  nodeType: string
+  normalizedNodeLabel: string
+  sourcePaperId: string
+  relatedPaperIds: string[]
+  ideaCardIds: string[]
+  methodFamilyTags: string[]
+  topicTags: string[]
+  userReflection: string
+  aiFeedbackType: 'reflective' | 'remedial'
+  aiFeedbackSummary: string
+  strengths: string[]
+  missingDimensions: string[]
+  prerequisiteGaps: string[]
+  generatedUnderstandingNote: string
+  userEditedUnderstandingNote?: string
+  feedbackJobId?: string
+  comparisonWorkspaceId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NodeUnderstandingMemoryQuery {
+  nodeLabel?: string
+  normalizedNodeLabel?: string
+  nodeType?: string
+  topicTags?: string[]
+  methodFamilyTags?: string[]
+  sourcePaperId?: string
+  relatedPaperIds?: string[]
+  limit?: number
+}
+
+export interface MemoryReuseSuggestion {
+  id: string
+  memoryId: string
+  currentNodeId: string
+  currentPaperId: string
+  matchReason: string
+  matchedSignals: Array<'normalized_label' | 'topic_tag' | 'method_family' | 'related_paper' | 'node_type'>
+  confidence: number
+  suggestedReuseText: string
+}
+
+export interface GraphFusionSuggestion {
+  id: string
+  candidateNodeIds: string[]
+  suggestedMergedLabel: string
+  suggestedType: string
+  sources: string[]
+  mergeReason: string
+  confidence: number
+  risks: string[]
+  status: 'pending' | 'accepted' | 'rejected'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExtractAlgorithmIdeasInput {
+  currentPaper: PaperRecord | null
+  currentNode: GraphNodeRecord | GraphNode
+  currentPaperInsight?: unknown
+  retrievedPapers: DedupedPaperCandidate[]
+}
+
+export interface ExtractAlgorithmIdeasOutput {
+  ideaCards: AlgorithmIdeaCard[]
+  insufficientPaperIds: string[]
+}
+
+export interface Kg4ExpansionGraphLayer {
+  anchorNodeId: string
+  nodes: ExpansionGraphNode[]
+  edges: ExpansionGraphEdge[]
+}
+
+export interface Kg4WorkbenchState {
+  expansion: Kg4NodeExpansionRecord
+  comparisonWorkspace: AlgorithmIdeaComparisonWorkspace
+  fieldCognitionView?: FieldCognitionView
+  feedback?: Kg4Feedback
+  reuseSuggestions: MemoryReuseSuggestion[]
+}
+
+export type Kg4LLMTaskType =
+  | 'expand_node_retrieve_context'
+  | 'extract_algorithm_ideas'
+  | 'build_field_cognition_map'
+  | 'generate_expansion_graph'
+  | 'compare_algorithm_ideas'
+  | 'generate_reflective_feedback'
+  | 'generate_remedial_lesson'
+  | 'suggest_graph_fusion'
+  | 'generate_optional_transfer_task'
+
+export type Kg4NodeLike = Pick<GraphNode, 'id' | 'type' | 'label' | 'description' | 'searchQueries'> & {
+  insight?: string
+  whyImportant?: string
+  roleInPaper?: string
+}
+
+export function normalizeKg4NodeLabel(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, ' ').trim()
+}
+
+export function kg4NodeTypeLabel(type: NodeType | string): string {
+  return String(type)
+}

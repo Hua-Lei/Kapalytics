@@ -5,6 +5,18 @@ import { paperMemoryRepository } from '../memory/kg3Repository'
 
 const PROMPT_VERSION = 'kg3-2026-05-29'
 
+const KG4_JOB_TYPES = new Set<LLMJobType>([
+  'expand_node_retrieve_context',
+  'extract_algorithm_ideas',
+  'build_field_cognition_map',
+  'generate_expansion_graph',
+  'compare_algorithm_ideas',
+  'generate_reflective_feedback',
+  'generate_remedial_lesson',
+  'suggest_graph_fusion',
+  'generate_optional_transfer_task'
+])
+
 function now(): string {
   return new Date().toISOString()
 }
@@ -165,7 +177,7 @@ async function executeJob(job: LLMJob): Promise<unknown> {
   if (job.maxTokens === 0) return job.resultJson ?? { ok: true }
   const res = await callLlm({
     messages: [
-      { role: 'system', content: 'You are a KG3 task worker. Return strict json only. Never invent papers. Only use IDs listed by the job input.' },
+      { role: 'system', content: systemPromptForJob(job.type) },
       { role: 'user', content: JSON.stringify({ type: job.type, paperId: job.paperId, nodeId: job.nodeId, relatedPaperIds: job.relatedPaperIds, input: job.inputJson }) }
     ],
     maxTokens: job.maxTokens,
@@ -205,21 +217,40 @@ export function validateReferencedPapers(output: unknown, allowedPaperIds: strin
   visit(output)
   const hallucinatedIds = [...referencedIds].filter((id) => !allowed.has(id))
   const errors = hallucinatedIds.map((id) => `输出引用了候选列表外的论文 ID: ${id}`)
-  if (allowedPaperIds.length > 0 && suspiciousTitles.length > 0) {
-    errors.push('输出包含论文 title 字段；论文元数据必须来自 provider candidates，不允许 LLM 新增。')
-  }
 
   return { ok: errors.length === 0, hallucinatedIds, hallucinatedTitles: suspiciousTitles, errors }
 }
 
 export function validateJobOutput(job: LLMJob, output: unknown): ReferencedPaperValidationResult {
-  if (['expand_node', 'compare_papers', 'generate_transfer_task', 'diagnose_answer'].includes(job.type)) {
+  if (['expand_node', 'compare_papers', 'generate_transfer_task', 'diagnose_answer'].includes(job.type) || KG4_JOB_TYPES.has(job.type)) {
     return validateReferencedPapers(output, job.relatedPaperIds)
   }
   return { ok: true, hallucinatedIds: [], hallucinatedTitles: [], errors: [] }
 }
 
+function systemPromptForJob(type: LLMJobType): string {
+  if (KG4_JOB_TYPES.has(type)) {
+    return [
+      'You are a KG4 task worker. Return strict JSON only.',
+      'Only use currentPaper, currentNode, retrievedPapers, paperAnalyses, selectedIdeaCards, comparisonRows, and userReflection from input.',
+      'Never invent paper titles, authors, years, venues, experiment results, citations, URLs, or external IDs.',
+      'Every paperId in output must exist in currentPaper or retrievedPapers/selectedIdeaCards supplied by input.',
+      'If information is insufficient, return insufficient_information and explain missing fields.'
+    ].join(' ')
+  }
+  return 'You are a KG3 task worker. Return strict json only. Never invent papers. Only use IDs listed by the job input.'
+}
+
 function progressForJob(type: LLMJobType): string {
+  if (type === 'expand_node_retrieve_context') return '正在检索本地论文库和外部 provider...'
+  if (type === 'extract_algorithm_ideas') return '正在抽取算法思想卡...'
+  if (type === 'build_field_cognition_map') return '正在生成领域认知视图...'
+  if (type === 'generate_expansion_graph') return '正在生成临时扩展子图...'
+  if (type === 'compare_algorithm_ideas') return '正在比较 2-3 个算法思想...'
+  if (type === 'generate_reflective_feedback') return '正在生成研究导师式反馈...'
+  if (type === 'generate_remedial_lesson') return '正在生成前置知识补齐讲解...'
+  if (type === 'suggest_graph_fusion') return '正在生成用户确认式图谱融合建议...'
+  if (type === 'generate_optional_transfer_task') return '正在生成可选迁移任务...'
   if (type === 'generate_node_detail') return '正在分析该节点在论文中的作用...'
   if (type === 'expand_node') return '正在生成方向地图和方法谱系...'
   if (type === 'compare_papers') return '正在构造对比阅读表...'

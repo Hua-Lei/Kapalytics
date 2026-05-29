@@ -1,4 +1,5 @@
 import type { AnalysisStep, GraphNode, PaperInsight } from '../../../shared/paper'
+import type { Kg4ExpansionGraphLayer } from '../../../shared/kg4'
 import type { DiagnosisResult } from '../modules/diagnosis/types'
 import type { LearningReport } from '../modules/learning/report'
 import type { Stage } from '../types'
@@ -22,6 +23,7 @@ export interface RightLearningPanelProps {
   learningReport: LearningReport | null
   onAnalyzePaper: () => void
   onAdoptTransferTask: (prompt: string) => void
+  onSetKg4ExpansionGraph: (layer: Kg4ExpansionGraphLayer | null) => void
   onConfirmDiagnosis: (stageId: string) => void
   onEnterStage: (stageId: string) => void
   onGenerateLearningReport: () => void
@@ -73,6 +75,7 @@ function RightLearningPanel(props: RightLearningPanelProps) {
     learningReport,
     onAnalyzePaper,
     onAdoptTransferTask,
+    onSetKg4ExpansionGraph,
     onConfirmDiagnosis,
     onEnterStage,
     onGenerateLearningReport,
@@ -95,6 +98,7 @@ function RightLearningPanel(props: RightLearningPanelProps) {
         node={selectedGraphNode}
         paperInsight={paperInsight}
         onAdoptTransferTask={onAdoptTransferTask}
+        onSetKg4ExpansionGraph={onSetKg4ExpansionGraph}
       />
     ) : (
       <AnalysisPanel

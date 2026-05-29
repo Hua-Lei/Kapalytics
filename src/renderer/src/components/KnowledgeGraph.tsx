@@ -2,13 +2,16 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { KnowledgeGraph as KG, GraphNode } from '../modules/graph/types'
 import { canExpandGraphNode } from '../modules/paper/analysisState'
 import type { PaperInsight } from '../../../shared/paper'
+import type { Kg4ExpansionGraphLayer, ExpansionGraphNode } from '../../../shared/kg4'
 
 interface KnowledgeGraphProps {
   graph: KG
   paperInsight: PaperInsight | null
   selectedNodeId: string | null
   view: 'argument' | 'mechanism' | 'expansion'
+  expansionGraph?: Kg4ExpansionGraphLayer | null
   onNodeSelect: (nodeId: string) => void
+  onClearExpansionGraph?: () => void
 }
 
 const COLORS: Record<string, string> = {
@@ -286,7 +289,24 @@ function getViewGraph(graph: KG, view: KnowledgeGraphProps['view']): KG {
   return { nodes: nodes.length ? nodes : graph.nodes, edges: nodes.length ? edges : graph.edges }
 }
 
-function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, onNodeSelect }: KnowledgeGraphProps) {
+function expansionNodePos(anchor: { x: number; y: number }, index: number, total: number): { x: number; y: number } {
+  const angle = (-Math.PI / 2) + (index / Math.max(1, total)) * Math.PI * 1.65
+  const radius = 180 + (index % 2) * 46
+  return { x: anchor.x + Math.cos(angle) * radius, y: anchor.y + Math.sin(angle) * radius }
+}
+
+function renderExpansionNode(node: ExpansionGraphNode, pos: { x: number; y: number }) {
+  const width = node.type === 'related_paper' ? 150 : 132
+  return (
+    <g className="kg4-expansion-node" data-expansion-node-id={node.id}>
+      <rect x={pos.x - width / 2} y={pos.y - 22} width={width} height={44} rx="12" />
+      <text x={pos.x} y={pos.y - 3} textAnchor="middle">{truncateLabel(node.label)}</text>
+      <text x={pos.x} y={pos.y + 13} textAnchor="middle" className="kg4-expansion-node__type">temporary</text>
+    </g>
+  )
+}
+
+function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, expansionGraph, onNodeSelect, onClearExpansionGraph }: KnowledgeGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const visibleGraph = useMemo(() => getViewGraph(graph, view), [graph, view])
 
@@ -316,6 +336,15 @@ function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, onNodeSelec
     moved: boolean
   }>({ type: null, startX: 0, startY: 0, startPosX: 0, startPosY: 0, moved: false })
 
+  const getPos = (nodeId: string) => positions.get(nodeId) ?? { x: 0, y: 0 }
+  const expansionAnchor = expansionGraph ? getPos(expansionGraph.anchorNodeId) : null
+  const expansionPositions = useMemo(() => {
+    const m = new Map<string, { x: number; y: number }>()
+    if (!expansionGraph || !expansionAnchor) return m
+    expansionGraph.nodes.forEach((node, index) => m.set(node.id, expansionNodePos(expansionAnchor, index, expansionGraph.nodes.length)))
+    return m
+  }, [expansionGraph, expansionAnchor])
+
   if (graph.nodes.length === 0) {
     return (
       <div className="graph-empty-state">
@@ -325,8 +354,6 @@ function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, onNodeSelec
       </div>
     )
   }
-
-  const getPos = (nodeId: string) => positions.get(nodeId) ?? { x: 0, y: 0 }
 
   const handleNodeMouseDown = (nodeId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -502,6 +529,34 @@ function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, onNodeSelec
               )
             )}
           </g>
+          {expansionGraph && expansionAnchor && (
+            <g className="kg4-expansion-layer" pointerEvents="none">
+              <g className="kg4-expansion-edges">
+                {expansionGraph.edges.map((edge) => {
+                  const src = expansionPositions.get(edge.sourceId) ?? (edge.sourceId === expansionGraph.anchorNodeId ? expansionAnchor : null)
+                  const tgt = expansionPositions.get(edge.targetId) ?? (edge.targetId === expansionGraph.anchorNodeId ? expansionAnchor : null)
+                  if (!src || !tgt) return null
+                  return (
+                    <g key={edge.id}>
+                      <line x1={src.x} y1={src.y} x2={tgt.x} y2={tgt.y} />
+                      <text x={(src.x + tgt.x) / 2} y={(src.y + tgt.y) / 2 - 4} textAnchor="middle">{edge.relation}</text>
+                    </g>
+                  )
+                })}
+                {expansionGraph.nodes.slice(0, 3).map((node) => {
+                  const pos = expansionPositions.get(node.id)
+                  if (!pos) return null
+                  return <line key={`anchor-${node.id}`} x1={expansionAnchor.x} y1={expansionAnchor.y} x2={pos.x} y2={pos.y} />
+                })}
+              </g>
+              <g className="kg4-expansion-nodes">
+                {expansionGraph.nodes.map((node) => {
+                  const pos = expansionPositions.get(node.id)
+                  return pos ? <g key={node.id}>{renderExpansionNode(node, pos)}</g> : null
+                })}
+              </g>
+            </g>
+          )}
           <g className="graph-expansion-markers" pointerEvents="none">
             {visibleGraph.nodes.filter(canExpandGraphNode).map((node) => {
               const marker = getExpansionMarkerPosition(node, getPos(node.id))
@@ -519,6 +574,11 @@ function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, onNodeSelec
       <button className="graph-reset-btn" onClick={resetView} title="重置视图">
         ↺
       </button>
+      {expansionGraph && (
+        <button className="kg4-clear-expansion-btn" onClick={onClearExpansionGraph} title="清除 KG4 临时扩展层">
+          清除 KG4 临时层
+        </button>
+      )}
       <div className="graph-legend" aria-label="节点类型图例">
         {Object.entries(TYPE_LABELS).map(([type, label]) => (
           <span key={type} className="graph-legend__item">

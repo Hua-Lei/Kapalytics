@@ -4,6 +4,7 @@ import PdfPanel from './PdfPanel'
 import RightLearningPanel, { RightLearningPanelProps } from './RightLearningPanel'
 import type { Stage } from '../types'
 import type { KnowledgeGraph, PaperInsight } from '../../../shared/paper'
+import type { Kg4ExpansionGraphLayer } from '../../../shared/kg4'
 
 type ActiveTab = 'graph' | 'learning'
 type ResizeTarget = 'left' | 'right'
@@ -12,11 +13,13 @@ interface AppShellProps extends RightLearningPanelProps {
   activeTab: ActiveTab
   fontScale: number
   graph: KnowledgeGraph
+  kg4ExpansionGraph: Kg4ExpansionGraphLayer | null
   paperInsight: PaperInsight | null
   leftCollapsed: boolean
   leftWidth: number
   onCycleFontSize: () => void
   onAdoptTransferTask: (prompt: string) => void
+  onSetKg4ExpansionGraph: (layer: Kg4ExpansionGraphLayer | null) => void
   onMouseDownResize: (target: ResizeTarget) => void
   onOpenSettings: () => void
   onSelectGraphNode: (nodeId: string | null) => void
@@ -43,6 +46,7 @@ function AppShell({
   genError,
   genProgress,
   graph,
+  kg4ExpansionGraph,
   paperInsight,
   leftCollapsed,
   leftWidth,
@@ -52,6 +56,7 @@ function AppShell({
   onConfirmDiagnosis,
   onCycleFontSize,
   onEnterStage,
+  onSetKg4ExpansionGraph,
   onGenerateLearningReport,
   onMarkNeedsReview,
   onMouseDownResize,
@@ -111,6 +116,8 @@ function AppShell({
           selectedGraphNodeId={selectedGraphNodeId}
           selectedStageId={selectedStageId}
           stages={stages}
+          expansionGraph={kg4ExpansionGraph}
+          onClearExpansionGraph={() => onSetKg4ExpansionGraph(null)}
         />
 
         {!rightCollapsed && (
@@ -141,6 +148,7 @@ function AppShell({
               learningReport={learningReport}
               onAnalyzePaper={onAnalyzePaper}
               onAdoptTransferTask={onAdoptTransferTask}
+              onSetKg4ExpansionGraph={onSetKg4ExpansionGraph}
               onConfirmDiagnosis={onConfirmDiagnosis}
               onEnterStage={onEnterStage}
               onGenerateLearningReport={onGenerateLearningReport}

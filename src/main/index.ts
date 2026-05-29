@@ -265,6 +265,27 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('kg3:cancel-llm-job', async (_e, jobId: string) => {
     await llmTaskOrchestrator.cancel(jobId)
   })
+
+  ipcMain.handle('kg4:save-node-understanding-memory', async (_e, record) => {
+    await paperMemoryRepository.saveNodeUnderstandingMemory(record)
+    return { ok: true }
+  })
+
+  ipcMain.handle('kg4:list-node-understanding-memories', async (_e, query) => {
+    return paperMemoryRepository.listNodeUnderstandingMemories(query)
+  })
+
+  ipcMain.handle('kg4:find-reusable-node-memories', async (_e, params: { nodeId: string; topicTags?: string[]; methodFamilyTags?: string[]; limit?: number }) => {
+    const snapshot = await paperMemoryRepository.getSnapshot()
+    const node = snapshot.graphNodes.find((item) => item.id === params.nodeId || item.id.endsWith(`:${params.nodeId}`))
+    if (!node) return []
+    return paperMemoryRepository.findReusableNodeMemories({
+      node,
+      topicTags: params.topicTags ?? node.searchQueries,
+      methodFamilyTags: params.methodFamilyTags ?? [],
+      limit: params.limit
+    })
+  })
 }
 
 app.whenReady().then(() => {

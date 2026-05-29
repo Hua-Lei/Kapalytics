@@ -1,5 +1,6 @@
 import type { ExtractedPaperContent, PaperAnalysisResult, SelectedPdf } from './paper'
 import type { Kg3ExpansionContext, Kg3MemorySnapshot, LLMJob, PaperSearchQuery } from './kg3'
+import type { MemoryReuseSuggestion, NodeUnderstandingMemory, NodeUnderstandingMemoryQuery } from './kg4'
 
 export interface DiagnosisResult {
   errorType: string
@@ -52,5 +53,15 @@ export interface ElectronApi {
     createLlmJob: (payload: { type: LLMJob['type']; input: unknown; paperId?: string; nodeId?: string; relatedPaperIds?: string[] }) => Promise<LLMJob>
     runLlmJob: (jobId: string) => Promise<LLMJob>
     cancelLlmJob: (jobId: string) => Promise<void>
+  }
+  kg4: {
+    saveNodeUnderstandingMemory: (record: NodeUnderstandingMemory) => Promise<{ ok: boolean }>
+    listNodeUnderstandingMemories: (query?: NodeUnderstandingMemoryQuery) => Promise<NodeUnderstandingMemory[]>
+    findReusableNodeMemories: (params: {
+      nodeId: string
+      topicTags?: string[]
+      methodFamilyTags?: string[]
+      limit?: number
+    }) => Promise<MemoryReuseSuggestion[]>
   }
 }

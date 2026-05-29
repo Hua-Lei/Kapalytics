@@ -10,6 +10,7 @@ import { derivePaperInsight, sanitizeGraph } from './modules/paper/analysisState
 import { usePaperAnalysis } from './modules/paper/usePaperAnalysis'
 import type { DiagnosisResult } from './modules/diagnosis/types'
 import type { KnowledgeGraph, PaperInsight } from '../../shared/paper'
+import type { Kg4ExpansionGraphLayer } from '../../shared/kg4'
 
 type ActiveTab = 'graph' | 'learning'
 type ResizeTarget = 'left' | 'right' | null
@@ -68,6 +69,7 @@ function App() {
   const [hydrated, setHydrated] = useState(false)
 
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
+  const [kg4ExpansionGraph, setKg4ExpansionGraph] = useState<Kg4ExpansionGraphLayer | null>(null)
   const {
     analysisSteps,
     analyzePaper,
@@ -330,6 +332,7 @@ function App() {
         genError={genError}
         genProgress={genProgress}
         graph={graph}
+        kg4ExpansionGraph={kg4ExpansionGraph}
         paperInsight={paperInsight}
         leftCollapsed={leftCollapsed}
         leftWidth={leftWidth}
@@ -345,6 +348,7 @@ function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onRetryStage={retryStage}
         onSelectGraphNode={setSelectedGraphNodeId}
+        onSetKg4ExpansionGraph={setKg4ExpansionGraph}
         onSelectPdf={handleSelectPdf}
         onSelectStage={setSelectedStageId}
         onSelectTab={(tab) => setActiveTab(tab)}

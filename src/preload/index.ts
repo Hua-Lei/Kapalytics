@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { DiagnosisResult } from '../shared/electron-api'
 import type { ExtractedPaperContent, PaperAnalysisResult } from '../shared/paper'
 import type { Kg3ExpansionContext, Kg3MemorySnapshot, LLMJob, PaperSearchQuery } from '../shared/kg3'
+import type { MemoryReuseSuggestion, NodeUnderstandingMemory, NodeUnderstandingMemoryQuery } from '../shared/kg4'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -51,5 +52,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('kg3:create-llm-job', payload),
     runLlmJob: (jobId: string): Promise<LLMJob> => ipcRenderer.invoke('kg3:run-llm-job', jobId),
     cancelLlmJob: (jobId: string): Promise<void> => ipcRenderer.invoke('kg3:cancel-llm-job', jobId)
+  },
+
+  kg4: {
+    saveNodeUnderstandingMemory: (record: NodeUnderstandingMemory): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('kg4:save-node-understanding-memory', record),
+    listNodeUnderstandingMemories: (query?: NodeUnderstandingMemoryQuery): Promise<NodeUnderstandingMemory[]> =>
+      ipcRenderer.invoke('kg4:list-node-understanding-memories', query),
+    findReusableNodeMemories: (params: {
+      nodeId: string
+      topicTags?: string[]
+      methodFamilyTags?: string[]
+      limit?: number
+    }): Promise<MemoryReuseSuggestion[]> => ipcRenderer.invoke('kg4:find-reusable-node-memories', params)
   }
 })

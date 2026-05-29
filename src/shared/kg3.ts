@@ -11,6 +11,7 @@ import type {
   SharpComparisonRow,
   TransferTask
 } from './paper'
+import type { Kg4LLMTaskType, NodeUnderstandingMemory } from './kg4'
 
 export type PaperSource = 'uploaded_pdf' | 'arxiv' | 'semantic_scholar' | 'openalex' | 'local_library'
 export type PaperProvider = 'arxiv' | 'semantic_scholar' | 'openalex' | 'doi' | 'corpus_id' | 'local'
@@ -301,6 +302,7 @@ export type LLMJobType =
   | 'fuse_graph_nodes'
   | 'repair_json'
   | 'summarize_retrieved_paper'
+  | Kg4LLMTaskType
 
 export type LLMJobStatus = 'queued' | 'running' | 'waiting_for_retrieval' | 'validating' | 'succeeded' | 'failed' | 'cancelled' | 'cache_hit'
 export type LLMProgressStep = 'building_context' | 'waiting_for_retrieval' | 'calling_model' | 'parsing_json' | 'validating_schema' | 'saving_memory' | 'done'
@@ -387,6 +389,7 @@ export interface Kg3MemorySnapshot {
   mergedGraphEdges: MergedGraphEdge[]
   userMastery: UserMasteryRecord[]
   llmJobs: LLMJob[]
+  nodeUnderstandingMemories: NodeUnderstandingMemory[]
 }
 
 export interface PaperMemoryRepository {
@@ -397,6 +400,14 @@ export interface PaperMemoryRepository {
   saveSearchResults(query: string, results: PaperSearchResult[]): Promise<void>
   saveNodeExpansion(record: NodeExpansionRecord): Promise<void>
   saveLLMJob(job: LLMJob): Promise<void>
+  saveNodeUnderstandingMemory(record: NodeUnderstandingMemory): Promise<void>
+  listNodeUnderstandingMemories(query?: import('./kg4').NodeUnderstandingMemoryQuery): Promise<NodeUnderstandingMemory[]>
+  findReusableNodeMemories(params: {
+    node: GraphNodeRecord
+    topicTags: string[]
+    methodFamilyTags: string[]
+    limit?: number
+  }): Promise<import('./kg4').MemoryReuseSuggestion[]>
   getSnapshot(): Promise<Kg3MemorySnapshot>
 }
 
