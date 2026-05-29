@@ -53,7 +53,7 @@ function MathText({ text, displayMode }: MathTextProps) {
             />
           )
         } catch {
-          return <span key={i} style={{ color: '#e94560' }}>{`$${part.formula}$`}</span>
+          return <span key={i} className="math-error">{`$${part.formula}$`}</span>
         }
       })}
     </>

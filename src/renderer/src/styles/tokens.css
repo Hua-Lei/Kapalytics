@@ -1,0 +1,78 @@
+:root {
+  --color-bg: #f4f1ea;
+  --color-surface: #fbfaf6;
+  --color-border: #ded8cb;
+  --color-accent: #2f5d70;
+  --color-accent-hover: #244b5c;
+  --color-text: #211f1b;
+  --color-text-muted: #5f5a52;
+  --color-text-tertiary: #8b8376;
+  --color-success: #3f7b5d;
+  --color-warning: #9a6b20;
+  --color-danger: #a14a43;
+  --color-overlay: rgba(36, 33, 29, 0.32);
+  --color-bg-app: #f4f1ea;
+  --color-bg-panel: #fbfaf6;
+  --color-bg-elevated: #ffffff;
+  --color-bg-muted: #eeeae2;
+  --color-bg-canvas: #f7f4ee;
+  --color-border-subtle: #ded8cb;
+  --color-border-strong: #c8bfae;
+  --color-accent-soft: #e4eef1;
+  --color-paper-shadow: rgba(67, 56, 43, 0.16);
+  --shadow-soft: 0 8px 24px rgba(38, 32, 24, 0.06);
+  --shadow-panel: 0 18px 45px rgba(55, 45, 34, 0.10), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  --shadow-card: 0 10px 28px rgba(55, 45, 34, 0.08);
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  --header-height: 48px;
+  --panel-header-height: 48px;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(47, 93, 112, 0.08), transparent 34vw),
+    linear-gradient(180deg, #fbfaf6 0%, var(--color-bg-app) 42%);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 62%, white);
+  outline-offset: 2px;
+}
+
+.eyebrow {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

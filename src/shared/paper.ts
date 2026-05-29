@@ -1,5 +1,48 @@
 export type NodeType = 'field' | 'concept' | 'problem' | 'method' | 'formula' | 'experiment' | 'limitation'
 
+export type ExpansionType = 'field_overview' | 'related_papers' | 'method_evolution' | 'comparison'
+
+export interface PaperInsight {
+  centralInsight: string
+  priorLimitation: string
+  methodMechanism: string
+  evidenceChain: string[]
+  remainingGap: string
+}
+
+export interface FormulaExplanation {
+  latex: string
+  symbols: { symbol: string; meaning: string }[]
+  trainingObjective?: string
+  positionInMethod?: string
+  ablationThought?: string
+}
+
+export interface MethodFlowStep {
+  id: string
+  label: string
+  description: string
+  input?: string
+  output?: string
+}
+
+export interface ClaimEvidenceRow {
+  experiment: string
+  claim: string
+  observation: string
+  conclusion: string
+}
+
+export interface NodeDetail {
+  summary: string
+  keyPoints?: string[]
+  roleInArgument?: string
+  formulaExplanation?: FormulaExplanation
+  methodFlow?: MethodFlowStep[]
+  claimEvidence?: ClaimEvidenceRow[]
+  failureConditions?: string[]
+}
+
 export interface GraphNode {
   id: string
   type: NodeType
@@ -7,6 +50,15 @@ export interface GraphNode {
   description: string
   x: number
   y: number
+  insight?: string
+  whyImportant?: string
+  roleInPaper?: string
+  contrastWithPrior?: string
+  evidenceNodeIds?: string[]
+  expandable?: boolean
+  expansionType?: ExpansionType
+  searchQueries?: string[]
+  detail?: NodeDetail
 }
 
 export interface GraphEdge {
@@ -20,6 +72,60 @@ export interface GraphEdge {
 export interface KnowledgeGraph {
   nodes: GraphNode[]
   edges: GraphEdge[]
+}
+
+export interface RelatedPaper {
+  id: string
+  title: string
+  authors?: string[]
+  year?: number
+  venue?: string
+  topicTags: string[]
+  summary: string
+  relationToCurrentPaper: string
+  influenceReason?: string
+  url?: string
+  source: 'mock' | 'semantic_scholar' | 'arxiv' | 'openalex' | 'local'
+}
+
+export interface FieldOverviewCard {
+  title: string
+  definition: string
+  coreProblems: string[]
+  methodFamilies: string[]
+  relationToCurrentPaper: string
+  keyTerms: string[]
+}
+
+export interface MethodEvolutionStep {
+  id: string
+  label: string
+  description: string
+  representativePaperIds: string[]
+  relation: 'predecessor' | 'parallel' | 'successor' | 'variant'
+}
+
+export interface PaperComparisonRow {
+  dimension: string
+  currentPaper: string
+  relatedPaper: string
+}
+
+export interface TransferTask {
+  id: string
+  prompt: string
+  expectedReasoningPoints: string[]
+  relatedPaperIds: string[]
+  targetAbility: 'transfer_comparison'
+}
+
+export interface NodeExpansionResult {
+  nodeId: string
+  overview: FieldOverviewCard
+  relatedPapers: RelatedPaper[]
+  methodEvolution?: MethodEvolutionStep[]
+  comparisonRows?: PaperComparisonRow[]
+  transferTask?: TransferTask
 }
 
 export type AnalysisStepStatus = 'pending' | 'active' | 'done' | 'error'
@@ -36,6 +142,7 @@ export interface AnalysisStep {
 }
 
 export interface PaperAnalysisResult {
+  insight?: PaperInsight
   graph: KnowledgeGraph
   tasks: Record<string, string>
 }

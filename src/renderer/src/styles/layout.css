@@ -1,0 +1,121 @@
+.app-root,
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0) 72px),
+    var(--color-bg-app);
+}
+
+.app-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 12px 14px 14px;
+  gap: 0;
+}
+
+.app-header {
+  height: var(--header-height);
+  background: color-mix(in srgb, var(--color-bg-panel) 92%, white);
+  border-bottom: 1px solid rgba(200, 191, 174, 0.76);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.78) inset, 0 8px 22px rgba(55, 45, 34, 0.055);
+  color: var(--color-text);
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+  align-items: center;
+  padding: 0 14px;
+}
+
+.app-header__left {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app-header__logo {
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 720;
+  letter-spacing: 0;
+  position: relative;
+}
+
+.app-header__logo::before {
+  background: linear-gradient(135deg, var(--color-accent), #8a6f43);
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(47, 93, 112, 0.10);
+  content: '';
+  display: inline-block;
+  height: 8px;
+  margin-right: 8px;
+  width: 8px;
+}
+
+.app-header__subtitle {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.app-header__status,
+.app-header__right {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.app-header__right {
+  justify-content: flex-end;
+}
+
+.status-pill {
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  padding: 4px 11px;
+}
+
+.status-pill--ready {
+  background: #e7efe9;
+  border-color: #c9dccf;
+  color: var(--color-success);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
+}
+
+.resize-handle {
+  background: transparent;
+  cursor: col-resize;
+  flex-shrink: 0;
+  position: relative;
+  width: 10px;
+}
+
+.resize-handle::before {
+  background: transparent;
+  border-radius: 999px;
+  bottom: 12px;
+  content: '';
+  left: 4px;
+  position: absolute;
+  top: 12px;
+  transition: background 0.16s ease;
+  width: 2px;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: transparent;
+}
+
+.resize-handle:hover::before,
+.resize-handle:active::before {
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+}

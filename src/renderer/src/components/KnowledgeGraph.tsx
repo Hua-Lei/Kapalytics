@@ -1,21 +1,39 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { KnowledgeGraph as KG, GraphNode } from '../modules/graph/types'
+import { canExpandGraphNode } from '../modules/paper/analysisState'
+import type { PaperInsight } from '../../../shared/paper'
 
 interface KnowledgeGraphProps {
   graph: KG
+  paperInsight: PaperInsight | null
   selectedNodeId: string | null
+  view: 'argument' | 'mechanism' | 'expansion'
   onNodeSelect: (nodeId: string) => void
 }
 
 const COLORS: Record<string, string> = {
-  field: '#4A90D9',
-  concept: '#50C878',
-  problem: '#E94560',
-  method: '#F0A500',
-  formula: '#9B59B6',
-  experiment: '#1ABC9C',
-  limitation: '#E67E22'
+  field: '#3f6f85',
+  concept: '#55785f',
+  problem: '#9a6159',
+  method: '#62678d',
+  formula: '#806f8f',
+  experiment: '#5f8489',
+  limitation: '#92774a'
 }
+
+const NODE_STROKE = '#fffaf1'
+
+const TYPE_LABELS: Record<string, string> = {
+  field: '领域',
+  concept: '概念',
+  problem: '问题',
+  method: '方法',
+  formula: '公式',
+  experiment: '实验',
+  limitation: '局限'
+}
+
+const truncateLabel = (label: string) => label.length > 12 ? `${label.slice(0, 11)}…` : label
 
 const DRAG_THRESHOLD = 3
 
@@ -38,6 +56,11 @@ function getNodeCenter(node: GraphNode, pos: { x: number; y: number }): { cx: nu
   }
 }
 
+function getExpansionMarkerPosition(node: GraphNode, pos: { x: number; y: number }): { x: number; y: number } {
+  const center = getNodeCenter(node, pos)
+  return { x: center.cx + 44, y: center.cy - 28 }
+}
+
 function renderNode(
   node: GraphNode,
   pos: { x: number; y: number },
@@ -46,8 +69,8 @@ function renderNode(
   onMouseDown: (e: React.MouseEvent) => void
 ) {
   const color = COLORS[node.type]
-  const strokeW = selected ? 2.5 : 0
-  const filter = selected ? 'url(#glow)' : undefined
+  const strokeW = selected ? 2.6 : 1.15
+  const filter = selected ? 'url(#selectedGlow)' : 'url(#nodeDepth)'
 
   switch (node.type) {
     case 'field': {
@@ -68,13 +91,13 @@ function renderNode(
             rx={12}
             ry={12}
             fill={color}
-            stroke="#fff"
+            stroke={NODE_STROKE}
             strokeWidth={strokeW}
             filter={filter}
-            opacity={0.92}
+            opacity={0.96}
           />
           <text x={pos.x} y={pos.y + 29} textAnchor="middle" fill="#fff" fontSize={13}>
-            {node.label}
+            {truncateLabel(node.label)}
           </text>
         </g>
       )
@@ -93,13 +116,13 @@ function renderNode(
             cy={pos.y}
             r={r}
             fill={color}
-            stroke="#fff"
+            stroke={NODE_STROKE}
             strokeWidth={strokeW}
             filter={filter}
-            opacity={0.92}
+            opacity={0.96}
           />
           <text x={pos.x} y={pos.y + 4} textAnchor="middle" fill="#fff" fontSize={11}>
-            {node.label}
+            {truncateLabel(node.label)}
           </text>
         </g>
       )
@@ -117,13 +140,13 @@ function renderNode(
           <polygon
             points={pts}
             fill={color}
-            stroke="#fff"
+            stroke={NODE_STROKE}
             strokeWidth={strokeW}
             filter={filter}
-            opacity={0.92}
+            opacity={0.96}
           />
           <text x={pos.x} y={pos.y + 4} textAnchor="middle" fill="#fff" fontSize={10}>
-            {node.label}
+            {truncateLabel(node.label)}
           </text>
         </g>
       )
@@ -146,13 +169,13 @@ function renderNode(
             rx={5}
             ry={5}
             fill={color}
-            stroke="#fff"
+            stroke={NODE_STROKE}
             strokeWidth={strokeW}
             filter={filter}
-            opacity={0.92}
+            opacity={0.96}
           />
           <text x={pos.x} y={pos.y + 25} textAnchor="middle" fill="#fff" fontSize={12}>
-            {node.label}
+            {truncateLabel(node.label)}
           </text>
         </g>
       )
@@ -172,13 +195,13 @@ function renderNode(
           <polygon
             points={pts}
             fill={color}
-            stroke="#fff"
+            stroke={NODE_STROKE}
             strokeWidth={strokeW}
             filter={filter}
-            opacity={0.92}
+            opacity={0.96}
           />
           <text x={pos.x} y={pos.y + 25} textAnchor="middle" fill="#fff" fontSize={11}>
-            {node.label}
+            {truncateLabel(node.label)}
           </text>
         </g>
       )
@@ -201,13 +224,13 @@ function renderNode(
             rx={20}
             ry={20}
             fill={color}
-            stroke="#fff"
+            stroke={NODE_STROKE}
             strokeWidth={strokeW}
             filter={filter}
-            opacity={0.92}
+            opacity={0.96}
           />
           <text x={pos.x} y={pos.y + 24} textAnchor="middle" fill="#fff" fontSize={11}>
-            {node.label}
+            {truncateLabel(node.label)}
           </text>
         </g>
       )
@@ -238,13 +261,13 @@ function renderNode(
           <polygon
             points={pts}
             fill={color}
-            stroke="#fff"
+            stroke={NODE_STROKE}
             strokeWidth={strokeW}
             filter={filter}
-            opacity={0.92}
+            opacity={0.96}
           />
           <text x={pos.x} y={pos.y + 4} textAnchor="middle" fill="#fff" fontSize={9}>
-            {node.label}
+            {truncateLabel(node.label)}
           </text>
         </g>
       )
@@ -252,21 +275,33 @@ function renderNode(
   }
 }
 
-function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphProps) {
+function getViewGraph(graph: KG, view: KnowledgeGraphProps['view']): KG {
+  if (view === 'argument') return graph
+  const nodeTypes = view === 'mechanism'
+    ? new Set(['method', 'formula', 'experiment'])
+    : new Set(['field', 'concept', 'method'])
+  const nodes = graph.nodes.filter((node) => nodeTypes.has(node.type))
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  const edges = graph.edges.filter((edge) => nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId))
+  return { nodes: nodes.length ? nodes : graph.nodes, edges: nodes.length ? edges : graph.edges }
+}
+
+function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, onNodeSelect }: KnowledgeGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const visibleGraph = useMemo(() => getViewGraph(graph, view), [graph, view])
 
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(() => {
     const m = new Map<string, { x: number; y: number }>()
-    graph.nodes.forEach((n) => m.set(n.id, { x: n.x, y: n.y }))
+    visibleGraph.nodes.forEach((n) => m.set(n.id, { x: n.x, y: n.y }))
     return m
   })
 
   // Sync positions when graph changes (e.g., new paper loaded in future)
   useEffect(() => {
     const m = new Map<string, { x: number; y: number }>()
-    graph.nodes.forEach((n) => m.set(n.id, { x: n.x, y: n.y }))
+    visibleGraph.nodes.forEach((n) => m.set(n.id, { x: n.x, y: n.y }))
     setPositions(m)
-  }, [graph])
+  }, [visibleGraph])
 
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -282,7 +317,13 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
   }>({ type: null, startX: 0, startY: 0, startPosX: 0, startPosY: 0, moved: false })
 
   if (graph.nodes.length === 0) {
-    return <div className="empty-state">论文解析后将在此展示知识图谱</div>
+    return (
+      <div className="graph-empty-state">
+        <span className="eyebrow">Knowledge Map</span>
+        <h2>上传并分析论文后生成理解地图</h2>
+        <p>核心概念、方法、公式、实验和局限会在这里组成可交互图谱。</p>
+      </div>
+    )
   }
 
   const getPos = (nodeId: string) => positions.get(nodeId) ?? { x: 0, y: 0 }
@@ -378,10 +419,14 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
       >
         <defs>
           <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-            <polygon points="0 0, 8 3, 0 6" fill="#555" />
+            <polygon points="0 0, 8 3, 0 6" fill="#b7ad9d" />
           </marker>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="blur" />
+          <filter id="nodeDepth" x="-24%" y="-24%" width="148%" height="148%">
+            <feDropShadow dx="0" dy="5" stdDeviation="4" floodColor="#342b20" floodOpacity="0.16" />
+          </filter>
+          <filter id="selectedGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="7" stdDeviation="5" floodColor="#2f5d70" floodOpacity="0.26" />
+            <feGaussianBlur stdDeviation="2.4" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -390,10 +435,19 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
         </defs>
 
         <g transform={`translate(${offset.x},${offset.y}) scale(${scale})`}>
+          {view === 'argument' && paperInsight?.centralInsight && (
+            <g className="graph-insight-card">
+              <rect x="24" y="62" width="322" height="96" rx="14" fill="#fffaf1" stroke="#d9d0bf" opacity="0.95" />
+              <text x="42" y="90" fill="#2f3a35" fontSize="13" fontWeight="700">Central Insight</text>
+              <foreignObject x="42" y="100" width="286" height="48">
+                <div className="graph-insight-text">{paperInsight.centralInsight}</div>
+              </foreignObject>
+            </g>
+          )}
           <g className="graph-edges">
-            {graph.edges.map((edge) => {
-              const srcNode = graph.nodes.find((n) => n.id === edge.sourceId)
-              const tgtNode = graph.nodes.find((n) => n.id === edge.targetId)
+            {visibleGraph.edges.map((edge) => {
+              const srcNode = visibleGraph.nodes.find((n) => n.id === edge.sourceId)
+              const tgtNode = visibleGraph.nodes.find((n) => n.id === edge.targetId)
               if (!srcNode || !tgtNode) return null
               const sc = getNodeCenter(srcNode, getPos(edge.sourceId))
               const tc = getNodeCenter(tgtNode, getPos(edge.targetId))
@@ -404,8 +458,9 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
                     y1={sc.cy}
                     x2={tc.cx}
                     y2={tc.cy}
-                    stroke="#555"
-                    strokeWidth={1.5}
+                    stroke="#b7aea3"
+                    strokeWidth={1.2}
+                    opacity={0.72}
                     markerEnd={edge.directed ? 'url(#arrowhead)' : undefined}
                   />
                   {edge.label && (
@@ -416,14 +471,15 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
                         width={edge.label.length * 8 + 8}
                         height={16}
                         rx={3}
-                        fill="#16213e"
-                        opacity={0.85}
+                        fill="#fbfaf7"
+                        stroke="#e3ded3"
+                        opacity={0.92}
                       />
                       <text
                         x={(sc.cx + tc.cx) / 2}
                         y={(sc.cy + tc.cy) / 2 + 2}
                         textAnchor="middle"
-                        fill="#888"
+                        fill="#625d55"
                         fontSize={10}
                       >
                         {edge.label}
@@ -436,7 +492,7 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
           </g>
 
           <g className="graph-nodes">
-            {graph.nodes.map((node) =>
+            {visibleGraph.nodes.map((node) =>
               renderNode(
                 node,
                 getPos(node.id),
@@ -446,12 +502,31 @@ function KnowledgeGraph({ graph, selectedNodeId, onNodeSelect }: KnowledgeGraphP
               )
             )}
           </g>
+          <g className="graph-expansion-markers" pointerEvents="none">
+            {visibleGraph.nodes.filter(canExpandGraphNode).map((node) => {
+              const marker = getExpansionMarkerPosition(node, getPos(node.id))
+              return (
+                <g key={`expand-${node.id}`} className="graph-expansion-marker">
+                  <circle cx={marker.x} cy={marker.y} r="10" />
+                  <text x={marker.x} y={marker.y + 4} textAnchor="middle">+</text>
+                </g>
+              )
+            })}
+          </g>
         </g>
       </svg>
 
       <button className="graph-reset-btn" onClick={resetView} title="重置视图">
         ↺
       </button>
+      <div className="graph-legend" aria-label="节点类型图例">
+        {Object.entries(TYPE_LABELS).map(([type, label]) => (
+          <span key={type} className="graph-legend__item">
+            <span className="graph-legend__dot" style={{ background: COLORS[type] }} />
+            {label}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }

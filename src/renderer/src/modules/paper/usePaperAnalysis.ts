@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import type { Stage } from '../../types'
-import type { AnalysisStep, GraphNode, KnowledgeGraph } from '../../../../shared/paper'
+import type { AnalysisStep, GraphNode, KnowledgeGraph, PaperInsight } from '../../../../shared/paper'
 import { electronApi } from '../ipc/electronApi'
 import {
   EMPTY_GRAPH,
   INITIAL_ANALYSIS_STEPS,
+  derivePaperInsight,
   markActiveStepFailed,
   sanitizeGraph,
   updateStep
@@ -23,6 +24,7 @@ export function usePaperAnalysis({
 }: UsePaperAnalysisOptions) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [graph, setGraph] = useState<KnowledgeGraph>(EMPTY_GRAPH)
+  const [paperInsight, setPaperInsight] = useState<PaperInsight | null>(null)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
   const [genProgress, setGenProgress] = useState('')
@@ -34,6 +36,7 @@ export function usePaperAnalysis({
 
     setPdfUrl(selected.fileUrl)
     setGraph(EMPTY_GRAPH)
+    setPaperInsight(null)
     setGenError('')
     setGenProgress('')
     setAnalysisSteps(INITIAL_ANALYSIS_STEPS)
@@ -46,6 +49,7 @@ export function usePaperAnalysis({
     setGenerating(true)
     setGenError('')
     setGraph(EMPTY_GRAPH)
+    setPaperInsight(null)
     setSelectedGraphNodeId(null)
     setAnalysisSteps(updateStep(INITIAL_ANALYSIS_STEPS, 'extract', 'active'))
     setGenProgress('正在提取 PDF 文本...')
@@ -80,6 +84,7 @@ export function usePaperAnalysis({
           nodes: analysis.graph.nodes.map((node) => ({ ...node, type: node.type as GraphNode['type'] })),
           edges: analysis.graph.edges
         })
+        setPaperInsight(analysis.insight ?? derivePaperInsight(fullGraph))
         setStages((prev) => prev.map((stage) => ({ ...stage, task: analysis.tasks[stage.id] ?? stage.task })))
         setAnalysisSteps((prev) => updateStep(updateStep(prev, 'analyze', 'done'), 'reveal', 'active'))
 
@@ -115,9 +120,11 @@ export function usePaperAnalysis({
     genError,
     genProgress,
     graph,
+    paperInsight,
     pdfUrl,
     selectPdf,
     setGraph,
+    setPaperInsight,
     setPdfUrl
   }
 }
