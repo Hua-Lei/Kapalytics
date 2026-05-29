@@ -7,6 +7,15 @@ export interface DiagnosisResult {
   remedialTask: string
 }
 
+export interface LlmConfig {
+  proxyUrl: string | null
+}
+
+export interface LlmConnectionTestResult {
+  ok: boolean
+  message: string
+}
+
 export interface ElectronApi {
   platform: string
   selectPdf: () => Promise<SelectedPdf | null>
@@ -17,9 +26,11 @@ export interface ElectronApi {
     setApiKey: (key: string) => Promise<void>
     clearApiKey: () => Promise<void>
     hasApiKey: () => Promise<boolean>
+    getConfig: () => Promise<LlmConfig>
     getProviders: () => Promise<{ name: string; id: string }[]>
+    setProxyUrl: (proxyUrl: string | null) => Promise<void>
     setProvider: (id: string) => Promise<void>
-    testConnection: () => Promise<boolean>
+    testConnection: () => Promise<LlmConnectionTestResult>
     diagnose: (params: {
       stageId: string
       stageName: string

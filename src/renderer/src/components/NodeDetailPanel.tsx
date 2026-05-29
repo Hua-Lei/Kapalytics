@@ -1,6 +1,13 @@
 import { useState } from 'react'
-import type { GraphNode, NodeExpansionResult, PaperInsight } from '../../../shared/paper'
-import { expandNode } from '../modules/learning/nodeExpansion'
+import type {
+  ComparisonWorkspace,
+  DirectionMap,
+  GraphNode,
+  MethodLineage,
+  NodeExpansionResult,
+  PaperInsight
+} from '../../../shared/paper'
+import { buildComparisonWorkspaceForPaper, expandNode } from '../modules/learning/nodeExpansion'
 import { canExpandGraphNode } from '../modules/paper/analysisState'
 import MathText from './MathText'
 
@@ -128,64 +135,196 @@ function TypeStructuredDetail({ node }: { node: GraphNode }) {
   return <DetailList title="关键点" items={detail?.keyPoints} />
 }
 
-function ExpansionCard({ expansion, onAdoptTransferTask }: { expansion: NodeExpansionResult; onAdoptTransferTask: (prompt: string) => void }) {
+type ExpansionView = 'direction' | 'lineage' | 'comparison'
+
+const LINEAGE_ROLE_LABEL: Record<string, string> = {
+  predecessor: 'predecessor',
+  foundation: 'foundation',
+  variant: 'variant',
+  current_paper: 'current paper',
+  possible_successor: 'possible successor'
+}
+
+function EmptyExpansionState({ message }: { message: string }) {
   return (
-    <section className="node-detail__section expansion-card">
-      <div className="source-note">当前版本使用内置候选论文库，不由 LLM 编造相关论文。</div>
-      <h4>{expansion.overview.title}</h4>
-      <p><MathText text={expansion.overview.definition} /></p>
-      <DetailList title="核心问题" items={expansion.overview.coreProblems} />
-      <DetailList title="方法类别" items={expansion.overview.methodFamilies} />
-      <DetailList title="继续检索关键词" items={expansion.overview.keyTerms} />
+    <div className="node-expansion-empty">
+      <p>{message}</p>
+    </div>
+  )
+}
 
-      <h4>代表论文</h4>
-      {expansion.relatedPapers.length ? (
-        <div className="related-paper-list">
-          {expansion.relatedPapers.map((paper) => (
-            <article className="related-paper" key={paper.id}>
-              <strong>{paper.title}</strong>
-              <span>{[paper.authors?.join(', '), paper.year, paper.venue].filter(Boolean).join(' · ')}</span>
-              <p>{paper.summary}</p>
-            </article>
-          ))}
+function DirectionMapView({ map }: { map: DirectionMap | undefined }) {
+  if (!map) return <EmptyExpansionState message="当前节点还没有方向地图数据。" />
+  if (map.insufficientDataReason) return <EmptyExpansionState message={map.insufficientDataReason} />
+
+  const currentBranchId = map.currentPaperPosition?.branchId
+  return (
+    <div className="direction-map">
+      <div className="direction-map__root">
+        <span>研究方向</span>
+        <strong>{map.fieldTitle}</strong>
+        <p><MathText text={map.fieldDefinition} /></p>
+      </div>
+      <div className="direction-map__column">
+        <span className="node-expansion__label">核心问题</span>
+        {map.coreProblems.map((problem) => (
+          <article className="direction-map__problem" key={problem.id}>
+            <strong>{problem.label}</strong>
+            <p>{problem.whyItMatters}</p>
+          </article>
+        ))}
+      </div>
+      <div className="direction-map__column">
+        <span className="node-expansion__label">方法分支</span>
+        {map.methodBranches.map((branch) => (
+          <article
+            className={`direction-map__branch ${branch.id === currentBranchId ? 'direction-map__branch--current' : ''}`}
+            key={branch.id}
+          >
+            <strong>{branch.label}</strong>
+            <p>{branch.description}</p>
+            <span>{branch.representativePaperIds.length} 篇候选论文</span>
+          </article>
+        ))}
+      </div>
+      {map.currentPaperPosition && (
+        <div className="direction-map__current">
+          <span>当前论文位置</span>
+          <strong>{map.currentPaperPosition.positionLabel}</strong>
+          <p><MathText text={map.currentPaperPosition.reason} /></p>
+          <em>{map.currentPaperPosition.remainingGap}</em>
         </div>
-      ) : <p className="node-detail__muted">当前内置论文库暂无相关条目。</p>}
+      )}
+    </div>
+  )
+}
 
-      {expansion.methodEvolution?.length ? (
-        <div className="method-evolution">
-          <h4>方法演进</h4>
-          {expansion.methodEvolution.map((step) => (
-            <div key={step.id} className="method-evolution__step">
-              <strong>{step.label}</strong>
-              <span>{step.relation}</span>
-              <p>{step.description}</p>
-            </div>
+function MethodLineageView({ lineage }: { lineage: MethodLineage | undefined }) {
+  if (!lineage) return <EmptyExpansionState message="当前节点还没有方法谱系数据。" />
+  return (
+    <div className="lineage-view">
+      <h4>{lineage.title}</h4>
+      <div className="lineage-track">
+        {lineage.steps.map((step) => (
+          <article
+            className={`lineage-step ${step.isCurrentPaper ? 'lineage-step--current' : ''} ${step.missing ? 'lineage-step--missing' : ''}`}
+            key={step.id}
+          >
+            <span>{LINEAGE_ROLE_LABEL[step.role]}</span>
+            <strong>{step.label}</strong>
+            <p><b>解决：</b>{step.solves}</p>
+            <p><b>留下：</b>{step.remainingGap}</p>
+            <p><b>关系：</b>{step.relationToCurrentPaper}</p>
+            {step.representativePaperIds.length ? <em>{step.representativePaperIds.join(', ')}</em> : null}
+          </article>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ComparisonWorkspaceView({ workspace, onSelectPaper, onAdoptTransferTask }: {
+  workspace: ComparisonWorkspace | undefined
+  onSelectPaper: (paperId: string) => void
+  onAdoptTransferTask: (prompt: string) => void
+}) {
+  if (!workspace) return <EmptyExpansionState message="当前节点还没有对比工作台数据。" />
+  if (workspace.insufficientDataReason) return <EmptyExpansionState message={workspace.insufficientDataReason} />
+
+  return (
+    <div className="comparison-workspace">
+      <div className="related-paper-selector">
+        {workspace.candidates.map((paper) => (
+          <button
+            className={`related-paper-card ${paper.id === workspace.selectedRelatedPaperId ? 'related-paper-card--selected' : ''}`}
+            key={paper.id}
+            onClick={() => onSelectPaper(paper.id)}
+          >
+            <strong>{paper.title}</strong>
+            <span>{[paper.year, paper.venue, paper.source].filter(Boolean).join(' · ')}</span>
+            <em>{paper.methodFamily}</em>
+            <p>{paper.relationToCurrentNode}</p>
+            <small>{paper.whyCompare}</small>
+          </button>
+        ))}
+      </div>
+
+      <table className="node-detail__table sharp-comparison-table">
+        <thead><tr><th>维度</th><th>当前论文 / 当前节点</th><th>所选代表论文</th><th>Sharp Insight</th></tr></thead>
+        <tbody>
+          {workspace.comparisonRows.map((row) => (
+            <tr key={row.dimension}>
+              <td>{row.label}</td>
+              <td><MathText text={row.currentPaper} /></td>
+              <td><MathText text={row.relatedPaper} /></td>
+              <td><MathText text={row.sharpInsight} /></td>
+            </tr>
           ))}
-        </div>
-      ) : null}
+        </tbody>
+      </table>
 
-      {expansion.comparisonRows?.length ? (
-        <>
-          <h4>当前论文 vs 代表论文</h4>
-          <table className="node-detail__table">
-            <thead><tr><th>维度</th><th>当前论文</th><th>代表论文</th></tr></thead>
-            <tbody>
-              {expansion.comparisonRows.map((row) => (
-                <tr key={row.dimension}><td>{row.dimension}</td><td>{row.currentPaper}</td><td>{row.relatedPaper}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      ) : null}
-
-      {expansion.transferTask && (
+      {workspace.transferTask && (
         <div className="transfer-task-card">
           <span>迁移任务</span>
-          <p><MathText text={expansion.transferTask.prompt} /></p>
-          <button className="stage-btn stage-btn--primary" onClick={() => onAdoptTransferTask(expansion.transferTask!.prompt)}>
+          <p><MathText text={workspace.transferTask.prompt} /></p>
+          <DetailList title="期望推理点" items={workspace.transferTask.expectedReasoningPoints} />
+          <button className="stage-btn stage-btn--primary" onClick={() => onAdoptTransferTask(workspace.transferTask!.prompt)}>
             接入学习闭环
           </button>
         </div>
+      )}
+    </div>
+  )
+}
+
+function ExpansionCard({ node, paperInsight, expansion, onAdoptTransferTask }: {
+  node: GraphNode
+  paperInsight: PaperInsight | null
+  expansion: NodeExpansionResult
+  onAdoptTransferTask: (prompt: string) => void
+}) {
+  const [view, setView] = useState<ExpansionView>('direction')
+  const [workspace, setWorkspace] = useState<ComparisonWorkspace | undefined>(expansion.comparisonWorkspace)
+
+  const selectPaper = (paperId: string) => {
+    setWorkspace(buildComparisonWorkspaceForPaper(node, paperInsight, paperId))
+  }
+
+  return (
+    <section className="node-detail__section expansion-card node-expansion-v2">
+      <div className="source-note">当前版本只使用内置候选论文库，不由 LLM 编造相关论文。</div>
+      <div className="node-expansion__header">
+        <div>
+          <h4>{expansion.overview.title}</h4>
+          <p><MathText text={expansion.overview.definition} /></p>
+        </div>
+        <span>{expansion.relatedPapers.length} candidates</span>
+      </div>
+
+      <div className="node-expansion-tabs">
+        {([
+          ['direction', 'Direction Map'],
+          ['lineage', 'Method Evolution'],
+          ['comparison', 'Comparison Workspace']
+        ] as const).map(([tab, label]) => (
+          <button
+            key={tab}
+            className={`node-expansion-tab ${view === tab ? 'node-expansion-tab--active' : ''}`}
+            onClick={() => setView(tab)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'direction' && <DirectionMapView map={expansion.directionMap} />}
+      {view === 'lineage' && <MethodLineageView lineage={expansion.methodLineage} />}
+      {view === 'comparison' && (
+        <ComparisonWorkspaceView
+          workspace={workspace}
+          onSelectPaper={selectPaper}
+          onAdoptTransferTask={onAdoptTransferTask}
+        />
       )}
     </section>
   )
@@ -233,7 +372,15 @@ function NodeDetailPanel({ node, paperInsight, onAdoptTransferTask }: NodeDetail
         </section>
       )}
 
-      {expansion && <ExpansionCard expansion={expansion} onAdoptTransferTask={onAdoptTransferTask} />}
+      {expansion && (
+        <ExpansionCard
+          key={node.id}
+          node={node}
+          paperInsight={paperInsight}
+          expansion={expansion}
+          onAdoptTransferTask={onAdoptTransferTask}
+        />
+      )}
     </div>
   )
 }

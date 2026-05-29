@@ -81,11 +81,114 @@ export interface RelatedPaper {
   year?: number
   venue?: string
   topicTags: string[]
+  methodFamily?: string
+  branchId?: string
+  branchLabel?: string
   summary: string
+  relationToCurrentNode?: string
   relationToCurrentPaper: string
+  whyCompare?: string
   influenceReason?: string
   url?: string
   source: 'mock' | 'semantic_scholar' | 'arxiv' | 'openalex' | 'local'
+}
+
+export type AdaptationStage = 'training_time' | 'test_time' | 'continual_test_time' | 'inference_time'
+
+export type LineageRole = 'predecessor' | 'foundation' | 'variant' | 'current_paper' | 'possible_successor'
+
+export interface RelatedPaperV2 extends RelatedPaper {
+  methodFamily: string
+  branchLabel: string
+  lineageRole?: Exclude<LineageRole, 'current_paper'>
+  relationToCurrentNode: string
+  whyCompare: string
+  solves: string
+  remainingGap: string
+  updatedObject?: string
+  adaptationStage?: AdaptationStage
+}
+
+export interface DirectionProblem {
+  id: string
+  label: string
+  whyItMatters: string
+}
+
+export interface MethodBranch {
+  id: string
+  label: string
+  solvesProblemIds: string[]
+  description: string
+  representativePaperIds: string[]
+  currentPaperBelongsHere: boolean
+  currentPaperRelation?: string
+}
+
+export interface CurrentPaperPosition {
+  branchId: string
+  positionLabel: string
+  reason: string
+  inheritedFrom: string[]
+  improvesOn: string[]
+  remainingGap: string
+}
+
+export interface DirectionMap {
+  nodeId: string
+  fieldTitle: string
+  fieldDefinition: string
+  coreProblems: DirectionProblem[]
+  methodBranches: MethodBranch[]
+  currentPaperPosition: CurrentPaperPosition | null
+  source: RelatedPaper['source']
+  insufficientDataReason?: string
+}
+
+export interface MethodLineageStep {
+  id: string
+  role: LineageRole
+  label: string
+  solves: string
+  remainingGap: string
+  relationToCurrentPaper: string
+  representativePaperIds: string[]
+  isCurrentPaper: boolean
+  missing?: boolean
+}
+
+export interface MethodLineage {
+  nodeId: string
+  title: string
+  steps: MethodLineageStep[]
+}
+
+export type SharpComparisonDimension =
+  | 'research_problem'
+  | 'method_mechanism'
+  | 'adaptation_stage'
+  | 'updated_object'
+  | 'inheritance'
+  | 'improvement'
+  | 'difference'
+  | 'limitation'
+  | 'combination'
+
+export interface SharpComparisonRow {
+  dimension: SharpComparisonDimension
+  label: string
+  currentPaper: string
+  relatedPaper: string
+  sharpInsight: string
+}
+
+export interface ComparisonWorkspace {
+  nodeId: string
+  selectedRelatedPaperId: string | null
+  candidates: RelatedPaperV2[]
+  comparisonRows: SharpComparisonRow[]
+  transferTask?: TransferTask
+  insufficientDataReason?: string
 }
 
 export interface FieldOverviewCard {
@@ -123,6 +226,9 @@ export interface NodeExpansionResult {
   nodeId: string
   overview: FieldOverviewCard
   relatedPapers: RelatedPaper[]
+  directionMap?: DirectionMap
+  methodLineage?: MethodLineage
+  comparisonWorkspace?: ComparisonWorkspace
   methodEvolution?: MethodEvolutionStep[]
   comparisonRows?: PaperComparisonRow[]
   transferTask?: TransferTask

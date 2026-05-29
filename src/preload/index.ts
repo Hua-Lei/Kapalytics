@@ -18,10 +18,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setApiKey: (key: string): Promise<void> => ipcRenderer.invoke('llm:set-api-key', key),
     clearApiKey: (): Promise<void> => ipcRenderer.invoke('llm:clear-api-key'),
     hasApiKey: (): Promise<boolean> => ipcRenderer.invoke('llm:has-api-key'),
+    getConfig: () => ipcRenderer.invoke('llm:get-config'),
     getProviders: (): Promise<{ name: string; id: string }[]> =>
       ipcRenderer.invoke('llm:get-providers'),
+    setProxyUrl: (proxyUrl: string | null): Promise<void> => ipcRenderer.invoke('llm:set-proxy-url', proxyUrl),
     setProvider: (id: string): Promise<void> => ipcRenderer.invoke('llm:set-provider', id),
-    testConnection: (): Promise<boolean> => ipcRenderer.invoke('llm:test-connection'),
+    testConnection: () => ipcRenderer.invoke('llm:test-connection'),
     diagnose: (params: {
       stageId: string
       stageName: string

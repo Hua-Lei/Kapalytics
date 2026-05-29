@@ -64,6 +64,7 @@ function App() {
   const [learningReport, setLearningReport] = useState<LearningReport | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
+  const [proxyUrl, setProxyUrl] = useState('')
   const [hydrated, setHydrated] = useState(false)
 
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
@@ -87,6 +88,7 @@ function App() {
   // Check API key status on mount
   useEffect(() => {
     electronApi.hasKey().then(setHasApiConfigured).catch(() => {})
+    electronApi.getLlmConfig().then((config) => setProxyUrl(config.proxyUrl ?? '')).catch(() => {})
   }, [])
 
   function isValidSavedData(data: Record<string, unknown>): boolean {
@@ -294,8 +296,8 @@ function App() {
     setDrafts((prev) => ({ ...prev, [stageId]: value }))
   }
 
-  const handleTestConnection = async (): Promise<boolean> => {
-    try { return await electronApi.testConnection() } catch { return false }
+  const handleTestConnection = async (): Promise<{ ok: boolean; message: string }> => {
+    try { return await electronApi.testConnection() } catch { return { ok: false, message: '连接测试失败' } }
   }
 
   const generateReport = () => {
@@ -363,6 +365,7 @@ function App() {
       <SettingsModal
         open={settingsOpen}
         hasApiConfigured={hasApiConfigured}
+        initialProxyUrl={proxyUrl}
         onClose={() => setSettingsOpen(false)}
         onSaveKey={async (key) => {
           await electronApi.setKey(key)
@@ -371,6 +374,10 @@ function App() {
         onClearKey={async () => {
           await electronApi.clearKey()
           setHasApiConfigured(false)
+        }}
+        onSaveProxyUrl={async (nextProxyUrl) => {
+          await electronApi.setProxyUrl(nextProxyUrl)
+          setProxyUrl(nextProxyUrl ?? '')
         }}
         onTestConnection={handleTestConnection}
       />

@@ -43,12 +43,16 @@ async function extractPdfTextInRenderer(
 
 export const electronApi = {
   hasKey: () => getApi()?.llm?.hasApiKey?.().catch(() => false) ?? Promise.resolve(false),
-  testConnection: () => getApi()?.llm?.testConnection?.().catch(() => false) ?? Promise.resolve(false),
+  getLlmConfig: () =>
+    getApi()?.llm?.getConfig?.().catch(() => ({ proxyUrl: null })) ?? Promise.resolve({ proxyUrl: null }),
+  testConnection: () =>
+    getApi()?.llm?.testConnection?.().catch(() => ({ ok: false, message: '连接测试失败' })) ?? Promise.resolve({ ok: false, message: 'API unavailable' }),
   diagnose: (params: Parameters<ElectronApi['llm']['diagnose']>[0]) =>
     getApi()?.llm?.diagnose?.(params) ?? Promise.reject(new Error('API unavailable')),
   analyzePaper: (content: ExtractedPaperContent) =>
     getApi()?.llm?.analyzePaper?.(content) ?? Promise.reject(new Error('API unavailable')),
   setKey: (key: string) => getApi()?.llm?.setApiKey?.(key) ?? Promise.resolve(),
+  setProxyUrl: (proxyUrl: string | null) => getApi()?.llm?.setProxyUrl?.(proxyUrl) ?? Promise.resolve(),
   clearKey: () => getApi()?.llm?.clearApiKey?.() ?? Promise.resolve(),
   load: () => getApi()?.storage?.load?.() ?? Promise.resolve(null),
   save: (data: unknown) => getApi()?.storage?.save?.(data) ?? Promise.resolve({ ok: false }),

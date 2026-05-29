@@ -110,6 +110,17 @@
   color: var(--color-text);
 }
 
+.modal__btn--ghost {
+  background: transparent;
+  border: 1px dashed var(--color-border-subtle);
+  color: var(--color-text-tertiary);
+}
+
+.modal__btn--ghost:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
 .stage-btn:disabled,
 .modal__btn:disabled {
   cursor: not-allowed;
@@ -145,4 +156,11 @@
 .task-answer-input::placeholder,
 .api-key-input::placeholder {
   color: var(--color-text-tertiary);
+}
+
+.modal__hint {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 8px;
 }

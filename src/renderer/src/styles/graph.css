@@ -327,3 +327,296 @@
   line-height: 1.5;
   padding: 8px;
 }
+
+.node-expansion-v2 {
+  gap: 14px;
+}
+
+.node-expansion__header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.node-expansion__header h4,
+.node-expansion__header p {
+  margin: 0;
+}
+
+.node-expansion__header span,
+.node-expansion__label {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.node-expansion-tabs {
+  background: color-mix(in srgb, var(--color-bg-muted) 76%, white);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  display: flex;
+  padding: 3px;
+}
+
+.node-expansion-tab {
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex: 1;
+  font-size: 11.5px;
+  font-weight: 650;
+  padding: 6px 8px;
+}
+
+.node-expansion-tab--active {
+  background: var(--color-bg-elevated);
+  box-shadow: 0 5px 14px rgba(47, 93, 112, 0.10), 0 1px 0 rgba(255, 255, 255, 0.82) inset;
+  color: var(--color-accent);
+}
+
+.node-expansion-empty {
+  background: #f4efe4;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+  padding: 13px;
+}
+
+.direction-map {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.direction-map__root,
+.direction-map__problem,
+.direction-map__branch,
+.direction-map__current {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 11px;
+}
+
+.direction-map__root {
+  border-left: 4px solid var(--color-accent);
+}
+
+.direction-map__column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.direction-map__column::before {
+  background: var(--color-border-subtle);
+  content: '';
+  height: 14px;
+  left: 18px;
+  position: absolute;
+  top: -13px;
+  width: 1px;
+}
+
+.direction-map__root span,
+.direction-map__current span,
+.direction-map__branch span {
+  color: var(--color-text-tertiary);
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.direction-map__root strong,
+.direction-map__problem strong,
+.direction-map__branch strong,
+.direction-map__current strong {
+  color: var(--color-text);
+  display: block;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.direction-map__root p,
+.direction-map__problem p,
+.direction-map__branch p,
+.direction-map__current p,
+.direction-map__current em {
+  color: var(--color-text-muted);
+  display: block;
+  font-size: 12.5px;
+  font-style: normal;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.direction-map__branch--current,
+.direction-map__current {
+  background: linear-gradient(180deg, #ffffff, var(--color-accent-soft));
+  border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border-subtle));
+  box-shadow: 0 10px 24px rgba(47, 93, 112, 0.10);
+}
+
+.direction-map__branch--current::after {
+  color: var(--color-accent);
+  content: 'current paper branch';
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  margin-top: 7px;
+  text-transform: uppercase;
+}
+
+.lineage-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lineage-track {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lineage-step {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 11px 11px 11px 34px;
+  position: relative;
+}
+
+.lineage-step::before {
+  align-items: center;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  color: var(--color-text-tertiary);
+  content: '→';
+  display: flex;
+  font-size: 12px;
+  height: 20px;
+  justify-content: center;
+  left: 8px;
+  position: absolute;
+  top: 12px;
+  width: 20px;
+}
+
+.lineage-step--current {
+  background: linear-gradient(180deg, #ffffff, var(--color-accent-soft));
+  border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border-subtle));
+}
+
+.lineage-step--current::before {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+  content: '★';
+}
+
+.lineage-step--missing {
+  border-style: dashed;
+  opacity: 0.82;
+}
+
+.lineage-step span,
+.lineage-step em {
+  color: var(--color-text-tertiary);
+  display: block;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.lineage-step strong {
+  color: var(--color-text);
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.lineage-step p {
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin: 4px 0 0;
+}
+
+.lineage-step b {
+  color: var(--color-text);
+}
+
+.comparison-workspace,
+.related-paper-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.related-paper-card {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  cursor: pointer;
+  padding: 11px;
+  text-align: left;
+}
+
+.related-paper-card--selected {
+  background: var(--color-accent-soft);
+  border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border-subtle));
+  box-shadow: 0 8px 20px rgba(47, 93, 112, 0.08);
+}
+
+.related-paper-card strong,
+.related-paper-card span,
+.related-paper-card em,
+.related-paper-card small {
+  display: block;
+}
+
+.related-paper-card strong {
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.related-paper-card span,
+.related-paper-card em,
+.related-paper-card small {
+  color: var(--color-text-tertiary);
+  font-size: 11.5px;
+  font-style: normal;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.related-paper-card p {
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin: 8px 0 0;
+}
+
+.sharp-comparison-table th,
+.sharp-comparison-table td {
+  min-width: 120px;
+}
+
+.sharp-comparison-table td:last-child {
+  color: var(--color-text);
+  font-weight: 620;
+}

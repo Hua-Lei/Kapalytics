@@ -1,14 +1,42 @@
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { dirname } from 'path'
 import { app } from 'electron'
+import { ProxyAgent } from 'undici'
 import { LlmProvider, LlmRequest, LlmResponse } from './types'
 import { deepseekProvider } from './providers/deepseek'
 
 let currentProvider: LlmProvider = deepseekProvider
 let apiKey: string | null = null
+let llmConfig: { proxyUrl: string | null } | null = null
 
 function getApiKeyPath(): string {
   return `${app.getPath('userData')}/api-key.txt`
+}
+
+function getLlmConfigPath(): string {
+  return `${app.getPath('userData')}/llm-config.json`
+}
+
+function readPersistedLlmConfig(): { proxyUrl: string | null } {
+  try {
+    const path = getLlmConfigPath()
+    if (!existsSync(path)) return { proxyUrl: null }
+    const parsed = JSON.parse(readFileSync(path, 'utf-8')) as { proxyUrl?: unknown }
+    return { proxyUrl: typeof parsed.proxyUrl === 'string' && parsed.proxyUrl.trim() ? parsed.proxyUrl.trim() : null }
+  } catch {
+    return { proxyUrl: null }
+  }
+}
+
+function persistLlmConfig(config: { proxyUrl: string | null }): void {
+  const path = getLlmConfigPath()
+  if (!existsSync(dirname(path))) return
+  writeFileSync(path, JSON.stringify(config, null, 2), { encoding: 'utf-8', mode: 0o600 })
+}
+
+function getLoadedLlmConfig(): { proxyUrl: string | null } {
+  if (!llmConfig) llmConfig = readPersistedLlmConfig()
+  return llmConfig
 }
 
 function readPersistedApiKey(): string | null {
@@ -60,6 +88,22 @@ export function hasApiKey(): boolean {
   return apiKey !== null && apiKey.length > 0
 }
 
+export function getLlmConfig(): { proxyUrl: string | null } {
+  return { ...getLoadedLlmConfig() }
+}
+
+export function setProxyUrl(proxyUrl: string | null): void {
+  const value = proxyUrl?.trim() || null
+  if (value) {
+    const parsed = new URL(value)
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('INVALID_PROXY_URL:代理地址必须以 http:// 或 https:// 开头')
+    }
+  }
+  llmConfig = { ...getLoadedLlmConfig(), proxyUrl: value }
+  persistLlmConfig(llmConfig)
+}
+
 export function getAvailableProviders(): { name: string; id: string }[] {
   return [{ name: 'DeepSeek', id: 'deepseek' }]
   // Add more: { name: 'Anthropic Claude', id: 'anthropic' }, { name: 'OpenAI', id: 'openai' }
@@ -76,15 +120,18 @@ export async function callLlm(request: LlmRequest): Promise<LlmResponse> {
   const controller = new AbortController()
   const timeoutMs = request.timeoutMs ?? 90000
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const proxyUrl = getLoadedLlmConfig().proxyUrl
 
   try {
-    const res = await fetch(provider.endpoint, {
+    const init: RequestInit & { dispatcher?: ProxyAgent } = {
       method: 'POST',
       headers: provider.buildHeaders(apiKey),
       body: JSON.stringify(body),
       signal: controller.signal
-    })
-    process.stdout.write('[主进程] LLM返回内容：' + JSON.stringify(res) + '\n')
+    }
+    if (proxyUrl) init.dispatcher = new ProxyAgent(proxyUrl)
+
+    const res = await fetch(provider.endpoint, init)
     if (!res.ok) {
       const errText = await res.text()
       throw new Error(`API_ERROR:${res.status}:${errText.slice(0, 200)}`)
@@ -94,7 +141,7 @@ export async function callLlm(request: LlmRequest): Promise<LlmResponse> {
     return provider.parseResponse(data)
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`TIMEOUT:请求超时（${Math.round(timeoutMs / 1000)}s）`)
+      throw new Error(`TIMEOUT:请求超时（${Math.round(timeoutMs / 1000)}s）。请稍后重试，或在设置中配置可用代理。`)
     }
     if (err instanceof Error && err.message.startsWith('API_ERROR:')) {
       throw err
@@ -102,7 +149,11 @@ export async function callLlm(request: LlmRequest): Promise<LlmResponse> {
     if (err instanceof Error && err.message === 'NO_API_KEY') {
       throw err
     }
-    throw new Error(`NETWORK_ERROR:${String(err)}`)
+    const message = err instanceof Error ? err.message : String(err)
+    if (proxyUrl) {
+      throw new Error(`NETWORK_ERROR:无法通过代理连接 DeepSeek：${message}`)
+    }
+    throw new Error(`NETWORK_ERROR:无法连接 DeepSeek：${message}。如果当前网络无法直连，请在设置中配置 HTTP/HTTPS 代理。`)
   } finally {
     clearTimeout(timeout)
   }

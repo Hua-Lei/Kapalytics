@@ -3,7 +3,16 @@ import { join } from 'path'
 import { pathToFileURL, fileURLToPath } from 'url'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { aiAnalyzePaper, aiDiagnose } from './llm/generate'
-import { callLlm, setApiKey, clearApiKey, hasApiKey, getAvailableProviders, setProvider } from './llm/client'
+import {
+  callLlm,
+  setApiKey,
+  clearApiKey,
+  hasApiKey,
+  getAvailableProviders,
+  getLlmConfig,
+  setProvider,
+  setProxyUrl
+} from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
 import { extractPdfContent } from './paper/extractPdfContent'
 
@@ -115,6 +124,10 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     return hasApiKey()
   })
 
+  ipcMain.handle('llm:get-config', () => {
+    return getLlmConfig()
+  })
+
   ipcMain.handle('llm:get-providers', () => {
     return getAvailableProviders()
   })
@@ -123,17 +136,28 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     if (providerId === 'deepseek') setProvider(deepseekProvider)
   })
 
+  ipcMain.handle('llm:set-proxy-url', (_e, proxyUrl: string | null) => {
+    setProxyUrl(proxyUrl)
+  })
+
   ipcMain.handle('llm:test-connection', async () => {
     try {
-      if (!hasApiKey()) return false
+      if (!hasApiKey()) return { ok: false, message: '请先配置 DeepSeek API Key' }
       await callLlm({
         messages: [{ role: 'user', content: 'ping' }],
         maxTokens: 10,
-        temperature: 0
+        temperature: 0,
+        timeoutMs: 20000
       })
-      return true
-    } catch {
-      return false
+      return { ok: true, message: '连接成功' }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (message.startsWith('TIMEOUT:')) return { ok: false, message: message.replace('TIMEOUT:', '') }
+      if (message.startsWith('NETWORK_ERROR:')) return { ok: false, message: message.replace('NETWORK_ERROR:', '') }
+      if (message.startsWith('API_ERROR:401')) return { ok: false, message: 'API Key 无效或已过期' }
+      if (message.startsWith('API_ERROR:429')) return { ok: false, message: '请求过于频繁或额度受限，请稍后重试' }
+      if (message.startsWith('API_ERROR:')) return { ok: false, message: `DeepSeek API 返回错误：${message}` }
+      return { ok: false, message: `连接失败：${message}` }
     }
   })
 
