@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { pathToFileURL, fileURLToPath } from 'url'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { createHash } from 'crypto'
 import { aiAnalyzePaper, aiDiagnose } from './llm/generate'
 import {
   callLlm,
@@ -15,6 +16,12 @@ import {
 } from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
 import { extractPdfContent } from './paper/extractPdfContent'
+import { paperMemoryRepository } from './memory/kg3Repository'
+import { fusePaperGraph } from './memory/graphFusion'
+import { searchPapers } from './retrieval/paperSearch'
+import { llmTaskOrchestrator } from './llm/orchestrator'
+import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
+import type { PaperRecord } from '../shared/kg3'
 
 // Linux GPU fallback — must run before app ready
 if (process.platform === 'linux') {
@@ -26,6 +33,34 @@ function getStoragePath(): string {
   const dir = join(app.getPath('userData'), 'saves')
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   return join(dir, 'learning-state.json')
+}
+
+function now(): string {
+  return new Date().toISOString()
+}
+
+function stableId(prefix: string, value: string): string {
+  return `${prefix}_${createHash('sha1').update(value).digest('hex').slice(0, 16)}`
+}
+
+function createPaperRecord(paperId: string, title: string, fileUrl?: string, filePath?: string): PaperRecord {
+  const timestamp = now()
+  return {
+    id: paperId,
+    title,
+    authors: [],
+    externalIds: [{ provider: 'local', externalId: `local:${paperId}` }],
+    source: 'uploaded_pdf',
+    sourceUrl: fileUrl,
+    pdfUrl: fileUrl,
+    localPdfPath: filePath,
+    localFileId: paperId,
+    importedAt: timestamp,
+    analysisStatus: 'analyzed',
+    graphVersion: 'kg3.0-json-repository',
+    createdAt: timestamp,
+    updatedAt: timestamp
+  }
 }
 
 const isDev = !app.isPackaged
@@ -194,6 +229,41 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     } catch {
       return null
     }
+  })
+
+  ipcMain.handle('kg3:get-memory-snapshot', () => paperMemoryRepository.getSnapshot())
+
+  ipcMain.handle('kg3:search-papers', async (_e, query) => {
+    const { candidates, providerStatus } = await searchPapers(query)
+    return { retrievedPapers: candidates, mergedNodes: [], mergeCandidates: [], providerStatus }
+  })
+
+  ipcMain.handle('kg3:save-current-graph', async (_e, payload: { paperId: string; title: string; fileUrl?: string; filePath?: string; data: unknown }) => {
+    const data = payload.data as {
+      graph?: { nodes?: GraphNode[]; edges?: GraphEdge[] }
+      paperInsight?: PaperInsight | null
+    }
+    const paperId = payload.paperId || stableId('paper', payload.title)
+    await paperMemoryRepository.savePaper(createPaperRecord(paperId, payload.title || paperId, payload.fileUrl, payload.filePath))
+    await paperMemoryRepository.saveGraphForPaper(paperId, data.graph?.nodes ?? [], data.graph?.edges ?? [], data.paperInsight ?? undefined)
+    return { ok: true, paperId }
+  })
+
+  ipcMain.handle('kg3:fuse-paper-graph', async (_e, paperId: string) => {
+    const fusion = await fusePaperGraph(paperId)
+    return { retrievedPapers: [], mergedNodes: fusion.mergedNodes, mergeCandidates: fusion.candidates, providerStatus: [] }
+  })
+
+  ipcMain.handle('kg3:create-llm-job', async (_e, payload: { type: Parameters<typeof llmTaskOrchestrator.createJob>[0]['type']; input: unknown; paperId?: string; nodeId?: string; relatedPaperIds?: string[] }) => {
+    return llmTaskOrchestrator.createJob(payload)
+  })
+
+  ipcMain.handle('kg3:run-llm-job', async (_e, jobId: string) => {
+    return llmTaskOrchestrator.runJob(jobId)
+  })
+
+  ipcMain.handle('kg3:cancel-llm-job', async (_e, jobId: string) => {
+    await llmTaskOrchestrator.cancel(jobId)
   })
 }
 

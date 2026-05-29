@@ -56,6 +56,18 @@ export const electronApi = {
   clearKey: () => getApi()?.llm?.clearApiKey?.() ?? Promise.resolve(),
   load: () => getApi()?.storage?.load?.() ?? Promise.resolve(null),
   save: (data: unknown) => getApi()?.storage?.save?.(data) ?? Promise.resolve({ ok: false }),
+  kg3: {
+    getMemorySnapshot: () => getApi()?.kg3?.getMemorySnapshot?.() ?? Promise.reject(new Error('KG3 API unavailable')),
+    searchPapers: (query: Parameters<ElectronApi['kg3']['searchPapers']>[0]) =>
+      getApi()?.kg3?.searchPapers?.(query) ?? Promise.reject(new Error('KG3 API unavailable')),
+    saveCurrentGraph: (payload: Parameters<ElectronApi['kg3']['saveCurrentGraph']>[0]) =>
+      getApi()?.kg3?.saveCurrentGraph?.(payload) ?? Promise.resolve({ ok: false, paperId: payload.paperId }),
+    fusePaperGraph: (paperId: string) => getApi()?.kg3?.fusePaperGraph?.(paperId) ?? Promise.reject(new Error('KG3 API unavailable')),
+    createLlmJob: (payload: Parameters<ElectronApi['kg3']['createLlmJob']>[0]) =>
+      getApi()?.kg3?.createLlmJob?.(payload) ?? Promise.reject(new Error('KG3 API unavailable')),
+    runLlmJob: (jobId: string) => getApi()?.kg3?.runLlmJob?.(jobId) ?? Promise.reject(new Error('KG3 API unavailable')),
+    cancelLlmJob: (jobId: string) => getApi()?.kg3?.cancelLlmJob?.(jobId) ?? Promise.resolve()
+  },
   selectPdf: () => getApi()?.selectPdf?.() ?? Promise.resolve(null),
   extractPdfText: async (url: string) => {
     const api = requireApi()

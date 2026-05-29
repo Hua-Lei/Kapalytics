@@ -17,12 +17,30 @@ interface UsePaperAnalysisOptions {
   setSelectedGraphNodeId: (nodeId: string | null) => void
 }
 
+function makeLocalPaperId(pdfUrl: string): string {
+  let hash = 0
+  for (let i = 0; i < pdfUrl.length; i += 1) {
+    hash = (hash * 31 + pdfUrl.charCodeAt(i)) >>> 0
+  }
+  return `local_${hash.toString(16)}`
+}
+
+function inferTitleFromPdfUrl(pdfUrl: string): string {
+  try {
+    const pathname = decodeURIComponent(new URL(pdfUrl).pathname)
+    return pathname.split('/').filter(Boolean).at(-1)?.replace(/\.pdf$/i, '') || 'Uploaded Paper'
+  } catch {
+    return 'Uploaded Paper'
+  }
+}
+
 export function usePaperAnalysis({
   setStages,
   setActiveTab,
   setSelectedGraphNodeId
 }: UsePaperAnalysisOptions) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [pdfPath, setPdfPath] = useState<string | null>(null)
   const [graph, setGraph] = useState<KnowledgeGraph>(EMPTY_GRAPH)
   const [paperInsight, setPaperInsight] = useState<PaperInsight | null>(null)
   const [generating, setGenerating] = useState(false)
@@ -35,6 +53,7 @@ export function usePaperAnalysis({
     if (!selected) return
 
     setPdfUrl(selected.fileUrl)
+    setPdfPath(selected.filePath)
     setGraph(EMPTY_GRAPH)
     setPaperInsight(null)
     setGenError('')
@@ -101,6 +120,17 @@ export function usePaperAnalysis({
 
         setAnalysisSteps((prev) => updateStep(prev, 'reveal', 'done'))
         setGenProgress('分析完成：知识图谱和学习任务已生成。')
+        const paperId = makeLocalPaperId(pdfUrl)
+        electronApi.kg3.saveCurrentGraph({
+          paperId,
+          title: inferTitleFromPdfUrl(pdfUrl),
+          fileUrl: pdfUrl,
+          filePath: pdfPath ?? undefined,
+          data: { graph: fullGraph, paperInsight: analysis.insight ?? derivePaperInsight(fullGraph) }
+        }).then(() => electronApi.kg3.fusePaperGraph(paperId)).catch((err) => {
+          console.warn('[KG3] Failed to save long-term memory:', err)
+          setGenProgress('分析完成，但长期记忆保存失败。你仍可继续学习。')
+        })
         setActiveTab('graph')
       } finally {
         unsubscribe?.()

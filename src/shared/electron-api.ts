@@ -1,4 +1,5 @@
 import type { ExtractedPaperContent, PaperAnalysisResult, SelectedPdf } from './paper'
+import type { Kg3ExpansionContext, Kg3MemorySnapshot, LLMJob, PaperSearchQuery } from './kg3'
 
 export interface DiagnosisResult {
   errorType: string
@@ -42,5 +43,14 @@ export interface ElectronApi {
   storage: {
     save: (data: unknown) => Promise<{ ok: boolean; error?: string }>
     load: () => Promise<unknown>
+  }
+  kg3: {
+    getMemorySnapshot: () => Promise<Kg3MemorySnapshot>
+    searchPapers: (query: PaperSearchQuery) => Promise<Kg3ExpansionContext>
+    saveCurrentGraph: (payload: { paperId: string; title: string; fileUrl?: string; filePath?: string; data: unknown }) => Promise<{ ok: boolean; paperId: string }>
+    fusePaperGraph: (paperId: string) => Promise<Kg3ExpansionContext>
+    createLlmJob: (payload: { type: LLMJob['type']; input: unknown; paperId?: string; nodeId?: string; relatedPaperIds?: string[] }) => Promise<LLMJob>
+    runLlmJob: (jobId: string) => Promise<LLMJob>
+    cancelLlmJob: (jobId: string) => Promise<void>
   }
 }
