@@ -10,6 +10,8 @@ export interface StageState {
   diagnosisResults: Record<string, DiagnosisResult>
   diagnosedStageIds: Set<string>
   learningReport: LearningReport | null
+  diagnosisError: string | null
+  diagnosisLoading: boolean
 }
 
 export interface StageActions {
@@ -18,6 +20,7 @@ export interface StageActions {
   submitAnswer: (id: string) => Promise<void>
   confirmDiagnosis: (id: string) => void
   retryStage: (id: string) => void
+  retryDiagnosis: () => void
   markNeedsReview: (id: string) => void
   updateDraft: (id: string, value: string) => void
   generateReport: () => void
