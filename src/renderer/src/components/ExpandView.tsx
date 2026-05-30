@@ -21,7 +21,7 @@ import { useWorkspace } from '../domains/workspace/useWorkspace'
 import { useStages } from '../domains/stages/useStages'
 
 function ExpandView() {
-  const { activeTab, activateTab, openTab } = useWorkspace()
+  const { activeTab, activateTab, openTab, selectObject } = useWorkspace()
   const { sessions } = useExpansion()
   const { graph, paperInsight } = usePaper()
   const { setStages, selectStage } = useStages()
@@ -125,7 +125,7 @@ function ExpandView() {
 
   const openExpansionGraph = () => {
     openTab({
-      id: `expansion_graph_${session.id}`,
+      id: session.id,
       type: 'expansion_graph',
       title: `Expansion Graph: ${session.nodeLabel}`,
       nodeId: session.nodeId,
@@ -144,6 +144,7 @@ function ExpandView() {
       )
     )
     selectStage('transfer_comparison')
+    selectObject({ type: 'learning_stage', id: 'transfer_comparison' })
     activateTab('stage_learning')
   }
 

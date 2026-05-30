@@ -28,7 +28,7 @@ function NodeInspector({ node }: { node: GraphNode }) {
       if (!result) return
       if (result.status === 'ready-from-cache') {
         openTab({
-          id: `expansion_graph_${result.sessionId}`,
+          id: result.sessionId,
           type: 'expansion_graph',
           title: `Expansion Graph: ${node.label}`,
           nodeId: node.id,

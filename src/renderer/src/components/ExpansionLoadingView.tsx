@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useExpansion } from '../domains/expansion/useExpansion'
 import { useWorkspace } from '../domains/workspace/useWorkspace'
 import type { NodeExpansionSession } from '../domains/expansion/nodeExpansionSessions'
@@ -10,9 +11,14 @@ const STATUS_LABEL: Record<NodeExpansionSession['status'], string> = {
 }
 
 function ExpansionLoadingView() {
-  const { activeTab, openTab } = useWorkspace()
+  const { activeTab, openTab, updateTabStatus } = useWorkspace()
   const { sessions } = useExpansion()
   const session = activeTab?.expansionId ? sessions[activeTab.expansionId] : undefined
+
+  useEffect(() => {
+    if (!session) return
+    updateTabStatus(session.id, session.status)
+  }, [session?.id, session?.status, updateTabStatus])
 
   if (!session) {
     return (
@@ -29,7 +35,7 @@ function ExpansionLoadingView() {
 
   const openExpansionGraph = () => {
     openTab({
-      id: `expansion_graph_${session.id}`,
+      id: session.id,
       type: 'expansion_graph',
       title: `Expansion Graph: ${session.nodeLabel}`,
       nodeId: session.nodeId,
