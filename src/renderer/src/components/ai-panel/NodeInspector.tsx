@@ -23,30 +23,34 @@ function NodeInspector({ node }: { node: GraphNode }) {
 
   const requestExpansion = async () => {
     setExpansionRequested(true)
-    const result = await startExpansion(node.id)
-    if (!result) return
-    if (result.status === 'ready-from-cache') {
+    try {
+      const result = await startExpansion(node.id)
+      if (!result) return
+      if (result.status === 'ready-from-cache') {
+        openTab({
+          id: `expansion_graph_${result.sessionId}`,
+          type: 'expansion_graph',
+          title: `Expansion Graph: ${node.label}`,
+          nodeId: node.id,
+          expansionId: result.sessionId,
+          closable: true,
+          status: 'ready'
+        })
+        return
+      }
+
       openTab({
-        id: `expansion_graph_${result.sessionId}`,
-        type: 'expansion_graph',
+        id: result.sessionId,
+        type: 'node_expansion_loading',
         title: `Expand: ${node.label}`,
         nodeId: node.id,
         expansionId: result.sessionId,
         closable: true,
-        status: 'ready'
+        status: 'loading'
       })
-      return
+    } finally {
+      setExpansionRequested(false)
     }
-
-    openTab({
-      id: result.sessionId,
-      type: 'node_expansion_loading',
-      title: `Expand: ${node.label}`,
-      nodeId: node.id,
-      expansionId: result.sessionId,
-      closable: true,
-      status: 'loading'
-    })
   }
 
   return (
@@ -65,7 +69,7 @@ function NodeInspector({ node }: { node: GraphNode }) {
           <div className="ai-context-query-chips">
             {(node.searchQueries ?? []).slice(0, 4).map((query) => <span key={query}>{query}</span>)}
           </div>
-          <button className="stage-btn stage-btn--primary" onClick={requestExpansion}>展开该方向</button>
+          <button className="stage-btn stage-btn--primary" onClick={requestExpansion} disabled={expansionRequested}>展开该方向</button>
           {expansionRequested && <p>正在打开展开任务...</p>}
         </div>
       )}

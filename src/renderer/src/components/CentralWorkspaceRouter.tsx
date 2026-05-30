@@ -27,13 +27,19 @@ function WorkspaceHeader() {
 }
 
 function StageLearningWorkspace() {
+  const { selectObject } = useWorkspace()
   const { stages, selectedStageId, selectStage, answers, drafts, diagnosisResults, diagnosedStageIds, diagnosisError, diagnosisLoading, confirmDiagnosis, enterStage, markNeedsReview, retryDiagnosis, retryStage, submitAnswer, updateDraft } = useStages()
   const selectedStage = stages.find((s) => s.id === selectedStageId) ?? null
+
+  const handleSelectStage = (stageId: string) => {
+    selectStage(stageId)
+    selectObject({ type: 'learning_stage', id: stageId })
+  }
 
   return (
     <div className="stage-learning-workspace">
       <div className="stage-learning-workspace__path">
-        <LearningPath stages={stages} selectedStageId={selectedStageId} onSelectStage={selectStage} />
+        <LearningPath stages={stages} selectedStageId={selectedStageId} onSelectStage={handleSelectStage} />
       </div>
       <div className="stage-learning-workspace__detail">
         {selectedStage ? (

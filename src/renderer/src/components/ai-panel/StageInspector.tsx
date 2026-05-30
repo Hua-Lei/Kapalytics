@@ -2,6 +2,7 @@ import type { Stage } from '../../types'
 import type { DiagnosisResult } from '../../../../shared/electron-api'
 import TruncatedText from './TruncatedText'
 import { useWorkspace } from '../../domains/workspace/useWorkspace'
+import { useStages } from '../../domains/stages/useStages'
 
 function StageInspector({ stage, diagnosis, diagnosed }: {
   stage: Stage
@@ -9,8 +10,10 @@ function StageInspector({ stage, diagnosis, diagnosed }: {
   diagnosed: boolean
 }) {
   const { activateTab, selectObject } = useWorkspace()
+  const { selectStage } = useStages()
 
   const handleOpenStageLearning = () => {
+    selectStage(stage.id)
     activateTab('stage_learning')
     selectObject({ type: 'learning_stage', id: stage.id })
   }

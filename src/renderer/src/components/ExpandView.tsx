@@ -21,7 +21,7 @@ import { useWorkspace } from '../domains/workspace/useWorkspace'
 import { useStages } from '../domains/stages/useStages'
 
 function ExpandView() {
-  const { activeTab, activateTab } = useWorkspace()
+  const { activeTab, activateTab, openTab } = useWorkspace()
   const { sessions } = useExpansion()
   const { graph, paperInsight } = usePaper()
   const { setStages, selectStage } = useStages()
@@ -123,8 +123,16 @@ function ExpandView() {
     setSaveStatus(result.ok ? '已保存到 Node Understanding Memory。' : '保存失败：KG4 IPC 不可用。')
   }
 
-  const handleBackToExpansionGraph = () => {
-    activateTab(session.id)
+  const openExpansionGraph = () => {
+    openTab({
+      id: `expansion_graph_${session.id}`,
+      type: 'expansion_graph',
+      title: `Expansion Graph: ${session.nodeLabel}`,
+      nodeId: session.nodeId,
+      expansionId: session.id,
+      closable: true,
+      status: 'ready'
+    })
   }
 
   const handleAdoptTransferTask = () => {
@@ -148,7 +156,7 @@ function ExpandView() {
           <p>完整 Algorithm Idea Workbench 已迁移到中央 Workspace。右侧 AI Panel 只保留摘要和入口。</p>
           {selectedExpansionNode && <p>当前入口节点：{selectedExpansionNode.label}</p>}
         </div>
-        <button className="stage-btn stage-btn--secondary" onClick={handleBackToExpansionGraph}>返回 Expansion Graph</button>
+        <button className="stage-btn stage-btn--secondary" onClick={openExpansionGraph}>返回 Expansion Graph</button>
       </section>
 
       {reuseSuggestions.length > 0 && (

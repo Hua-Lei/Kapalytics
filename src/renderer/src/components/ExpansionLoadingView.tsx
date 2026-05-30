@@ -10,7 +10,7 @@ const STATUS_LABEL: Record<NodeExpansionSession['status'], string> = {
 }
 
 function ExpansionLoadingView() {
-  const { activeTab } = useWorkspace()
+  const { activeTab, openTab } = useWorkspace()
   const { sessions } = useExpansion()
   const session = activeTab?.expansionId ? sessions[activeTab.expansionId] : undefined
 
@@ -26,6 +26,18 @@ function ExpansionLoadingView() {
 
   const candidateCount = session.expansionRecord?.retrievedPaperIds.length ?? 0
   const expansionNodeCount = session.expansionRecord?.expansionGraphNodes.length ?? 0
+
+  const openExpansionGraph = () => {
+    openTab({
+      id: `expansion_graph_${session.id}`,
+      type: 'expansion_graph',
+      title: `Expansion Graph: ${session.nodeLabel}`,
+      nodeId: session.nodeId,
+      expansionId: session.id,
+      closable: true,
+      status: 'ready'
+    })
+  }
 
   return (
     <div className={`expansion-loading-view expansion-loading-view--${session.status}`}>
@@ -68,7 +80,7 @@ function ExpansionLoadingView() {
       {session.status === 'ready' && (
         <section className="expansion-loading-note">
           <strong>展开完成</strong>
-          <p>可以切换到 Expansion Graph View 查看扩展图谱。</p>
+          <button className="stage-btn stage-btn--primary" onClick={openExpansionGraph}>查看 Expansion Graph</button>
         </section>
       )}
 
