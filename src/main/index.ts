@@ -22,6 +22,8 @@ import { searchPapers } from './retrieval/paperSearch'
 import { llmTaskOrchestrator } from './llm/orchestrator'
 import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
 import type { PaperRecord } from '../shared/kg3'
+import type { Kg4ExpansionRecordQuery, Kg4NodeExpansionRecord } from '../shared/kg4'
+import { isKg4NodeExpansionRecord } from '../shared/kg4'
 
 // Linux GPU fallback — must run before app ready
 if (process.platform === 'linux') {
@@ -285,6 +287,17 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
       methodFamilyTags: params.methodFamilyTags ?? [],
       limit: params.limit
     })
+  })
+
+  ipcMain.handle('kg4:get-expansion-record', async (_e, params: Kg4ExpansionRecordQuery) => {
+    const record = await paperMemoryRepository.getKg4ExpansionRecord(params.paperId, params.nodeId)
+    return record && isKg4NodeExpansionRecord(record) ? record : null
+  })
+
+  ipcMain.handle('kg4:save-expansion-record', async (_e, record: Kg4NodeExpansionRecord) => {
+    if (!isKg4NodeExpansionRecord(record)) throw new Error('invalid_kg4_expansion_record')
+    await paperMemoryRepository.saveKg4ExpansionRecord(record)
+    return { ok: true }
   })
 
   ipcMain.handle('kg4:start-expansion', async (_e, params: { nodeId: string; nodeLabel: string; paperId?: string }) => {

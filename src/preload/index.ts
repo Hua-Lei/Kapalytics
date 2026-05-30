@@ -2,7 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { DiagnosisResult } from '../shared/electron-api'
 import type { ExtractedPaperContent, PaperAnalysisResult } from '../shared/paper'
 import type { Kg3ExpansionContext, Kg3MemorySnapshot, LLMJob, PaperSearchQuery } from '../shared/kg3'
-import type { MemoryReuseSuggestion, NodeUnderstandingMemory, NodeUnderstandingMemoryQuery } from '../shared/kg4'
+import type {
+  Kg4ExpansionRecordQuery,
+  Kg4NodeExpansionRecord,
+  MemoryReuseSuggestion,
+  NodeUnderstandingMemory,
+  NodeUnderstandingMemoryQuery,
+  StartKg4ExpansionParams,
+  StartKg4ExpansionResult
+} from '../shared/kg4'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -65,7 +73,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       methodFamilyTags?: string[]
       limit?: number
     }): Promise<MemoryReuseSuggestion[]> => ipcRenderer.invoke('kg4:find-reusable-node-memories', params),
-    startExpansion: (params: { nodeId: string; nodeLabel: string; paperId?: string }): Promise<{ sessionId: string; jobs: Array<{ jobId: string; type: string }> }> =>
+    getExpansionRecord: (params: Kg4ExpansionRecordQuery): Promise<Kg4NodeExpansionRecord | null> =>
+      ipcRenderer.invoke('kg4:get-expansion-record', params),
+    saveExpansionRecord: (record: Kg4NodeExpansionRecord): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('kg4:save-expansion-record', record),
+    startExpansion: (params: StartKg4ExpansionParams): Promise<StartKg4ExpansionResult> =>
       ipcRenderer.invoke('kg4:start-expansion', params),
     getJobStatus: (jobId: string): Promise<{ status: string; progressStep?: string; progressMessage?: string; errorMessage?: string }> =>
       ipcRenderer.invoke('kg4:get-job-status', jobId),

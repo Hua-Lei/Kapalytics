@@ -75,6 +75,10 @@ export const electronApi = {
       getApi()?.kg4?.listNodeUnderstandingMemories?.(query) ?? Promise.resolve([]),
     findReusableNodeMemories: (params: Parameters<ElectronApi['kg4']['findReusableNodeMemories']>[0]) =>
       getApi()?.kg4?.findReusableNodeMemories?.(params) ?? Promise.resolve([]),
+    getExpansionRecord: (params: Parameters<ElectronApi['kg4']['getExpansionRecord']>[0]) =>
+      getApi()?.kg4?.getExpansionRecord?.(params) ?? Promise.resolve(null),
+    saveExpansionRecord: (record: Parameters<ElectronApi['kg4']['saveExpansionRecord']>[0]) =>
+      getApi()?.kg4?.saveExpansionRecord?.(record) ?? Promise.resolve({ ok: false }),
     startExpansion: (params: Parameters<ElectronApi['kg4']['startExpansion']>[0]) =>
       getApi()?.kg4?.startExpansion?.(params) ?? Promise.reject(new Error('KG4 API unavailable')),
     getJobStatus: (jobId: string) =>
