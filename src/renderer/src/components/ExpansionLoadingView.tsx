@@ -1,6 +1,6 @@
 import { useExpansion } from '../domains/expansion/useExpansion'
 import { useWorkspace } from '../domains/workspace/useWorkspace'
-import type { NodeExpansionSession } from '../modules/workspace/nodeExpansionSessions'
+import type { NodeExpansionSession } from '../domains/expansion/nodeExpansionSessions'
 
 const STATUS_LABEL: Record<NodeExpansionSession['status'], string> = {
   loading: 'Loading',

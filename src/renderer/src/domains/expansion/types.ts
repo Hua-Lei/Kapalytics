@@ -1,5 +1,5 @@
 import type { ExpansionGraphNode } from '../../../../shared/kg4'
-import type { NodeExpansionSession } from '../../modules/workspace/nodeExpansionSessions'
+import type { NodeExpansionSession } from '../../domains/expansion/nodeExpansionSessions'
 
 export interface ExpansionState {
   sessions: Record<string, NodeExpansionSession>

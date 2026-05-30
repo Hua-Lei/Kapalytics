@@ -1,8 +1,8 @@
 import { createContext, useCallback, useRef, useState, type ReactNode } from 'react'
 import type { GraphNode, PaperInsight } from '../../../../shared/paper'
 import type { ExpansionGraphNode } from '../../../../shared/kg4'
-import { createNodeExpansionSession } from '../../modules/workspace/nodeExpansionSessions'
-import type { NodeExpansionSession } from '../../modules/workspace/nodeExpansionSessions'
+import { createNodeExpansionSession } from '../../domains/expansion/nodeExpansionSessions'
+import type { NodeExpansionSession } from '../../domains/expansion/nodeExpansionSessions'
 import type { ExpansionContextValue } from './types'
 
 export const ExpansionContext = createContext<ExpansionContextValue | null>(null)

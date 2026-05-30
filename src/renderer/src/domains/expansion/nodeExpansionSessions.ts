@@ -1,6 +1,6 @@
 import type { GraphNode, PaperInsight } from '../../../../shared/paper'
 import type { Kg4ExpansionGraphLayer, Kg4NodeExpansionRecord } from '../../../../shared/kg4'
-import { buildKg4ExpansionRecord } from '../learning/kg4Workbench'
+import { buildKg4ExpansionRecord } from '../../modules/learning/kg4Workbench'
 
 export type NodeExpansionStatus = 'loading' | 'ready' | 'failed' | 'empty'
 export type NodeExpansionStepStatus = 'pending' | 'running' | 'done' | 'failed'
