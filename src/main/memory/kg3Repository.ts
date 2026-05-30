@@ -24,7 +24,7 @@ import type {
   UserMasteryRecord
 } from '../../shared/kg3'
 import type { Kg4NodeExpansionRecord, MemoryReuseSuggestion, NodeUnderstandingMemory, NodeUnderstandingMemoryQuery } from '../../shared/kg4'
-import { normalizeKg4NodeLabel } from '../../shared/kg4'
+import { isKg4NodeExpansionRecord, normalizeKg4NodeLabel } from '../../shared/kg4'
 
 const EMPTY_SNAPSHOT: Kg3MemorySnapshot = {
   papers: [],
@@ -106,7 +106,7 @@ type JsonTableName =
   | 'llm_jobs'
   | 'node_understanding_memories'
 
-const JSON_TABLES: JsonTableName[] = [
+const JSON_TABLES: SnapshotJsonTableName[] = [
   'papers',
   'paper_insights',
   'graph_nodes',
@@ -115,7 +115,6 @@ const JSON_TABLES: JsonTableName[] = [
   'learning_tasks',
   'diagnoses',
   'node_expansions',
-  'kg4_node_expansions',
   'paper_search_results',
   'merged_graph_nodes',
   'merged_graph_edges',
@@ -285,7 +284,11 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
 
   async getKg4ExpansionRecord(paperId: string, nodeId: string): Promise<Kg4NodeExpansionRecord | null> {
     const store = readFileStore(this.path)
-    return (store.kg4NodeExpansions ?? []).find((record) => record.paperId === paperId && record.nodeId === nodeId) ?? null
+    const records = Array.isArray(store.kg4NodeExpansions) ? store.kg4NodeExpansions : []
+    const record = records
+      .filter((item) => item && typeof item === 'object' && item.paperId === paperId && item.nodeId === nodeId)
+      .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')))[0]
+    return isKg4NodeExpansionRecord(record) ? record : null
   }
 
   async saveLLMJob(job: LLMJob): Promise<void> {
@@ -433,7 +436,12 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
     const row = this.db
       .prepare('SELECT json FROM kg4_node_expansions WHERE paper_id = ? AND node_id = ? ORDER BY updated_at DESC LIMIT 1')
       .get(paperId, nodeId) as JsonRow | undefined
-    return row ? JSON.parse(row.json) as Kg4NodeExpansionRecord : null
+    try {
+      const record = row ? JSON.parse(row.json) : null
+      return isKg4NodeExpansionRecord(record) ? record : null
+    } catch {
+      return null
+    }
   }
 
   async saveLLMJob(job: LLMJob): Promise<void> {
