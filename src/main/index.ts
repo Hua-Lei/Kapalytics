@@ -65,6 +65,16 @@ function createPaperRecord(paperId: string, title: string, fileUrl?: string, fil
   }
 }
 
+function isKg4ExpansionRecordQuery(value: unknown): value is Kg4ExpansionRecordQuery {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    typeof (value as Record<string, unknown>).paperId === 'string' &&
+    typeof (value as Record<string, unknown>).nodeId === 'string'
+  )
+}
+
 const isDev = !app.isPackaged
 
 function createWindow(): BrowserWindow {
@@ -289,7 +299,8 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     })
   })
 
-  ipcMain.handle('kg4:get-expansion-record', async (_e, params: Kg4ExpansionRecordQuery) => {
+  ipcMain.handle('kg4:get-expansion-record', async (_e, params: unknown) => {
+    if (!isKg4ExpansionRecordQuery(params)) return null
     const record = await paperMemoryRepository.getKg4ExpansionRecord(params.paperId, params.nodeId)
     return record && isKg4NodeExpansionRecord(record) ? record : null
   })
