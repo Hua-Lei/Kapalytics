@@ -40,6 +40,8 @@ function ExpandView() {
   const [noteDraft, setNoteDraft] = useState('')
   const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const [reuseSuggestions, setReuseSuggestions] = useState<MemoryReuseSuggestion[]>([])
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!anchorNode) return
@@ -49,14 +51,23 @@ function ExpandView() {
     setFeedback(null)
     setNoteDraft('')
     setSaveStatus(null)
-    // TODO(Task 13): wire real IPC for memory reuse suggestions
-    setReuseSuggestions([])
   }, [anchorNode?.id, paperInsight, session?.id])
 
   useEffect(() => {
     if (!anchorNode) return
     setWorkspace(buildComparisonWorkspace(anchorNode, paperInsight, ideaCards, selectedIds))
   }, [selectedIds, anchorNode, paperInsight, session?.id])
+
+  useEffect(() => {
+    if (!anchorNode) return
+    electronApi.kg4.findReusableNodeMemories({
+      nodeId: anchorNode.id,
+      topicTags: anchorNode.searchQueries,
+      limit: 5
+    })
+      .then(setReuseSuggestions)
+      .catch(() => setReuseSuggestions([]))
+  }, [anchorNode?.id, session?.id])
 
   if (!session || !anchorNode || !record || !workspace) {
     return (
@@ -76,8 +87,34 @@ function ExpandView() {
     })
   }
 
-  // TODO(Task 13): wire real IPC for feedback generation
-  const requestFeedback = () => {}
+  const requestFeedback = async () => {
+    if (!anchorNode || !workspace) return
+    setFeedbackLoading(true)
+    setFeedbackError(null)
+    try {
+      const job = await electronApi.kg3.createLlmJob({
+        type: 'generate_reflective_feedback' as any, // LLMJobType includes this
+        input: {
+          node: { id: anchorNode.id, label: anchorNode.label },
+          selectedIdeaCardIds: workspace.selectedIdeaCardIds,
+          userReflection: reflection
+        },
+        nodeId: anchorNode.id
+      })
+      const result = await electronApi.kg3.runLlmJob(job.id)
+      if (result.status === 'succeeded' && result.resultJson) {
+        setFeedback(result.resultJson as Kg4Feedback)
+        const fb = result.resultJson as { suggestedUnderstandingNote?: string }
+        setNoteDraft(fb.suggestedUnderstandingNote ?? reflection)
+      } else {
+        setFeedbackError(result.errorMessage || '反馈生成失败')
+      }
+    } catch (err) {
+      setFeedbackError(err instanceof Error ? err.message : '反馈生成失败')
+    } finally {
+      setFeedbackLoading(false)
+    }
+  }
 
   const saveMemory = async () => {
     if (!feedback) return
@@ -113,8 +150,6 @@ function ExpandView() {
         </div>
         <button className="stage-btn stage-btn--secondary" onClick={handleBackToExpansionGraph}>返回 Expansion Graph</button>
       </section>
-
-      <div className="source-note">当前 MVP 使用 dev fixture，所有 paperTitle/source/externalId 都来自候选数据；生产路径应替换为 KG4 IPC 检索和 orchestrator job。</div>
 
       {reuseSuggestions.length > 0 && (
         <div className="kg4-reuse-box">
@@ -153,7 +188,18 @@ function ExpandView() {
           onChange={(event) => setReflection(event.target.value)}
           placeholder="写下你对这些算法思想差异的理解，例如：A 与 B 的关键差异在更新对象和假设..."
         />
-        <button className="stage-btn stage-btn--primary" disabled={!reflection.trim()} onClick={requestFeedback}>生成 Reflective / Remedial Feedback</button>
+        <button className="stage-btn stage-btn--primary" disabled={!reflection.trim() || feedbackLoading} onClick={requestFeedback}>
+          {feedbackLoading ? '生成中...' : '生成 Reflective / Remedial Feedback'}
+        </button>
+        {feedbackError && (
+          <div className="diagnosis-banner diagnosis-banner--fail" style={{ marginTop: 12 }}>
+            <span className="diagnosis-icon">!</span>
+            <p>{feedbackError}</p>
+            <button className="stage-btn stage-btn--primary" onClick={requestFeedback} disabled={feedbackLoading}>
+              重试
+            </button>
+          </div>
+        )}
       </div>
       <FeedbackPanel feedback={feedback} />
       {feedback && (
