@@ -1,0 +1,76 @@
+import { useEffect, useState } from 'react'
+import type { NodeUnderstandingMemory } from '../../../shared/kg4'
+import { electronApi } from '../modules/ipc/electronApi'
+
+interface FieldMemoryViewProps {
+  memories: NodeUnderstandingMemory[]
+  selectedMemoryId?: string
+  onMemoriesLoaded: (memories: NodeUnderstandingMemory[]) => void
+  onSelectMemory: (memory: NodeUnderstandingMemory) => void
+}
+
+function FieldMemoryView({ memories, selectedMemoryId, onMemoriesLoaded, onSelectMemory }: FieldMemoryViewProps) {
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    electronApi.kg4.listNodeUnderstandingMemories({ limit: 100 })
+      .then(onMemoriesLoaded)
+      .catch(() => onMemoriesLoaded([]))
+      .finally(() => setLoading(false))
+  }, [onMemoriesLoaded])
+
+  const totalIdeaCards = memories.reduce((sum, memory) => sum + memory.ideaCardIds.length, 0)
+  const topicTags = [...new Set(memories.flatMap((memory) => memory.topicTags))].slice(0, 8)
+
+  return (
+    <div className="field-memory-view">
+      <section className="field-memory-hero">
+        <div>
+          <span className="eyebrow">Field Memory</span>
+          <h3>Understanding Memories</h3>
+          <p>这里汇总 Expand View 保存的长期理解记录。点击任意记录可在右侧 AI Panel 查看详情和复用入口。</p>
+        </div>
+        <span className="field-memory-count">{loading ? 'Loading' : `${memories.length} records`}</span>
+      </section>
+
+      <section className="field-memory-stats">
+        <article><span>Memory records</span><strong>{memories.length}</strong></article>
+        <article><span>Idea cards referenced</span><strong>{totalIdeaCards}</strong></article>
+        <article><span>Topic tags</span><strong>{topicTags.length}</strong></article>
+      </section>
+
+      {topicTags.length > 0 && (
+        <section className="field-memory-tags">
+          {topicTags.map((tag) => <span key={tag}>{tag}</span>)}
+        </section>
+      )}
+
+      {memories.length ? (
+        <section className="field-memory-list" aria-label="Node understanding memories">
+          {memories.map((memory) => (
+            <button
+              className={`field-memory-card ${selectedMemoryId === memory.id ? 'field-memory-card--selected' : ''}`}
+              key={memory.id}
+              onClick={() => onSelectMemory(memory)}
+              type="button"
+            >
+              <span>{memory.nodeType} · {memory.aiFeedbackType}</span>
+              <strong>{memory.nodeLabel}</strong>
+              <p>{memory.userEditedUnderstandingNote || memory.generatedUnderstandingNote || memory.aiFeedbackSummary}</p>
+              <em>{new Date(memory.updatedAt || memory.createdAt).toLocaleString()}</em>
+            </button>
+          ))}
+        </section>
+      ) : (
+        <section className="workspace-placeholder-view field-memory-empty">
+          <span className="eyebrow">No Memories Yet</span>
+          <h3>完成 Expand View 后会出现记录</h3>
+          <p>在 Expand View 中生成 feedback 并保存长期理解后，这里会展示可复用的 Node Understanding Memory。</p>
+        </section>
+      )}
+    </div>
+  )
+}
+
+export default FieldMemoryView

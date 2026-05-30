@@ -1,41 +1,71 @@
-import AppHeader from './AppHeader'
-import CenterPanel from './CenterPanel'
-import PdfPanel from './PdfPanel'
-import RightLearningPanel, { RightLearningPanelProps } from './RightLearningPanel'
+import TopBar from './TopBar'
+import WorkspaceSidebar from './WorkspaceSidebar'
+import CentralWorkspaceRouter from './CentralWorkspaceRouter'
+import AIContextPanel from './AIContextPanel'
 import type { Stage } from '../types'
-import type { KnowledgeGraph, PaperInsight } from '../../../shared/paper'
-import type { Kg4ExpansionGraphLayer } from '../../../shared/kg4'
+import type { AnalysisStep, KnowledgeGraph, PaperInsight } from '../../../shared/paper'
+import type { DiagnosisResult } from '../modules/diagnosis/types'
+import type { LearningReport } from '../modules/learning/report'
+import type { NodeExpansionSession } from '../modules/workspace/nodeExpansionSessions'
+import type { ExpansionGraphNode, NodeUnderstandingMemory } from '../../../shared/kg4'
+import type { SelectedObject, WorkspaceState } from '../domains/workspace/types'
 
-type ActiveTab = 'graph' | 'learning'
 type ResizeTarget = 'left' | 'right'
 
-interface AppShellProps extends RightLearningPanelProps {
-  activeTab: ActiveTab
+interface AppShellProps {
+  analysisSteps: AnalysisStep[]
+  answers: Record<string, string>
+  diagnosedStageIds: Set<string>
+  diagnosisResults: Record<string, DiagnosisResult>
+  drafts: Record<string, string>
   fontScale: number
+  generating: boolean
+  genError: string
+  genProgress: string
   graph: KnowledgeGraph
-  kg4ExpansionGraph: Kg4ExpansionGraphLayer | null
+  learningReport: LearningReport | null
+  memories: NodeUnderstandingMemory[]
+  nodeExpansionSessions: Record<string, NodeExpansionSession>
   paperInsight: PaperInsight | null
-  leftCollapsed: boolean
-  leftWidth: number
-  onCycleFontSize: () => void
+  onActivateWorkspaceTab: (tabId: string) => void
   onAdoptTransferTask: (prompt: string) => void
-  onSetKg4ExpansionGraph: (layer: Kg4ExpansionGraphLayer | null) => void
+  onAnalyzePaper: () => void
+  onBackToExpansionGraph: (expansionId: string) => void
+  onClearExpansionGraph: () => void
+  onCloseWorkspaceTab: (tabId: string) => void
+  onConfirmDiagnosis: (stageId: string) => void
+  onCycleFontSize: () => void
+  onEnterStage: (stageId: string) => void
+  onGenerateLearningReport: () => void
+  onMemoriesLoaded: (memories: NodeUnderstandingMemory[]) => void
+  onMarkNeedsReview: (stageId: string) => void
+  onOpenFieldMemory: () => void
   onMouseDownResize: (target: ResizeTarget) => void
+  onOpenExpandView: (expansionId: string, nodeId: string) => void
+  onOpenNodeExpansion: (nodeId: string) => void
   onOpenSettings: () => void
+  onRetryStage: (stageId: string) => void
+  onSelectExpansionNode: (node: ExpansionGraphNode, expansionId: string) => void
   onSelectGraphNode: (nodeId: string | null) => void
+  onSelectMemory: (memory: NodeUnderstandingMemory) => void
+  onSelectObject: (selectedObject?: SelectedObject) => void
+  onSelectPdf: () => void
   onSelectStage: (stageId: string | null) => void
-  onSelectTab: (tab: ActiveTab) => void
-  onToggleLeft: () => void
+  onSubmitAnswer: (stageId: string) => void
   onToggleRight: () => void
+  onUpdateDraft: (stageId: string, value: string) => void
+  pdfUrl: string | null
   rightCollapsed: boolean
   rightWidth: number
   selectedGraphNodeId: string | null
+  selectedMemoryId?: string
+  selectedObject?: SelectedObject
   selectedStageId: string | null
   stages: Stage[]
+  workspaceState: WorkspaceState
 }
 
 function AppShell({
-  activeTab,
   analysisSteps,
   answers,
   diagnosedStageIds,
@@ -46,42 +76,68 @@ function AppShell({
   genError,
   genProgress,
   graph,
-  kg4ExpansionGraph,
   paperInsight,
-  leftCollapsed,
-  leftWidth,
   learningReport,
-  onAnalyzePaper,
+  memories,
+  nodeExpansionSessions,
+  onActivateWorkspaceTab,
   onAdoptTransferTask,
+  onAnalyzePaper,
+  onBackToExpansionGraph,
+  onClearExpansionGraph,
+  onCloseWorkspaceTab,
   onConfirmDiagnosis,
   onCycleFontSize,
   onEnterStage,
-  onSetKg4ExpansionGraph,
   onGenerateLearningReport,
+  onMemoriesLoaded,
   onMarkNeedsReview,
+  onOpenFieldMemory,
   onMouseDownResize,
+  onOpenExpandView,
+  onOpenNodeExpansion,
   onOpenSettings,
   onRetryStage,
+  onSelectExpansionNode,
   onSelectGraphNode,
+  onSelectMemory,
+  onSelectObject,
   onSelectPdf,
   onSelectStage,
-  onSelectTab,
   onSubmitAnswer,
-  onToggleLeft,
   onToggleRight,
   onUpdateDraft,
   pdfUrl,
   rightCollapsed,
   rightWidth,
-  selectedGraphNode,
   selectedGraphNodeId,
-  selectedStage,
+  selectedMemoryId,
+  selectedObject,
   selectedStageId,
-  stages
+  stages,
+  workspaceState
 }: AppShellProps) {
+  const activeWorkspaceTab = workspaceState.tabs.find((tab) => tab.id === workspaceState.activeTabId)
+
+  const selectGraphNode = (nodeId: string) => {
+    onSelectGraphNode(nodeId)
+    onSelectObject({ type: 'graph_node', id: nodeId })
+  }
+
+  const selectStage = (stageId: string) => {
+    onSelectStage(stageId)
+    onSelectObject({ type: 'learning_stage', id: stageId })
+  }
+
+  const openStageLearning = (stageId: string) => {
+    onActivateWorkspaceTab('stage_learning')
+    selectStage(stageId)
+  }
+
   return (
-    <div className="app-container">
-      <AppHeader
+    <div className="app-container workspace-shell">
+      <TopBar
+        activeTab={activeWorkspaceTab}
         fontScale={fontScale}
         hasPdf={Boolean(pdfUrl)}
         hasGraph={graph.nodes.length > 0}
@@ -89,79 +145,84 @@ function AppShell({
         onOpenSettings={onOpenSettings}
       />
 
-      <div className="app-main">
-        <PdfPanel
-          collapsed={leftCollapsed}
-          onSelectPdf={onSelectPdf}
-          onToggleCollapsed={onToggleLeft}
-          pdfUrl={pdfUrl}
-          width={leftCollapsed ? 36 : leftWidth}
+      <div
+        className="workspace-main"
+        style={{
+          gridTemplateColumns: `190px minmax(0, 1fr) ${!rightCollapsed ? '10px' : ''} ${rightCollapsed ? '36px' : `${rightWidth}px`}`
+        }}
+      >
+        <WorkspaceSidebar
+          activeTabId={workspaceState.activeTabId}
+          tabs={workspaceState.tabs}
+          onActivateTab={onActivateWorkspaceTab}
+          onCloseTab={onCloseWorkspaceTab}
         />
 
-        {!leftCollapsed && (
-          <div className="resize-handle" onMouseDown={() => onMouseDownResize('left')} />
-        )}
-
-        <CenterPanel
-          activeTab={activeTab}
+        <CentralWorkspaceRouter
+          activeTab={activeWorkspaceTab}
+          answers={answers}
+          diagnosedStageIds={diagnosedStageIds}
+          diagnosisResults={diagnosisResults}
+          drafts={drafts}
           graph={graph}
+          kg4ExpansionGraph={null}
+          memories={memories}
+          nodeExpansionSessions={nodeExpansionSessions}
           paperInsight={paperInsight}
-          onSelectGraphNode={(nodeId) => onSelectGraphNode(nodeId)}
-          onSelectStage={(stageId) => onSelectStage(stageId)}
-          onTabChange={(tab) => {
-            onSelectTab(tab)
-            onSelectStage(null)
-            onSelectGraphNode(null)
-          }}
           selectedGraphNodeId={selectedGraphNodeId}
+          selectedMemoryId={selectedMemoryId}
           selectedStageId={selectedStageId}
           stages={stages}
-          expansionGraph={kg4ExpansionGraph}
-          onClearExpansionGraph={() => onSetKg4ExpansionGraph(null)}
+          pdfUrl={pdfUrl}
+          onAdoptTransferTask={onAdoptTransferTask}
+          onBackToExpansionGraph={onBackToExpansionGraph}
+          onClearExpansionGraph={onClearExpansionGraph}
+          onConfirmDiagnosis={onConfirmDiagnosis}
+          onEnterStage={onEnterStage}
+          onMarkNeedsReview={onMarkNeedsReview}
+          onMemoriesLoaded={onMemoriesLoaded}
+          onRetryStage={onRetryStage}
+          onSelectExpansionNode={onSelectExpansionNode}
+          onSelectGraphNode={selectGraphNode}
+          onSelectMemory={onSelectMemory}
+          onSelectStage={selectStage}
+          onSubmitAnswer={onSubmitAnswer}
+          onUpdateDraft={onUpdateDraft}
+          onSelectPdf={onSelectPdf}
         />
 
-        {!rightCollapsed && (
-          <div className="resize-handle" onMouseDown={() => onMouseDownResize('right')} />
-        )}
+        {!rightCollapsed && <div className="resize-handle" onMouseDown={() => onMouseDownResize('right')} />}
 
-        <aside
-          className={`panel panel-right ${rightCollapsed ? 'panel--collapsed' : ''}`}
-          style={{ width: rightCollapsed ? 36 : rightWidth }}
-        >
+        <aside className={`panel panel-right ai-context-shell ${rightCollapsed ? 'panel--collapsed' : ''}`}>
           <div className="panel-header panel-header--right">
-            <button className="panel-collapse-btn" onClick={onToggleRight} title="折叠学习面板">
+            <button className="panel-collapse-btn" onClick={onToggleRight} title="折叠 AI Context Panel">
               {rightCollapsed ? '‹' : '›'}
             </button>
-            {!rightCollapsed && <span className="panel-header-title">AI Tutor</span>}
+            {!rightCollapsed && <span className="panel-header-title">AI Context</span>}
           </div>
           {!rightCollapsed && (
-            <RightLearningPanel
-              activeTab={activeTab}
+            <AIContextPanel
               analysisSteps={analysisSteps}
-              answers={answers}
-              diagnosedStageIds={diagnosedStageIds}
-              diagnosisResults={diagnosisResults}
-              drafts={drafts}
               generating={generating}
               genError={genError}
               genProgress={genProgress}
+              graphNodes={graph.nodes}
               learningReport={learningReport}
-              onAnalyzePaper={onAnalyzePaper}
-              onAdoptTransferTask={onAdoptTransferTask}
-              onSetKg4ExpansionGraph={onSetKg4ExpansionGraph}
-              onConfirmDiagnosis={onConfirmDiagnosis}
-              onEnterStage={onEnterStage}
-              onGenerateLearningReport={onGenerateLearningReport}
-              onMarkNeedsReview={onMarkNeedsReview}
-              onRetryStage={onRetryStage}
-              onSelectPdf={onSelectPdf}
-              onSubmitAnswer={onSubmitAnswer}
-              onUpdateDraft={onUpdateDraft}
-              pdfUrl={pdfUrl}
+              memories={memories}
+              nodeExpansionSessions={nodeExpansionSessions}
               paperInsight={paperInsight}
-              selectedGraphNode={selectedGraphNode}
-              selectedStage={selectedStage}
+              pdfUrl={pdfUrl}
+              selectedObject={selectedObject}
               stages={stages}
+              diagnosisResults={diagnosisResults}
+              diagnosedStageIds={diagnosedStageIds}
+              onAnalyzePaper={onAnalyzePaper}
+              onGenerateLearningReport={onGenerateLearningReport}
+              onOpenExpandView={onOpenExpandView}
+              onOpenFieldMemory={onOpenFieldMemory}
+              onOpenNodeExpansion={onOpenNodeExpansion}
+              onOpenStageLearning={openStageLearning}
+              onSelectPdf={onSelectPdf}
             />
           )}
         </aside>

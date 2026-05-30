@@ -7,11 +7,13 @@ import type { Kg4ExpansionGraphLayer, ExpansionGraphNode } from '../../../shared
 interface KnowledgeGraphProps {
   graph: KG
   paperInsight: PaperInsight | null
+  selectedExpansionNodeId?: string
   selectedNodeId: string | null
   view: 'argument' | 'mechanism' | 'expansion'
   expansionGraph?: Kg4ExpansionGraphLayer | null
   onNodeSelect: (nodeId: string) => void
   onClearExpansionGraph?: () => void
+  onExpansionNodeSelect?: (node: ExpansionGraphNode) => void
 }
 
 const COLORS: Record<string, string> = {
@@ -295,10 +297,18 @@ function expansionNodePos(anchor: { x: number; y: number }, index: number, total
   return { x: anchor.x + Math.cos(angle) * radius, y: anchor.y + Math.sin(angle) * radius }
 }
 
-function renderExpansionNode(node: ExpansionGraphNode, pos: { x: number; y: number }) {
+function renderExpansionNode(node: ExpansionGraphNode, pos: { x: number; y: number }, selected: boolean, onClick?: () => void) {
   const width = node.type === 'related_paper' ? 150 : 132
   return (
-    <g className="kg4-expansion-node" data-expansion-node-id={node.id}>
+    <g
+      className={`kg4-expansion-node ${selected ? 'kg4-expansion-node--selected' : ''}`}
+      data-expansion-node-id={node.id}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick?.()
+      }}
+      style={{ cursor: onClick ? 'pointer' : 'default' }}
+    >
       <rect x={pos.x - width / 2} y={pos.y - 22} width={width} height={44} rx="12" />
       <text x={pos.x} y={pos.y - 3} textAnchor="middle">{truncateLabel(node.label)}</text>
       <text x={pos.x} y={pos.y + 13} textAnchor="middle" className="kg4-expansion-node__type">temporary</text>
@@ -306,7 +316,7 @@ function renderExpansionNode(node: ExpansionGraphNode, pos: { x: number; y: numb
   )
 }
 
-function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, expansionGraph, onNodeSelect, onClearExpansionGraph }: KnowledgeGraphProps) {
+function KnowledgeGraph({ graph, paperInsight, selectedExpansionNodeId, selectedNodeId, view, expansionGraph, onNodeSelect, onClearExpansionGraph, onExpansionNodeSelect }: KnowledgeGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const visibleGraph = useMemo(() => getViewGraph(graph, view), [graph, view])
 
@@ -530,7 +540,7 @@ function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, expansionGr
             )}
           </g>
           {expansionGraph && expansionAnchor && (
-            <g className="kg4-expansion-layer" pointerEvents="none">
+            <g className="kg4-expansion-layer">
               <g className="kg4-expansion-edges">
                 {expansionGraph.edges.map((edge) => {
                   const src = expansionPositions.get(edge.sourceId) ?? (edge.sourceId === expansionGraph.anchorNodeId ? expansionAnchor : null)
@@ -552,7 +562,9 @@ function KnowledgeGraph({ graph, paperInsight, selectedNodeId, view, expansionGr
               <g className="kg4-expansion-nodes">
                 {expansionGraph.nodes.map((node) => {
                   const pos = expansionPositions.get(node.id)
-                  return pos ? <g key={node.id}>{renderExpansionNode(node, pos)}</g> : null
+                  return pos
+                    ? <g key={node.id}>{renderExpansionNode(node, pos, selectedExpansionNodeId === node.id, () => onExpansionNodeSelect?.(node))}</g>
+                    : null
                 })}
               </g>
             </g>

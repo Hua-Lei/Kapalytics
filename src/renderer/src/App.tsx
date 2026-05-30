@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useReducer } from 'react'
 import AppShell from './components/AppShell'
 import SettingsModal from './components/SettingsModal'
 import { mockStages } from './mock/stages'
@@ -9,10 +9,12 @@ import { generateLearningReport, type LearningReport } from './modules/learning/
 import { derivePaperInsight, sanitizeGraph } from './modules/paper/analysisState'
 import { usePaperAnalysis } from './modules/paper/usePaperAnalysis'
 import type { DiagnosisResult } from './modules/diagnosis/types'
-import type { KnowledgeGraph, PaperInsight } from '../../shared/paper'
-import type { Kg4ExpansionGraphLayer } from '../../shared/kg4'
+import type { GraphNode, KnowledgeGraph, PaperInsight } from '../../shared/paper'
+import type { ExpansionGraphNode, NodeUnderstandingMemory } from '../../shared/kg4'
+import { initialWorkspaceState, workspaceReducer } from './domains/workspace/workspaceReducer'
+import type { SelectedObject, WorkspaceState } from './domains/workspace/types'
+import { createNodeExpansionSession, advanceExpansionStep, type NodeExpansionSession } from './modules/workspace/nodeExpansionSessions'
 
-type ActiveTab = 'graph' | 'learning'
 type ResizeTarget = 'left' | 'right' | null
 
 const MIN_PANEL = 200
@@ -49,10 +51,9 @@ function normalizeSavedStages(value: unknown): Stage[] | undefined {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('learning')
+  const [workspaceState, dispatchWorkspace] = useReducer(workspaceReducer, initialWorkspaceState)
   const [stages, setStages] = useState<Stage[]>(mockStages)
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
-  const selectedStage = stages.find((s) => s.id === selectedStageId) ?? null
 
   const updateStageStatus = (stageId: string, status: Stage['status']) => {
     setStages((prev) => prev.map((s) => (s.id === stageId ? { ...s, status } : s)))
@@ -69,7 +70,9 @@ function App() {
   const [hydrated, setHydrated] = useState(false)
 
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null)
-  const [kg4ExpansionGraph, setKg4ExpansionGraph] = useState<Kg4ExpansionGraphLayer | null>(null)
+  const [memories, setMemories] = useState<NodeUnderstandingMemory[]>([])
+  const [nodeExpansionSessions, setNodeExpansionSessions] = useState<Record<string, NodeExpansionSession>>({})
+  const paperInsightRef = useRef<PaperInsight | null>(null)
   const {
     analysisSteps,
     analyzePaper,
@@ -83,9 +86,15 @@ function App() {
     setGraph,
     setPaperInsight,
     setPdfUrl
-  } = usePaperAnalysis({ setStages, setActiveTab, setSelectedGraphNodeId })
-  const selectedGraphNode = graph.nodes.find((n) => n.id === selectedGraphNodeId) ?? null
+  } = usePaperAnalysis({ setStages, onAnalysisComplete: () => dispatchWorkspace({ type: 'activate_tab', tabId: 'paper_graph' }), setSelectedGraphNodeId })
   const [fontScale, setFontScale] = useState(1)
+
+  // Keep a ref to paperInsight so async expansion simulation doesn't capture stale value
+  useEffect(() => { paperInsightRef.current = paperInsight }, [paperInsight])
+
+  const selectWorkspaceObject = (selectedObject?: SelectedObject) => {
+    dispatchWorkspace({ type: 'select_object', selectedObject })
+  }
 
   // Check API key status on mount
   useEffect(() => {
@@ -94,8 +103,7 @@ function App() {
   }, [])
 
   function isValidSavedData(data: Record<string, unknown>): boolean {
-    if (data.activeTab !== undefined && !['graph', 'learning'].includes(String(data.activeTab)))
-      return false
+    // workspaceState is the new canonical tab state; old activeTab field is ignored
     if (data.graph !== undefined && typeof data.graph === 'object') {
       const g = data.graph as Record<string, unknown>
       if (!Array.isArray(g.nodes) || !Array.isArray(g.edges)) return false
@@ -128,7 +136,12 @@ function App() {
           if (data.diagnosisResults && typeof data.diagnosisResults === 'object')
             setDiagnosisResults(data.diagnosisResults as Record<string, DiagnosisResult>)
           if (typeof data.pdfUrl === 'string') setPdfUrl(data.pdfUrl)
-          if (typeof data.activeTab === 'string') setActiveTab(data.activeTab as ActiveTab)
+          if (data.workspaceState && typeof data.workspaceState === 'object') {
+            const ws = data.workspaceState as Record<string, unknown>
+            if (typeof ws.activeTabId === 'string' && Array.isArray(ws.tabs)) {
+              dispatchWorkspace({ type: 'restore_state', state: data.workspaceState as WorkspaceState })
+            }
+          }
           if (data.graph && typeof data.graph === 'object') {
             savedGraph = sanitizeGraph(data.graph as KnowledgeGraph)
             setGraph(savedGraph)
@@ -153,12 +166,12 @@ function App() {
     if (!hydrated) return
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(() => {
-      electronApi.save({ stages, answers, diagnosisResults, learningReport, pdfUrl, activeTab, graph, paperInsight })
+      electronApi.save({ stages, answers, diagnosisResults, learningReport, pdfUrl, workspaceState, graph, paperInsight })
     }, 500)
     return () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current)
     }
-  }, [stages, answers, diagnosisResults, learningReport, pdfUrl, activeTab, graph, paperInsight, hydrated])
+  }, [stages, answers, diagnosisResults, learningReport, pdfUrl, workspaceState, graph, paperInsight, hydrated])
 
   const enterStage = (stageId: string) => {
     updateStageStatus(stageId, 'in_progress')
@@ -247,9 +260,8 @@ function App() {
     setFontScale(fontSizes[(idx + 1) % fontSizes.length])
   }
 
-  const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT)
+  const [, setLeftWidth] = useState(DEFAULT_LEFT)
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT)
-  const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
 
   const resizing = useRef<ResizeTarget>(null)
@@ -306,6 +318,109 @@ function App() {
     setLearningReport(generateLearningReport(stages, diagnosisResults, answers))
   }
 
+  const openNodeExpansion = (nodeId: string) => {
+    const node = graph.nodes.find((item) => item.id === nodeId)
+    if (!node) return
+    const session = createNodeExpansionSession(node, paperInsight)
+    setNodeExpansionSessions((prev) => ({ ...prev, [session.id]: session }))
+    dispatchWorkspace({
+      type: 'open_tab',
+      tab: {
+        id: session.id,
+        type: 'node_expansion_loading',
+        title: `Expand: ${node.label}`,
+        nodeId: node.id,
+        expansionId: session.id,
+        closable: true,
+        status: 'loading'
+      }
+    })
+    // Simulate async step-by-step loading; each step advances after a short delay
+    runExpansionSimulation(session.id, node)
+  }
+
+  const runExpansionSimulation = async (sessionId: string, node: GraphNode) => {
+    const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+    // Advance through all steps
+    for (let i = 0; i < 7; i++) {
+      await delay(350 + Math.random() * 250) // 350-600ms per step
+      setNodeExpansionSessions((prev) => {
+        const current = prev[sessionId]
+        if (!current || current.status !== 'loading') return prev
+        const advanced = advanceExpansionStep(current, node, paperInsightRef.current)
+        dispatchWorkspace({ type: 'update_tab_status', tabId: sessionId, status: advanced.status })
+        return { ...prev, [sessionId]: advanced }
+      })
+    }
+    // After loop, check final state and switch to expansion_graph tab if ready
+    setNodeExpansionSessions((prev) => {
+      const final = prev[sessionId]
+      if (!final || final.status !== 'ready') return prev
+      return prev
+    })
+    // Re-open the tab as expansion_graph so the router renders ExpansionGraphView
+    dispatchWorkspace({
+      type: 'open_tab',
+      tab: {
+        id: sessionId,
+        type: 'expansion_graph',
+        title: `Expand: ${node.label}`,
+        nodeId: node.id,
+        expansionId: sessionId,
+        closable: true,
+        status: 'ready'
+      }
+    })
+  }
+
+  const selectExpansionNode = (node: ExpansionGraphNode, expansionId: string) => {
+    setNodeExpansionSessions((prev) => {
+      const session = prev[expansionId]
+      if (!session) return prev
+      return { ...prev, [expansionId]: { ...session, selectedExpansionNodeId: node.id, updatedAt: new Date().toISOString() } }
+    })
+    dispatchWorkspace({ type: 'select_object', selectedObject: { type: 'expansion_node', id: node.id, expansionId } })
+  }
+
+  const selectMemoryRecord = (memory: NodeUnderstandingMemory) => {
+    dispatchWorkspace({ type: 'select_object', selectedObject: { type: 'memory_record', id: memory.id } })
+  }
+
+  const openFieldMemory = () => {
+    dispatchWorkspace({ type: 'activate_tab', tabId: 'field_memory' })
+  }
+
+  const clearActiveExpansionGraph = () => {
+    const activeTab = workspaceState.tabs.find((tab) => tab.id === workspaceState.activeTabId)
+    if (!activeTab?.expansionId) return
+    setNodeExpansionSessions((prev) => {
+      const session = prev[activeTab.expansionId!]
+      if (!session) return prev
+      return { ...prev, [activeTab.expansionId!]: { ...session, expansionGraph: undefined, selectedExpansionNodeId: undefined, updatedAt: new Date().toISOString() } }
+    })
+    dispatchWorkspace({ type: 'select_object', selectedObject: undefined })
+    dispatchWorkspace({ type: 'update_tab_status', tabId: activeTab.id, status: 'empty' })
+  }
+
+  const openExpandView = (expansionId: string, nodeId: string) => {
+    dispatchWorkspace({
+      type: 'open_tab',
+      tab: {
+        id: `expand_view_${expansionId}_${nodeId}`,
+        type: 'expand_view',
+        title: 'Expand View',
+        nodeId,
+        expansionId,
+        closable: true,
+        status: 'idle'
+      }
+    })
+  }
+
+  const backToExpansionGraph = (expansionId: string) => {
+    dispatchWorkspace({ type: 'activate_tab', tabId: expansionId })
+  }
+
   const adoptTransferTask = (prompt: string) => {
     setStages((prev) =>
       prev.map((stage) =>
@@ -315,13 +430,12 @@ function App() {
       )
     )
     setSelectedStageId('transfer_comparison')
-    setActiveTab('learning')
+    dispatchWorkspace({ type: 'activate_tab', tabId: 'stage_learning' })
   }
 
   return (
     <div ref={containerRef} className="app-root">
       <AppShell
-        activeTab={activeTab}
         analysisSteps={analysisSteps}
         answers={answers}
         diagnosedStageIds={diagnosedStageIds}
@@ -332,36 +446,44 @@ function App() {
         genError={genError}
         genProgress={genProgress}
         graph={graph}
-        kg4ExpansionGraph={kg4ExpansionGraph}
+        workspaceState={workspaceState}
         paperInsight={paperInsight}
-        leftCollapsed={leftCollapsed}
-        leftWidth={leftWidth}
         learningReport={learningReport}
-        onAnalyzePaper={analyzePaper}
+        memories={memories}
+        nodeExpansionSessions={nodeExpansionSessions}
         onAdoptTransferTask={adoptTransferTask}
+        onAnalyzePaper={analyzePaper}
+        onActivateWorkspaceTab={(tabId) => dispatchWorkspace({ type: 'activate_tab', tabId })}
+        onBackToExpansionGraph={backToExpansionGraph}
+        onCloseWorkspaceTab={(tabId) => dispatchWorkspace({ type: 'close_tab', tabId })}
         onConfirmDiagnosis={confirmDiagnosis}
         onCycleFontSize={cycleFontSize}
         onEnterStage={enterStage}
         onGenerateLearningReport={generateReport}
+        onMemoriesLoaded={setMemories}
         onMarkNeedsReview={markNeedsReview}
+        onOpenFieldMemory={openFieldMemory}
         onMouseDownResize={handleMouseDown}
+        onOpenExpandView={openExpandView}
+        onOpenNodeExpansion={openNodeExpansion}
         onOpenSettings={() => setSettingsOpen(true)}
         onRetryStage={retryStage}
+        onClearExpansionGraph={clearActiveExpansionGraph}
         onSelectGraphNode={setSelectedGraphNodeId}
-        onSetKg4ExpansionGraph={setKg4ExpansionGraph}
+        onSelectExpansionNode={selectExpansionNode}
+        onSelectMemory={selectMemoryRecord}
+        onSelectObject={selectWorkspaceObject}
         onSelectPdf={handleSelectPdf}
         onSelectStage={setSelectedStageId}
-        onSelectTab={(tab) => setActiveTab(tab)}
         onSubmitAnswer={submitAnswer}
-        onToggleLeft={() => setLeftCollapsed(!leftCollapsed)}
         onToggleRight={() => setRightCollapsed(!rightCollapsed)}
         onUpdateDraft={updateDraft}
         pdfUrl={pdfUrl}
         rightCollapsed={rightCollapsed}
         rightWidth={rightWidth}
-        selectedGraphNode={selectedGraphNode}
         selectedGraphNodeId={selectedGraphNodeId}
-        selectedStage={selectedStage}
+        selectedMemoryId={workspaceState.selectedObject?.type === 'memory_record' ? workspaceState.selectedObject.id : undefined}
+        selectedObject={workspaceState.selectedObject}
         selectedStageId={selectedStageId}
         stages={stages}
       />
