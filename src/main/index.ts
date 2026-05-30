@@ -316,16 +316,16 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const sessionId = `expansion_${params.nodeId}_${Date.now()}`
     const searchQuery = [params.nodeLabel, ...(params.searchQueries ?? [])].filter(Boolean).join(' ')
 
-    mainWindow.webContents.send('expansion:progress', {
-      sessionId,
-      jobId: '',
-      step: 'job_created',
-      message: '正在准备检索任务...'
-    })
-
-    ;(async () => {
+    const runExpansion = async (): Promise<void> => {
       let jobId = ''
       try {
+        mainWindow.webContents.send('expansion:progress', {
+          sessionId,
+          jobId,
+          step: 'job_created',
+          message: '正在准备检索任务...'
+        })
+
         mainWindow.webContents.send('expansion:progress', {
           sessionId,
           jobId,
@@ -351,6 +351,9 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
               label: params.nodeLabel,
               searchQueries: params.searchQueries ?? []
             },
+            currentPaper: params.paperId
+              ? { id: params.paperId, insight: params.paperInsight }
+              : undefined,
             currentPaperInsight: params.paperInsight,
             retrievedPapers: candidates,
             providerStatus
@@ -369,7 +372,10 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           message: '正在分析算法思想...'
         })
 
-        const result = await llmTaskOrchestrator.runJob(job.id)
+        let result = await llmTaskOrchestrator.runJob(job.id)
+        for (let attempt = 1; result.status === 'queued' && attempt < 3; attempt += 1) {
+          result = await llmTaskOrchestrator.runJob(job.id)
+        }
         if (result.status !== 'succeeded' && result.status !== 'cache_hit') {
           throw new Error(result.errorMessage || '展开任务失败')
         }
@@ -414,7 +420,9 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           error: message
         })
       }
-    })()
+    }
+
+    setTimeout(() => { void runExpansion() }, 0)
 
     return { sessionId, jobs: [] }
   })

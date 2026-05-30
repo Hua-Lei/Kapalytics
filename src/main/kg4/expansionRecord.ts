@@ -25,6 +25,10 @@ function asCompleteness(value: unknown, fallback: Kg4NodeExpansionRecord['dataCo
   return value === 'complete' || value === 'partial' || value === 'insufficient' ? value : fallback
 }
 
+function firstDefined(...values: unknown[]): unknown {
+  return values.find((value) => value !== undefined)
+}
+
 export function candidatePaperId(candidate: DedupedPaperCandidate): string {
   return candidate.canonicalId
 }
@@ -43,18 +47,22 @@ export function buildExpansionRecord(params: {
   const retrievedPaperIds = asArray<string>(output.retrievedPaperIds).length
     ? asArray<string>(output.retrievedPaperIds)
     : params.retrievedPapers.map(candidatePaperId)
+  const missingDataReasons = asArray<string>(output.missingDataReasons)
+  const insufficientInformation = typeof output.insufficientInformation === 'string'
+    ? [output.insufficientInformation]
+    : []
 
   const record: Kg4NodeExpansionRecord = {
     id: stableId('kg4_expansion', `${params.paperId}:${params.nodeId}:${params.jobId}`),
     paperId: params.paperId,
     nodeId: params.nodeId,
     retrievedPaperIds,
-    algorithmIdeaCards: asArray<AlgorithmIdeaCard>(output.algorithmIdeaCards),
-    expansionGraphNodes: asArray<ExpansionGraphNode>(output.expansionGraphNodes),
-    expansionGraphEdges: asArray<ExpansionGraphEdge>(output.expansionGraphEdges),
-    fieldCognitionView: output.fieldCognitionView as FieldCognitionView | undefined,
+    algorithmIdeaCards: asArray<AlgorithmIdeaCard>(firstDefined(output.algorithmIdeaCards, output.ideaCards)),
+    expansionGraphNodes: asArray<ExpansionGraphNode>(firstDefined(output.expansionGraphNodes, output.graphNodes)),
+    expansionGraphEdges: asArray<ExpansionGraphEdge>(firstDefined(output.expansionGraphEdges, output.graphEdges)),
+    fieldCognitionView: firstDefined(output.fieldCognitionView, output.fieldCognition) as FieldCognitionView | undefined,
     dataCompleteness: asCompleteness(output.dataCompleteness, retrievedPaperIds.length ? 'partial' : 'insufficient'),
-    missingDataReasons: asArray<string>(output.missingDataReasons),
+    missingDataReasons: missingDataReasons.length ? missingDataReasons : insufficientInformation,
     generatedByJobIds: [params.jobId],
     createdAt: timestamp,
     updatedAt: timestamp
