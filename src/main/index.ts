@@ -20,9 +20,10 @@ import { paperMemoryRepository } from './memory/kg3Repository'
 import { fusePaperGraph } from './memory/graphFusion'
 import { searchPapers } from './retrieval/paperSearch'
 import { llmTaskOrchestrator } from './llm/orchestrator'
+import { buildExpansionRecord, candidatePaperId } from './kg4/expansionRecord'
 import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
 import type { PaperRecord } from '../shared/kg3'
-import type { Kg4ExpansionRecordQuery, Kg4NodeExpansionRecord } from '../shared/kg4'
+import type { Kg4ExpansionRecordQuery, Kg4NodeExpansionRecord, StartKg4ExpansionParams } from '../shared/kg4'
 import { isKg4NodeExpansionRecord } from '../shared/kg4'
 
 // Linux GPU fallback — must run before app ready
@@ -311,65 +312,103 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     return { ok: true }
   })
 
-  ipcMain.handle('kg4:start-expansion', async (_e, params: { nodeId: string; nodeLabel: string; paperId?: string }) => {
+  ipcMain.handle('kg4:start-expansion', async (_e, params: StartKg4ExpansionParams) => {
     const sessionId = `expansion_${params.nodeId}_${Date.now()}`
-    const job = await llmTaskOrchestrator.createJob({
-      type: 'expand_node_retrieve_context',
-      input: { nodeId: params.nodeId, nodeLabel: params.nodeLabel },
-      nodeId: params.nodeId,
-      paperId: params.paperId,
-      sessionId
-    })
+    const searchQuery = [params.nodeLabel, ...(params.searchQueries ?? [])].filter(Boolean).join(' ')
 
-    // Push: job created
     mainWindow.webContents.send('expansion:progress', {
-      sessionId, jobId: job.id,
+      sessionId,
+      jobId: '',
       step: 'job_created',
       message: '正在准备检索任务...'
     })
 
-    // Run job asynchronously, pushing progress at each key phase
     ;(async () => {
+      let jobId = ''
       try {
         mainWindow.webContents.send('expansion:progress', {
-          sessionId, jobId: job.id,
+          sessionId,
+          jobId,
           step: 'retrieving',
           message: '正在检索相关论文...'
         })
 
+        const { candidates, providerStatus } = await searchPapers({
+          query: searchQuery || params.nodeLabel,
+          nodeId: params.nodeId,
+          paperId: params.paperId,
+          searchQueries: params.searchQueries,
+          maxResults: 8,
+          requireAbstract: true
+        })
+        const relatedPaperIds = candidates.map(candidatePaperId)
+
+        const job = await llmTaskOrchestrator.createJob({
+          type: 'expand_node_retrieve_context',
+          input: {
+            currentNode: {
+              id: params.nodeId,
+              label: params.nodeLabel,
+              searchQueries: params.searchQueries ?? []
+            },
+            currentPaperInsight: params.paperInsight,
+            retrievedPapers: candidates,
+            providerStatus
+          },
+          nodeId: params.nodeId,
+          paperId: params.paperId,
+          relatedPaperIds,
+          sessionId
+        })
+        jobId = job.id
+
+        mainWindow.webContents.send('expansion:progress', {
+          sessionId,
+          jobId,
+          step: 'analyzing',
+          message: '正在分析算法思想...'
+        })
+
         const result = await llmTaskOrchestrator.runJob(job.id)
-
-        if (result.status === 'succeeded') {
-          mainWindow.webContents.send('expansion:progress', {
-            sessionId, jobId: job.id,
-            step: 'analyzing',
-            message: '正在分析算法思想...'
-          })
-
-          mainWindow.webContents.send('expansion:progress', {
-            sessionId, jobId: job.id,
-            step: 'generating',
-            message: '正在生成扩展图谱...'
-          })
-
-          mainWindow.webContents.send('expansion:progress', {
-            sessionId, jobId: job.id,
-            step: 'done',
-            message: '展开完成',
-            result: result.resultJson
-          })
-        } else {
-          mainWindow.webContents.send('expansion:progress', {
-            sessionId, jobId: job.id,
-            step: 'failed',
-            message: result.errorMessage || '展开任务失败',
-            error: result.errorMessage
-          })
+        if (result.status !== 'succeeded' && result.status !== 'cache_hit') {
+          throw new Error(result.errorMessage || '展开任务失败')
         }
+
+        mainWindow.webContents.send('expansion:progress', {
+          sessionId,
+          jobId,
+          step: 'generating',
+          message: '正在生成扩展图谱...'
+        })
+
+        const record = buildExpansionRecord({
+          paperId: params.paperId ?? 'current-paper',
+          nodeId: params.nodeId,
+          jobId,
+          retrievedPapers: candidates,
+          llmOutput: result.resultJson
+        })
+
+        mainWindow.webContents.send('expansion:progress', {
+          sessionId,
+          jobId,
+          step: 'persisting',
+          message: '正在保存展开结果...'
+        })
+        await paperMemoryRepository.saveKg4ExpansionRecord(record)
+
+        mainWindow.webContents.send('expansion:progress', {
+          sessionId,
+          jobId,
+          step: 'done',
+          message: '展开完成',
+          result: record
+        })
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         mainWindow.webContents.send('expansion:progress', {
-          sessionId, jobId: job.id,
+          sessionId,
+          jobId,
           step: 'failed',
           message,
           error: message
@@ -377,7 +416,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
       }
     })()
 
-    return { sessionId, jobs: [{ jobId: job.id, type: job.type }] }
+    return { sessionId, jobs: [] }
   })
 
   ipcMain.handle('kg4:get-job-status', async (_e, jobId: string) => {
