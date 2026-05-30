@@ -74,7 +74,7 @@ function ExpansionLoadingView() {
 
       {(session.status === 'failed' || session.status === 'empty') && (
         <section className="expansion-loading-error">
-          <strong>{session.status === 'empty' ? '没有可展示的 fixture 结果' : '展开任务失败'}</strong>
+          <strong>{session.status === 'empty' ? '没有可展示的展开结果' : '展开任务失败'}</strong>
           <p>{session.errorMessage ?? '当前没有更多错误信息。'}</p>
         </section>
       )}

@@ -12,7 +12,7 @@ interface IdeaCardGridProps {
 }
 
 function IdeaCardGrid({ cards, selectedIds, onToggle }: IdeaCardGridProps) {
-  if (!cards.length) return <EmptyExpansionState message="当前没有可追溯的算法思想卡。请接入检索 provider 或扩充 dev fixture。" />
+  if (!cards.length) return <EmptyExpansionState message="当前没有可追溯的算法思想卡。请接入检索 provider 或扩充知识源。" />
   return (
     <div className="kg4-card-grid">
       {cards.map((card) => {

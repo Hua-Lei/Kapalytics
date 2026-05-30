@@ -36,7 +36,7 @@ function ExpansionNodeInspector({ node, expansionId }: {
       <TruncatedText text={node.description} />
       <div className="ai-context-details">
         <div><strong>Temporary status</strong><p>该节点来自当前 expansion session，尚未写入长期图谱。</p></div>
-        <div><strong>Sources</strong><p>{node.sourcePaperIds.length ? node.sourcePaperIds.join(', ') : '当前 fixture 未提供 source paper。'}</p></div>
+        <div><strong>Sources</strong><p>{node.sourcePaperIds.length ? node.sourcePaperIds.join(', ') : '该节点未关联 source paper。'}</p></div>
       </div>
       <div className="ai-context-actions">
         <button className="stage-btn stage-btn--primary" onClick={handleOpenExpandView}>进入 Expand View</button>

@@ -76,7 +76,7 @@ export function buildKg4ExpansionRecord(
     })
   })
 
-  const missingDataReasons = ideaCards.length ? [] : ['当前 mock fixture 没有匹配论文；生产路径应使用 KG4 IPC 检索。']
+  const missingDataReasons = ideaCards.length ? [] : ['当前没有匹配论文；生产路径应使用 KG4 IPC 检索。']
   return {
     id: `kg4_expansion_${safeId(node.id)}`,
     paperId: 'current-paper',

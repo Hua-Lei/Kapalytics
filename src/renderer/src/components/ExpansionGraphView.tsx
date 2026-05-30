@@ -106,7 +106,7 @@ function ExpansionGraphView() {
               <p>{edge.explanation}</p>
             </article>
           )
-        }) : <p>当前 fixture 没有可展示的扩展边。</p>}
+        }) : <p>当前没有可展示的扩展边。</p>}
       </section>
     </div>
   )
