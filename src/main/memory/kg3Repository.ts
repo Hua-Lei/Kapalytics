@@ -466,7 +466,7 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async saveLLMJob(job: LLMJob): Promise<void> {
-    this.upsertJson('llm_jobs', job, { paperId: job.paperId, nodeId: job.nodeId, status: job.status, jobType: job.type })
+    this.upsertJson('llm_jobs', job, { paperId: job.paperId, nodeId: job.nodeId, status: job.status, jobType: job.type, cacheKey: job.cacheKey })
   }
 
   async saveNodeUnderstandingMemory(record: NodeUnderstandingMemory): Promise<void> {
@@ -526,7 +526,7 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
       this.insertSnapshotRows('merged_graph_nodes', snapshot.mergedGraphNodes, (record) => ({ normalizedLabel: record.normalizedLabel, nodeType: record.nodeType }))
       this.insertSnapshotRows('merged_graph_edges', snapshot.mergedGraphEdges, (record) => ({ sourceMergedNodeId: record.sourceMergedNodeId, targetMergedNodeId: record.targetMergedNodeId }))
       this.insertSnapshotRows('user_mastery', snapshot.userMastery, (record) => ({ targetType: record.targetType, targetId: record.targetId }))
-      this.insertSnapshotRows('llm_jobs', snapshot.llmJobs, (record) => ({ paperId: record.paperId, nodeId: record.nodeId, status: record.status, jobType: record.type }))
+      this.insertSnapshotRows('llm_jobs', snapshot.llmJobs, (record) => ({ paperId: record.paperId, nodeId: record.nodeId, status: record.status, jobType: record.type, cacheKey: record.cacheKey }))
       this.insertSnapshotRows('node_understanding_memories', snapshot.nodeUnderstandingMemories, (record) => ({
         nodeId: record.nodeId,
         sourcePaperId: record.sourcePaperId,
@@ -699,7 +699,7 @@ function paramsForTable<T extends { id: string; createdAt?: string; updatedAt?: 
     case 'user_mastery':
       return [record.id, indexes.targetType ?? null, indexes.targetId ?? null, json, record.updatedAt ?? null]
     case 'llm_jobs':
-      return [record.id, indexes.jobType ?? null, indexes.status ?? null, indexes.paperId ?? null, indexes.nodeId ?? null, indexes.cacheKey ?? null, json, record.createdAt ?? null, record.finishedAt ?? null]
+      return [record.id, indexes.jobType ?? null, indexes.status ?? null, indexes.paperId ?? null, indexes.nodeId ?? null, indexes.cacheKey ?? (record as unknown as LLMJob).cacheKey, json, record.createdAt ?? null, record.finishedAt ?? null]
     case 'node_understanding_memories':
       return [record.id, indexes.nodeId ?? null, indexes.sourcePaperId ?? null, indexes.normalizedNodeLabel ?? '', indexes.nodeType ?? '', json, record.createdAt ?? null, record.updatedAt ?? null]
   }
