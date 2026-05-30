@@ -1,6 +1,5 @@
 import type { Stage } from '../types'
 import type { DiagnosisResult } from '../modules/diagnosis/types'
-import DiagnosisView from './DiagnosisView'
 import MathText from './MathText'
 
 interface StageDetailProps {
@@ -65,12 +64,30 @@ function StageDetail({
 
       {(stage.status === 'in_progress' || stage.status === 'needs_review') && (
         diagnosed ? (
-          <DiagnosisView
-            answer={answer}
-            onConfirm={onConfirmDiagnosis}
-            onRetry={onRetryStage}
-            result={diagnosisResult}
-          />
+          <div className="diagnosis-view">
+            <div className={`diagnosis-banner ${diagnosisResult?.isCorrect ? 'diagnosis-banner--pass' : 'diagnosis-banner--fail'}`}>
+              <span className="diagnosis-icon">{diagnosisResult?.isCorrect ? '✓' : '!'}</span>
+              <div>
+                <div className="diagnosis-title">
+                  {diagnosisResult?.isCorrect ? '回答正确' : '诊断：请查看反馈'}
+                </div>
+              </div>
+            </div>
+            {diagnosisResult?.feedback && (
+              <div className="diagnosis-section">
+                <div className="diagnosis-label">反馈</div>
+                <p className="diagnosis-text"><MathText text={diagnosisResult.feedback} /></p>
+              </div>
+            )}
+            <div className="stage-actions">
+              {!diagnosisResult?.isCorrect && (
+                <button className="stage-btn stage-btn--primary" onClick={onRetryStage}>重新作答</button>
+              )}
+              <button className="stage-btn stage-btn--secondary" onClick={onConfirmDiagnosis}>
+                {diagnosisResult?.isCorrect ? '继续' : '标记已理解'}
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="stage-task-area">
             <section className="learning-card learning-card--task">

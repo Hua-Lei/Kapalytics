@@ -5,8 +5,6 @@ import type { DiagnosisResult } from '../modules/diagnosis/types'
 import type { LearningReport } from '../modules/learning/report'
 import type { NodeExpansionSession } from '../modules/workspace/nodeExpansionSessions'
 import type { SelectedObject } from '../domains/workspace/types'
-import AnalysisPanel from './AnalysisPanel'
-import LearningReportPanel from './LearningReportPanel'
 import AlgorithmIdeaInspector from './ai-panel/AlgorithmIdeaInspector'
 import EmptyContextPanel from './ai-panel/EmptyContextPanel'
 import ExpansionNodeInspector from './ai-panel/ExpansionNodeInspector'
@@ -37,17 +35,7 @@ interface AIContextPanelProps {
 function AIContextPanel(props: AIContextPanelProps) {
   let body: React.ReactNode
   if (!props.pdfUrl && !props.selectedObject) {
-    body = (
-      <AnalysisPanel
-        analysisSteps={props.analysisSteps}
-        generating={props.generating}
-        genError={props.genError}
-        genProgress={props.genProgress}
-        onAnalyzePaper={props.onAnalyzePaper}
-        onSelectPdf={props.onSelectPdf}
-        pdfUrl={props.pdfUrl}
-      />
-    )
+    body = <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
   } else if (props.selectedObject?.type === 'graph_node') {
     const node = props.graphNodes.find((item) => item.id === props.selectedObject?.id)
     body = node ? <NodeInspector node={node} /> : <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
@@ -75,12 +63,7 @@ function AIContextPanel(props: AIContextPanelProps) {
       ? <MemoryRecordInspector memory={memory} />
       : <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
   } else {
-    body = (
-      <>
-        <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
-        <LearningReportPanel report={props.learningReport} onGenerate={props.onGenerateLearningReport} />
-      </>
-    )
+    body = <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
   }
 
   return <div className="panel-body tutor-panel ai-context-panel">{body}</div>

@@ -15,7 +15,10 @@ import {
   generateLocalFeedback
 } from '../modules/learning/kg4Workbench'
 import { electronApi } from '../modules/ipc/electronApi'
-import MathText from './MathText'
+import IdeaCardGrid from './IdeaCardGrid'
+import ComparisonTable from './ComparisonTable'
+import FeedbackPanel from './FeedbackPanel'
+import MemorySavePanel from './MemorySavePanel'
 
 interface ExpandViewProps {
   anchorNode: GraphNode | undefined
@@ -24,115 +27,6 @@ interface ExpandViewProps {
   selectedExpansionNodeId?: string
   onBackToExpansionGraph: (expansionId: string) => void
   onAdoptTransferTask: (prompt: string) => void
-}
-
-function EmptyExpansionState({ message }: { message: string }) {
-  return <div className="node-expansion-empty"><p>{message}</p></div>
-}
-
-function DetailList({ title, items }: { title: string; items: unknown }) {
-  const list = Array.isArray(items) ? items.filter((item): item is string => typeof item === 'string') : []
-  if (!list.length) return null
-  return (
-    <section className="node-detail__section">
-      <h4>{title}</h4>
-      <ul className="node-detail__list">
-        {list.map((item, index) => <li key={`${title}-${index}`}><MathText text={item} /></li>)}
-      </ul>
-    </section>
-  )
-}
-
-function Kg4IdeaCardGrid({ cards, selectedIds, onToggle }: {
-  cards: AlgorithmIdeaCard[]
-  selectedIds: string[]
-  onToggle: (id: string) => void
-}) {
-  if (!cards.length) return <EmptyExpansionState message="当前没有可追溯的算法思想卡。请接入检索 provider 或扩充 dev fixture。" />
-  return (
-    <div className="kg4-card-grid">
-      {cards.map((card) => {
-        const selected = selectedIds.includes(card.id)
-        return (
-          <button
-            key={card.id}
-            className={`kg4-idea-card ${selected ? 'kg4-idea-card--selected' : ''}`}
-            onClick={() => onToggle(card.id)}
-            type="button"
-          >
-            <span className="kg4-card-source">{card.evidenceSource.source} · {card.evidenceSource.externalId}</span>
-            <strong>{card.paperTitle}</strong>
-            <p><b>问题：</b><MathText text={card.problemSetting} /></p>
-            <p><b>思想：</b><MathText text={card.coreIdea} /></p>
-            <p><b>假设：</b><MathText text={card.keyAssumption} /></p>
-            <p><b>机制：</b><MathText text={card.mechanism} /></p>
-            <p><b>优势：</b><MathText text={card.strength} /></p>
-            <p><b>局限：</b><MathText text={card.limitation} /></p>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function Kg4ComparisonTable({ workspace }: { workspace: AlgorithmIdeaComparisonWorkspace }) {
-  if (workspace.insufficientInformation) return <EmptyExpansionState message={workspace.insufficientInformation} />
-  return (
-    <div className="kg4-comparison">
-      <table className="node-detail__table sharp-comparison-table">
-        <thead>
-          <tr>
-            <th>维度</th>
-            <th>当前节点 / 论文</th>
-            {workspace.selectedIdeaCardIds.map((id) => {
-              const card = workspace.ideaCards.find((item) => item.id === id)
-              return <th key={id}>{card?.paperTitle ?? id}</th>
-            })}
-            <th>Contrast Insight</th>
-          </tr>
-        </thead>
-        <tbody>
-          {workspace.comparisonRows.map((row) => (
-            <tr key={row.dimension}>
-              <td>{row.label}</td>
-              <td><MathText text={row.currentNodeOrPaper} /></td>
-              {row.selectedIdeas.map((cell) => <td key={cell.ideaCardId}><MathText text={cell.value} /></td>)}
-              <td><MathText text={row.contrastInsight} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="kg4-reflection-questions">
-        <span className="node-expansion__label">Reflection Questions</span>
-        <ul>{workspace.reflectionQuestions.map((question) => <li key={question}>{question}</li>)}</ul>
-      </div>
-    </div>
-  )
-}
-
-function Kg4FeedbackView({ feedback }: { feedback: Kg4Feedback | null }) {
-  if (!feedback) return null
-  if (feedback.type === 'remedial') {
-    return (
-      <div className="kg4-feedback kg4-feedback--remedial">
-        <span>Remedial Lesson</span>
-        <strong>{feedback.missingPrerequisite}</strong>
-        <p>{feedback.whyItMattersForCurrentNode}</p>
-        <p>{feedback.shortExplanation}</p>
-        {feedback.example && <p><b>例子：</b>{feedback.example}</p>}
-        <p><b>检查问题：</b>{feedback.checkQuestion}</p>
-      </div>
-    )
-  }
-  return (
-    <div className="kg4-feedback kg4-feedback--reflective">
-      <span>Reflective Feedback</span>
-      <DetailList title="你抓住了什么" items={feedback.strengths} />
-      <DetailList title="还缺哪些比较维度" items={feedback.missingDimensions} />
-      <DetailList title="可能的反驳" items={feedback.possibleCounterArguments} />
-      <DetailList title="下一步问题" items={feedback.followUpQuestions} />
-    </div>
-  )
 }
 
 function ExpandView({ anchorNode, paperInsight, session, selectedExpansionNodeId, onBackToExpansionGraph, onAdoptTransferTask }: ExpandViewProps) {
@@ -233,12 +127,12 @@ function ExpandView({ anchorNode, paperInsight, session, selectedExpansionNodeId
         </div>
       </div>
 
-      <Kg4IdeaCardGrid cards={ideaCards} selectedIds={selectedIds} onToggle={toggleCard} />
+      <IdeaCardGrid cards={ideaCards} selectedIds={selectedIds} onToggle={toggleCard} />
       <div className="kg4-selected-tray">
         <span className="node-expansion__label">Selected Ideas</span>
         <p>{selectedIds.length}/3 selected · 至少选择 2 张卡生成正式对比。</p>
       </div>
-      <Kg4ComparisonTable workspace={workspace} />
+      <ComparisonTable workspace={workspace} />
       <div className="kg4-reflection-panel">
         <span className="node-expansion__label">你的理解</span>
         <textarea
@@ -249,19 +143,19 @@ function ExpandView({ anchorNode, paperInsight, session, selectedExpansionNodeId
         />
         <button className="stage-btn stage-btn--primary" disabled={!reflection.trim()} onClick={requestFeedback}>生成 Reflective / Remedial Feedback</button>
       </div>
-      <Kg4FeedbackView feedback={feedback} />
+      <FeedbackPanel feedback={feedback} />
       {feedback && (
-        <div className="kg4-memory-save">
-          <span className="node-expansion__label">建议保存的理解笔记</span>
-          <textarea className="task-answer-input" value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} />
-          <button className="stage-btn stage-btn--primary" onClick={saveMemory}>保存为长期理解</button>
-          {saveStatus && <p>{saveStatus}</p>}
-        </div>
+        <MemorySavePanel
+          noteDraft={noteDraft}
+          onNoteDraftChange={setNoteDraft}
+          onSaveMemory={saveMemory}
+          saveStatus={saveStatus}
+        />
       )}
       <div className="transfer-task-card kg4-optional-transfer">
         <span>Optional Transfer Task</span>
         <p>迁移任务保留为可选入口，不作为 KG4 主流程。</p>
-        <button className="stage-btn" onClick={() => onAdoptTransferTask(`请基于 KG4 工作台比较“${anchorNode.label}”的 2-3 个算法思想，并提出一个可迁移到当前论文的新假设。`)}>
+        <button className="stage-btn" onClick={() => onAdoptTransferTask(`请基于 KG4 工作台比较"${anchorNode.label}"的 2-3 个算法思想，并提出一个可迁移到当前论文的新假设。`)}>
           接入 transfer_comparison
         </button>
       </div>

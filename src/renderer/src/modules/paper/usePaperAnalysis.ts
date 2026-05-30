@@ -13,7 +13,7 @@ import {
 
 interface UsePaperAnalysisOptions {
   setStages: React.Dispatch<React.SetStateAction<Stage[]>>
-  setActiveTab: (tab: 'graph' | 'learning') => void
+  onAnalysisComplete: () => void
   setSelectedGraphNodeId: (nodeId: string | null) => void
 }
 
@@ -36,7 +36,7 @@ function inferTitleFromPdfUrl(pdfUrl: string): string {
 
 export function usePaperAnalysis({
   setStages,
-  setActiveTab,
+  onAnalysisComplete,
   setSelectedGraphNodeId
 }: UsePaperAnalysisOptions) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
@@ -60,7 +60,7 @@ export function usePaperAnalysis({
     setGenProgress('')
     setAnalysisSteps(INITIAL_ANALYSIS_STEPS)
     setSelectedGraphNodeId(null)
-    setActiveTab('graph')
+    onAnalysisComplete()
   }
 
   const analyzePaper = async () => {
@@ -131,7 +131,7 @@ export function usePaperAnalysis({
           console.warn('[KG3] Failed to save long-term memory:', err)
           setGenProgress('分析完成，但长期记忆保存失败。你仍可继续学习。')
         })
-        setActiveTab('graph')
+        onAnalysisComplete()
       } finally {
         unsubscribe?.()
       }

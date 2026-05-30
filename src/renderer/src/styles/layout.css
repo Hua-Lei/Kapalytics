@@ -20,6 +20,189 @@
   gap: 0;
 }
 
+.workspace-shell {
+  background:
+    radial-gradient(circle at top left, rgba(47, 93, 112, 0.10), transparent 32vw),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0) 72px),
+    var(--color-bg-app);
+}
+
+.workspace-topbar {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-bg-panel) 94%, white);
+  border-bottom: 1px solid rgba(200, 191, 174, 0.76);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.78) inset, 0 8px 22px rgba(55, 45, 34, 0.055);
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, auto) minmax(260px, 1fr);
+  height: var(--header-height);
+  padding: 0 14px;
+  gap: 16px;
+}
+
+.workspace-topbar__brand,
+.workspace-topbar__current {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.workspace-topbar__logo {
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.workspace-topbar__subtitle,
+.workspace-topbar__current span {
+  color: var(--color-text-tertiary);
+  font-size: 11.5px;
+}
+
+.workspace-topbar__current {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  justify-content: center;
+  padding: 7px 16px;
+}
+
+.workspace-topbar__current strong {
+  color: var(--color-accent);
+  font-size: 13px;
+}
+
+.workspace-topbar__status {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.workspace-main {
+  display: grid;
+  flex: 1;
+  gap: 10px;
+  grid-template-columns: 190px minmax(0, 1fr) auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 12px 14px 14px;
+}
+
+.workspace-sidebar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(250, 247, 240, 0.94));
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.workspace-sidebar__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-sidebar__section--grow {
+  flex: 1;
+  min-height: 0;
+}
+
+.workspace-sidebar__label {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace-sidebar__paper,
+.workspace-nav-item {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  padding: 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.workspace-nav-item {
+  position: relative;
+}
+
+.workspace-nav-item__main {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.workspace-nav-item__close {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  height: 22px;
+  justify-content: center;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 22px;
+}
+
+.workspace-nav-item__close:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.workspace-nav-item--active {
+  background: var(--color-accent-soft);
+  border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border-subtle));
+  box-shadow: 0 8px 20px rgba(47, 93, 112, 0.08);
+}
+
+.workspace-sidebar__paper strong,
+.workspace-nav-item strong {
+  color: var(--color-text);
+  display: block;
+  font-size: 13px;
+}
+
+.workspace-sidebar__paper span,
+.workspace-nav-item span,
+.workspace-sidebar__empty {
+  color: var(--color-text-tertiary);
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+.workspace-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow: auto;
+}
+
 .app-header {
   height: var(--header-height);
   background: color-mix(in srgb, var(--color-bg-panel) 92%, white);

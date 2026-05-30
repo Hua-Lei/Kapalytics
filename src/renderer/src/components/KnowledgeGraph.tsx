@@ -1,4 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useGraphDrag } from './useGraphDrag'
+import { useGraphZoom } from './useGraphZoom'
+import ExpansionLayer from './ExpansionLayer'
 import { KnowledgeGraph as KG, GraphNode } from '../modules/graph/types'
 import { canExpandGraphNode } from '../modules/paper/analysisState'
 import type { PaperInsight } from '../../../shared/paper'
@@ -38,9 +41,7 @@ const TYPE_LABELS: Record<string, string> = {
   limitation: '局限'
 }
 
-const truncateLabel = (label: string) => label.length > 12 ? `${label.slice(0, 11)}…` : label
-
-const DRAG_THRESHOLD = 3
+const truncateLabel = (label: string) => label.length > 12 ? `${label.slice(0, 11)}...` : label
 
 function getNodeCenter(node: GraphNode, pos: { x: number; y: number }): { cx: number; cy: number } {
   switch (node.type) {
@@ -291,69 +292,18 @@ function getViewGraph(graph: KG, view: KnowledgeGraphProps['view']): KG {
   return { nodes: nodes.length ? nodes : graph.nodes, edges: nodes.length ? edges : graph.edges }
 }
 
-function expansionNodePos(anchor: { x: number; y: number }, index: number, total: number): { x: number; y: number } {
-  const angle = (-Math.PI / 2) + (index / Math.max(1, total)) * Math.PI * 1.65
-  const radius = 180 + (index % 2) * 46
-  return { x: anchor.x + Math.cos(angle) * radius, y: anchor.y + Math.sin(angle) * radius }
-}
-
-function renderExpansionNode(node: ExpansionGraphNode, pos: { x: number; y: number }, selected: boolean, onClick?: () => void) {
-  const width = node.type === 'related_paper' ? 150 : 132
-  return (
-    <g
-      className={`kg4-expansion-node ${selected ? 'kg4-expansion-node--selected' : ''}`}
-      data-expansion-node-id={node.id}
-      onClick={(event) => {
-        event.stopPropagation()
-        onClick?.()
-      }}
-      style={{ cursor: onClick ? 'pointer' : 'default' }}
-    >
-      <rect x={pos.x - width / 2} y={pos.y - 22} width={width} height={44} rx="12" />
-      <text x={pos.x} y={pos.y - 3} textAnchor="middle">{truncateLabel(node.label)}</text>
-      <text x={pos.x} y={pos.y + 13} textAnchor="middle" className="kg4-expansion-node__type">temporary</text>
-    </g>
-  )
-}
-
 function KnowledgeGraph({ graph, paperInsight, selectedExpansionNodeId, selectedNodeId, view, expansionGraph, onNodeSelect, onClearExpansionGraph, onExpansionNodeSelect }: KnowledgeGraphProps) {
-  const svgRef = useRef<SVGSVGElement>(null)
   const visibleGraph = useMemo(() => getViewGraph(graph, view), [graph, view])
 
-  const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(() => {
-    const m = new Map<string, { x: number; y: number }>()
-    visibleGraph.nodes.forEach((n) => m.set(n.id, { x: n.x, y: n.y }))
-    return m
-  })
-
-  // Sync positions when graph changes (e.g., new paper loaded in future)
-  useEffect(() => {
-    const m = new Map<string, { x: number; y: number }>()
-    visibleGraph.nodes.forEach((n) => m.set(n.id, { x: n.x, y: n.y }))
-    setPositions(m)
-  }, [visibleGraph])
-
-  const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const { scale, svgRef, handleWheel, resetView } = useGraphZoom(offset, setOffset)
+  const { positions, setPositions, isDragging, getPos, handleNodeMouseDown, handleSvgMouseDown, handleMouseMove, handleMouseUp } =
+    useGraphDrag(onNodeSelect, scale, offset, setOffset, visibleGraph.nodes)
 
-  const dragRef = useRef<{
-    type: 'node' | 'pan' | null
-    nodeId?: string
-    startX: number
-    startY: number
-    startPosX: number
-    startPosY: number
-    moved: boolean
-  }>({ type: null, startX: 0, startY: 0, startPosX: 0, startPosY: 0, moved: false })
+  // Sync scaled positions when scale changes (keep nodes under cursor)
+  // Use effect-less approach: positions are managed by useGraphDrag
 
-  const getPos = (nodeId: string) => positions.get(nodeId) ?? { x: 0, y: 0 }
   const expansionAnchor = expansionGraph ? getPos(expansionGraph.anchorNodeId) : null
-  const expansionPositions = useMemo(() => {
-    const m = new Map<string, { x: number; y: number }>()
-    if (!expansionGraph || !expansionAnchor) return m
-    expansionGraph.nodes.forEach((node, index) => m.set(node.id, expansionNodePos(expansionAnchor, index, expansionGraph.nodes.length)))
-    return m
-  }, [expansionGraph, expansionAnchor])
 
   if (graph.nodes.length === 0) {
     return (
@@ -364,82 +314,6 @@ function KnowledgeGraph({ graph, paperInsight, selectedExpansionNodeId, selected
       </div>
     )
   }
-
-  const handleNodeMouseDown = (nodeId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    dragRef.current = {
-      type: 'node',
-      nodeId,
-      startX: e.clientX,
-      startY: e.clientY,
-      startPosX: getPos(nodeId).x,
-      startPosY: getPos(nodeId).y,
-      moved: false
-    }
-  }
-
-  const handleSvgMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return
-    dragRef.current = { type: 'pan', startX: e.clientX, startY: e.clientY, startPosX: offset.x, startPosY: offset.y, moved: false }
-  }
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const d = dragRef.current
-    if (!d.type) return
-
-    const dx = e.clientX - d.startX
-    const dy = e.clientY - d.startY
-
-    if (!d.moved && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
-      d.moved = true
-    }
-
-    if (!d.moved) return
-
-    if (d.type === 'node' && d.nodeId) {
-      setPositions((prev) => {
-        const next = new Map(prev)
-        next.set(d.nodeId!, {
-          x: d.startPosX + dx / scale,
-          y: d.startPosY + dy / scale
-        })
-        return next
-      })
-    } else if (d.type === 'pan') {
-      setOffset({ x: d.startPosX + dx, y: d.startPosY + dy })
-    }
-  }
-
-  const handleMouseUp = () => {
-    const d = dragRef.current
-    if (d.type === 'node' && d.nodeId && !d.moved) {
-      onNodeSelect(d.nodeId)
-    }
-    dragRef.current = { type: null, startX: 0, startY: 0, startPosX: 0, startPosY: 0, moved: false }
-  }
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    const rect = svgRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const mx = e.clientX - rect.left
-    const my = e.clientY - rect.top
-    const factor = e.deltaY < 0 ? 1.1 : 0.9
-    const newScale = Math.min(3, Math.max(0.3, scale * factor))
-
-    setScale(newScale)
-    setOffset((prev) => ({
-      x: mx - (mx - prev.x) * (newScale / scale),
-      y: my - (my - prev.y) * (newScale / scale)
-    }))
-  }
-
-  const resetView = () => {
-    setScale(1)
-    setOffset({ x: 0, y: 0 })
-  }
-
-  const isDragging = dragRef.current.type === 'pan' && dragRef.current.moved
 
   return (
     <div className="knowledge-graph">
@@ -466,7 +340,7 @@ function KnowledgeGraph({ graph, paperInsight, selectedExpansionNodeId, selected
             <feGaussianBlur stdDeviation="2.4" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
+              <feMergeNode in="SourceGraph" />
             </feMerge>
           </filter>
         </defs>
@@ -540,34 +414,12 @@ function KnowledgeGraph({ graph, paperInsight, selectedExpansionNodeId, selected
             )}
           </g>
           {expansionGraph && expansionAnchor && (
-            <g className="kg4-expansion-layer">
-              <g className="kg4-expansion-edges">
-                {expansionGraph.edges.map((edge) => {
-                  const src = expansionPositions.get(edge.sourceId) ?? (edge.sourceId === expansionGraph.anchorNodeId ? expansionAnchor : null)
-                  const tgt = expansionPositions.get(edge.targetId) ?? (edge.targetId === expansionGraph.anchorNodeId ? expansionAnchor : null)
-                  if (!src || !tgt) return null
-                  return (
-                    <g key={edge.id}>
-                      <line x1={src.x} y1={src.y} x2={tgt.x} y2={tgt.y} />
-                      <text x={(src.x + tgt.x) / 2} y={(src.y + tgt.y) / 2 - 4} textAnchor="middle">{edge.relation}</text>
-                    </g>
-                  )
-                })}
-                {expansionGraph.nodes.slice(0, 3).map((node) => {
-                  const pos = expansionPositions.get(node.id)
-                  if (!pos) return null
-                  return <line key={`anchor-${node.id}`} x1={expansionAnchor.x} y1={expansionAnchor.y} x2={pos.x} y2={pos.y} />
-                })}
-              </g>
-              <g className="kg4-expansion-nodes">
-                {expansionGraph.nodes.map((node) => {
-                  const pos = expansionPositions.get(node.id)
-                  return pos
-                    ? <g key={node.id}>{renderExpansionNode(node, pos, selectedExpansionNodeId === node.id, () => onExpansionNodeSelect?.(node))}</g>
-                    : null
-                })}
-              </g>
-            </g>
+            <ExpansionLayer
+              expansionGraph={expansionGraph}
+              expansionAnchor={expansionAnchor}
+              selectedExpansionNodeId={selectedExpansionNodeId}
+              onExpansionNodeSelect={onExpansionNodeSelect}
+            />
           )}
           <g className="graph-expansion-markers" pointerEvents="none">
             {visibleGraph.nodes.filter(canExpandGraphNode).map((node) => {
