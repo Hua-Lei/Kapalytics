@@ -11,7 +11,7 @@ import type {
   SharpComparisonRow,
   TransferTask
 } from './paper'
-import type { Kg4LLMTaskType, NodeUnderstandingMemory } from './kg4'
+import type { Kg4LLMTaskType, Kg4NodeExpansionRecord, NodeUnderstandingMemory } from './kg4'
 
 export type PaperSource = 'uploaded_pdf' | 'arxiv' | 'semantic_scholar' | 'openalex' | 'local_library'
 export type PaperProvider = 'arxiv' | 'semantic_scholar' | 'openalex' | 'doi' | 'corpus_id' | 'local'
@@ -399,6 +399,8 @@ export interface PaperMemoryRepository {
   saveGraphForPaper(paperId: string, nodes: GraphNode[], edges: Array<{ id: string; sourceId: string; targetId: string; label?: string; directed: boolean }>, insight?: PaperInsight): Promise<void>
   saveSearchResults(query: string, results: PaperSearchResult[]): Promise<void>
   saveNodeExpansion(record: NodeExpansionRecord): Promise<void>
+  saveKg4ExpansionRecord(record: Kg4NodeExpansionRecord): Promise<void>
+  getKg4ExpansionRecord(paperId: string, nodeId: string): Promise<Kg4NodeExpansionRecord | null>
   saveLLMJob(job: LLMJob): Promise<void>
   saveNodeUnderstandingMemory(record: NodeUnderstandingMemory): Promise<void>
   listNodeUnderstandingMemories(query?: import('./kg4').NodeUnderstandingMemoryQuery): Promise<NodeUnderstandingMemory[]>

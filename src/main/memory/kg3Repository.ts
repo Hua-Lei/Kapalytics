@@ -23,7 +23,7 @@ import type {
   ReadingSession,
   UserMasteryRecord
 } from '../../shared/kg3'
-import type { MemoryReuseSuggestion, NodeUnderstandingMemory, NodeUnderstandingMemoryQuery } from '../../shared/kg4'
+import type { Kg4NodeExpansionRecord, MemoryReuseSuggestion, NodeUnderstandingMemory, NodeUnderstandingMemoryQuery } from '../../shared/kg4'
 import { normalizeKg4NodeLabel } from '../../shared/kg4'
 
 const EMPTY_SNAPSHOT: Kg3MemorySnapshot = {
@@ -65,6 +65,18 @@ function readSnapshot(path: string): Kg3MemorySnapshot {
   }
 }
 
+type FileStoreWithKg4Expansions = Kg3MemorySnapshot & { kg4NodeExpansions?: Kg4NodeExpansionRecord[] }
+
+function readFileStore(path: string): FileStoreWithKg4Expansions {
+  try {
+    if (!existsSync(path)) return { ...EMPTY_SNAPSHOT, kg4NodeExpansions: [] }
+    const parsed = JSON.parse(readFileSync(path, 'utf-8')) as Partial<FileStoreWithKg4Expansions>
+    return { ...EMPTY_SNAPSHOT, kg4NodeExpansions: [], ...parsed }
+  } catch {
+    return { ...EMPTY_SNAPSHOT, kg4NodeExpansions: [] }
+  }
+}
+
 function writeSnapshot(path: string, snapshot: Kg3MemorySnapshot): void {
   const dir = dirname(path)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
@@ -86,6 +98,7 @@ type JsonTableName =
   | 'learning_tasks'
   | 'diagnoses'
   | 'node_expansions'
+  | 'kg4_node_expansions'
   | 'paper_search_results'
   | 'merged_graph_nodes'
   | 'merged_graph_edges'
@@ -102,6 +115,7 @@ const JSON_TABLES: JsonTableName[] = [
   'learning_tasks',
   'diagnoses',
   'node_expansions',
+  'kg4_node_expansions',
   'paper_search_results',
   'merged_graph_nodes',
   'merged_graph_edges',
@@ -110,7 +124,9 @@ const JSON_TABLES: JsonTableName[] = [
   'node_understanding_memories'
 ]
 
-const SNAPSHOT_KEYS: Record<JsonTableName, keyof Kg3MemorySnapshot> = {
+type SnapshotJsonTableName = Exclude<JsonTableName, 'kg4_node_expansions'>
+
+const SNAPSHOT_KEYS: Record<SnapshotJsonTableName, keyof Kg3MemorySnapshot> = {
   papers: 'papers',
   paper_insights: 'paperInsights',
   graph_nodes: 'graphNodes',
@@ -261,6 +277,17 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
     writeSnapshot(this.path, snapshot)
   }
 
+  async saveKg4ExpansionRecord(record: Kg4NodeExpansionRecord): Promise<void> {
+    const store = readFileStore(this.path)
+    store.kg4NodeExpansions = upsertById(store.kg4NodeExpansions ?? [], { ...record, updatedAt: now() })
+    writeSnapshot(this.path, store)
+  }
+
+  async getKg4ExpansionRecord(paperId: string, nodeId: string): Promise<Kg4NodeExpansionRecord | null> {
+    const store = readFileStore(this.path)
+    return (store.kg4NodeExpansions ?? []).find((record) => record.paperId === paperId && record.nodeId === nodeId) ?? null
+  }
+
   async saveLLMJob(job: LLMJob): Promise<void> {
     const snapshot = readSnapshot(this.path)
     snapshot.llmJobs = upsertById(snapshot.llmJobs, job)
@@ -398,6 +425,17 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
     this.upsertJson('node_expansions', { ...record, updatedAt: now() }, { paperId: record.paperId, nodeId: record.nodeId })
   }
 
+  async saveKg4ExpansionRecord(record: Kg4NodeExpansionRecord): Promise<void> {
+    this.upsertJson('kg4_node_expansions', { ...record, updatedAt: now() }, { paperId: record.paperId, nodeId: record.nodeId })
+  }
+
+  async getKg4ExpansionRecord(paperId: string, nodeId: string): Promise<Kg4NodeExpansionRecord | null> {
+    const row = this.db
+      .prepare('SELECT json FROM kg4_node_expansions WHERE paper_id = ? AND node_id = ? ORDER BY updated_at DESC LIMIT 1')
+      .get(paperId, nodeId) as JsonRow | undefined
+    return row ? JSON.parse(row.json) as Kg4NodeExpansionRecord : null
+  }
+
   async saveLLMJob(job: LLMJob): Promise<void> {
     this.upsertJson('llm_jobs', job, { paperId: job.paperId, nodeId: job.nodeId, status: job.status, jobType: job.type })
   }
@@ -484,6 +522,7 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
       CREATE TABLE IF NOT EXISTS learning_tasks (id TEXT PRIMARY KEY, paper_id TEXT NOT NULL, node_id TEXT, json TEXT NOT NULL, created_at TEXT, updated_at TEXT);
       CREATE TABLE IF NOT EXISTS diagnoses (id TEXT PRIMARY KEY, paper_id TEXT NOT NULL, node_id TEXT, task_id TEXT, json TEXT NOT NULL, created_at TEXT);
       CREATE TABLE IF NOT EXISTS node_expansions (id TEXT PRIMARY KEY, paper_id TEXT NOT NULL, node_id TEXT NOT NULL, json TEXT NOT NULL, created_at TEXT, updated_at TEXT);
+      CREATE TABLE IF NOT EXISTS kg4_node_expansions (id TEXT PRIMARY KEY, paper_id TEXT NOT NULL, node_id TEXT NOT NULL, json TEXT NOT NULL, created_at TEXT, updated_at TEXT);
       CREATE TABLE IF NOT EXISTS paper_search_results (id TEXT PRIMARY KEY, provider TEXT NOT NULL, external_id TEXT NOT NULL, cache_key TEXT NOT NULL, json TEXT NOT NULL, fetched_at TEXT, expires_at TEXT);
       CREATE TABLE IF NOT EXISTS merged_graph_nodes (id TEXT PRIMARY KEY, normalized_label TEXT NOT NULL, node_type TEXT NOT NULL, json TEXT NOT NULL, created_at TEXT, updated_at TEXT);
       CREATE TABLE IF NOT EXISTS merged_graph_edges (id TEXT PRIMARY KEY, source_merged_node_id TEXT NOT NULL, target_merged_node_id TEXT NOT NULL, json TEXT NOT NULL, created_at TEXT, updated_at TEXT);
@@ -498,6 +537,7 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
       CREATE INDEX IF NOT EXISTS idx_graph_edges_paper_pair ON graph_edges(paper_id, source_node_id, target_node_id);
       CREATE INDEX IF NOT EXISTS idx_diagnoses_task_id ON diagnoses(task_id);
       CREATE INDEX IF NOT EXISTS idx_diagnoses_node_id ON diagnoses(node_id);
+      CREATE INDEX IF NOT EXISTS idx_kg4_node_expansions_lookup ON kg4_node_expansions(paper_id, node_id, updated_at);
       CREATE INDEX IF NOT EXISTS idx_paper_search_provider_external ON paper_search_results(provider, external_id);
       CREATE INDEX IF NOT EXISTS idx_paper_search_cache_key ON paper_search_results(cache_key);
       CREATE INDEX IF NOT EXISTS idx_merged_nodes_label ON merged_graph_nodes(normalized_label);
@@ -579,6 +619,8 @@ function insertStatementForTable(db: BetterSqliteDatabase, table: JsonTableName)
       return db.prepare('INSERT OR REPLACE INTO diagnoses (id, paper_id, node_id, task_id, json, created_at) VALUES (?, ?, ?, ?, ?, ?)')
     case 'node_expansions':
       return db.prepare('INSERT OR REPLACE INTO node_expansions (id, paper_id, node_id, json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+    case 'kg4_node_expansions':
+      return db.prepare('INSERT OR REPLACE INTO kg4_node_expansions (id, paper_id, node_id, json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
     case 'paper_search_results':
       return db.prepare('INSERT OR REPLACE INTO paper_search_results (id, provider, external_id, cache_key, json, fetched_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
     case 'merged_graph_nodes':
@@ -616,6 +658,8 @@ function paramsForTable<T extends { id: string; createdAt?: string; updatedAt?: 
     case 'diagnoses':
       return [record.id, indexes.paperId ?? null, indexes.nodeId ?? null, indexes.taskId ?? null, json, record.createdAt ?? null]
     case 'node_expansions':
+      return [record.id, indexes.paperId ?? null, indexes.nodeId ?? null, json, record.createdAt ?? null, record.updatedAt ?? null]
+    case 'kg4_node_expansions':
       return [record.id, indexes.paperId ?? null, indexes.nodeId ?? null, json, record.createdAt ?? null, record.updatedAt ?? null]
     case 'paper_search_results':
       return [record.id, indexes.provider ?? null, indexes.externalId ?? null, indexes.cacheKey ?? null, json, record.fetchedAt ?? null, indexes.expiresAt ?? null]
