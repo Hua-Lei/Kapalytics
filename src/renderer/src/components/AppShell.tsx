@@ -39,10 +39,7 @@ interface AppShellProps {
   onGenerateLearningReport: () => void
   onMemoriesLoaded: (memories: NodeUnderstandingMemory[]) => void
   onMarkNeedsReview: (stageId: string) => void
-  onOpenFieldMemory: () => void
   onMouseDownResize: (target: ResizeTarget) => void
-  onOpenExpandView: (expansionId: string, nodeId: string) => void
-  onOpenNodeExpansion: (nodeId: string) => void
   onOpenSettings: () => void
   onRetryStage: (stageId: string) => void
   onSelectExpansionNode: (node: ExpansionGraphNode, expansionId: string) => void
@@ -92,10 +89,7 @@ function AppShell({
   onGenerateLearningReport,
   onMemoriesLoaded,
   onMarkNeedsReview,
-  onOpenFieldMemory,
   onMouseDownResize,
-  onOpenExpandView,
-  onOpenNodeExpansion,
   onOpenSettings,
   onRetryStage,
   onSelectExpansionNode,
@@ -127,11 +121,6 @@ function AppShell({
   const selectStage = (stageId: string) => {
     onSelectStage(stageId)
     onSelectObject({ type: 'learning_stage', id: stageId })
-  }
-
-  const openStageLearning = (stageId: string) => {
-    onActivateWorkspaceTab('stage_learning')
-    selectStage(stageId)
   }
 
   return (
@@ -210,10 +199,6 @@ function AppShell({
               diagnosedStageIds={diagnosedStageIds}
               onAnalyzePaper={onAnalyzePaper}
               onGenerateLearningReport={onGenerateLearningReport}
-              onOpenExpandView={onOpenExpandView}
-              onOpenFieldMemory={onOpenFieldMemory}
-              onOpenNodeExpansion={onOpenNodeExpansion}
-              onOpenStageLearning={openStageLearning}
               onSelectPdf={onSelectPdf}
             />
           )}

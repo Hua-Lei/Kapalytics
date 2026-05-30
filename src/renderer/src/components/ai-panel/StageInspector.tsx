@@ -1,13 +1,20 @@
 import type { Stage } from '../../types'
 import type { DiagnosisResult } from '../../modules/diagnosis/types'
 import TruncatedText from './TruncatedText'
+import { useWorkspace } from '../../domains/workspace/useWorkspace'
 
-function StageInspector({ stage, diagnosis, diagnosed, onOpenStageLearning }: {
+function StageInspector({ stage, diagnosis, diagnosed }: {
   stage: Stage
   diagnosis: DiagnosisResult | undefined
   diagnosed: boolean
-  onOpenStageLearning: (stageId: string) => void
 }) {
+  const { activateTab, selectObject } = useWorkspace()
+
+  const handleOpenStageLearning = () => {
+    activateTab('stage_learning')
+    selectObject({ type: 'learning_stage', id: stage.id })
+  }
+
   const waitingForAnswer = stage.status === 'in_progress' || stage.status === 'needs_review'
   return (
     <div className="ai-context-card">
@@ -33,7 +40,7 @@ function StageInspector({ stage, diagnosis, diagnosed, onOpenStageLearning }: {
         )}
       </div>
       <div className="ai-context-actions">
-        <button className="stage-btn stage-btn--secondary" onClick={() => onOpenStageLearning(stage.id)}>定位到中央学习区</button>
+        <button className="stage-btn stage-btn--secondary" onClick={handleOpenStageLearning}>定位到中央学习区</button>
       </div>
     </div>
   )

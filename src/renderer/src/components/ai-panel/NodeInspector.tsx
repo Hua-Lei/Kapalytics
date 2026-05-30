@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { GraphNode } from '../../../../shared/paper'
 import { canExpandGraphNode } from '../../modules/paper/analysisState'
 import TruncatedText from './TruncatedText'
+import { useExpansion } from '../../domains/expansion/useExpansion'
+import { useWorkspace } from '../../domains/workspace/useWorkspace'
 
 const typeLabel: Record<string, string> = {
   field: '领域',
@@ -13,13 +15,25 @@ const typeLabel: Record<string, string> = {
   limitation: '局限'
 }
 
-function NodeInspector({ node, onOpenNodeExpansion }: { node: GraphNode; onOpenNodeExpansion: (nodeId: string) => void }) {
+function NodeInspector({ node }: { node: GraphNode }) {
   const expandable = canExpandGraphNode(node)
   const [expansionRequested, setExpansionRequested] = useState(false)
+  const { startExpansion } = useExpansion()
+  const { openTab } = useWorkspace()
 
   const requestExpansion = () => {
     setExpansionRequested(true)
-    onOpenNodeExpansion(node.id)
+    const sessionId = startExpansion(node.id)
+    if (!sessionId) return
+    openTab({
+      id: sessionId,
+      type: 'node_expansion_loading',
+      title: `Expand: ${node.label}`,
+      nodeId: node.id,
+      expansionId: sessionId,
+      closable: true,
+      status: 'loading'
+    })
   }
 
   return (

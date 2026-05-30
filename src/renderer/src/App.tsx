@@ -9,11 +9,11 @@ import { generateLearningReport, type LearningReport } from './modules/learning/
 import { derivePaperInsight, sanitizeGraph } from './modules/paper/analysisState'
 import { usePaperAnalysis } from './modules/paper/usePaperAnalysis'
 import type { DiagnosisResult } from './modules/diagnosis/types'
-import type { GraphNode, KnowledgeGraph, PaperInsight } from '../../shared/paper'
+import type { KnowledgeGraph, PaperInsight } from '../../shared/paper'
 import type { ExpansionGraphNode, NodeUnderstandingMemory } from '../../shared/kg4'
 import { initialWorkspaceState, workspaceReducer } from './domains/workspace/workspaceReducer'
 import type { SelectedObject, WorkspaceState } from './domains/workspace/types'
-import { createNodeExpansionSession, advanceExpansionStep, type NodeExpansionSession } from './modules/workspace/nodeExpansionSessions'
+import { type NodeExpansionSession } from './modules/workspace/nodeExpansionSessions'
 import { PersistenceGate } from './domains/persistence/PersistenceGate'
 import { PaperProvider } from './domains/paper/PaperProvider'
 import { StageProvider } from './domains/stages/StageProvider'
@@ -324,61 +324,6 @@ function App() {
     setLearningReport(generateLearningReport(stages, diagnosisResults, answers))
   }
 
-  const openNodeExpansion = (nodeId: string) => {
-    const node = graph.nodes.find((item) => item.id === nodeId)
-    if (!node) return
-    const session = createNodeExpansionSession(node, paperInsight)
-    setNodeExpansionSessions((prev) => ({ ...prev, [session.id]: session }))
-    dispatchWorkspace({
-      type: 'open_tab',
-      tab: {
-        id: session.id,
-        type: 'node_expansion_loading',
-        title: `Expand: ${node.label}`,
-        nodeId: node.id,
-        expansionId: session.id,
-        closable: true,
-        status: 'loading'
-      }
-    })
-    // Simulate async step-by-step loading; each step advances after a short delay
-    runExpansionSimulation(session.id, node)
-  }
-
-  const runExpansionSimulation = async (sessionId: string, node: GraphNode) => {
-    const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-    // Advance through all steps
-    for (let i = 0; i < 7; i++) {
-      await delay(350 + Math.random() * 250) // 350-600ms per step
-      setNodeExpansionSessions((prev) => {
-        const current = prev[sessionId]
-        if (!current || current.status !== 'loading') return prev
-        const advanced = advanceExpansionStep(current, node, paperInsightRef.current)
-        dispatchWorkspace({ type: 'update_tab_status', tabId: sessionId, status: advanced.status })
-        return { ...prev, [sessionId]: advanced }
-      })
-    }
-    // After loop, check final state and switch to expansion_graph tab if ready
-    setNodeExpansionSessions((prev) => {
-      const final = prev[sessionId]
-      if (!final || final.status !== 'ready') return prev
-      return prev
-    })
-    // Re-open the tab as expansion_graph so the router renders ExpansionGraphView
-    dispatchWorkspace({
-      type: 'open_tab',
-      tab: {
-        id: sessionId,
-        type: 'expansion_graph',
-        title: `Expand: ${node.label}`,
-        nodeId: node.id,
-        expansionId: sessionId,
-        closable: true,
-        status: 'ready'
-      }
-    })
-  }
-
   const selectExpansionNode = (node: ExpansionGraphNode, expansionId: string) => {
     setNodeExpansionSessions((prev) => {
       const session = prev[expansionId]
@@ -392,10 +337,6 @@ function App() {
     dispatchWorkspace({ type: 'select_object', selectedObject: { type: 'memory_record', id: memory.id } })
   }
 
-  const openFieldMemory = () => {
-    dispatchWorkspace({ type: 'activate_tab', tabId: 'field_memory' })
-  }
-
   const clearActiveExpansionGraph = () => {
     const activeTab = workspaceState.tabs.find((tab) => tab.id === workspaceState.activeTabId)
     if (!activeTab?.expansionId) return
@@ -406,21 +347,6 @@ function App() {
     })
     dispatchWorkspace({ type: 'select_object', selectedObject: undefined })
     dispatchWorkspace({ type: 'update_tab_status', tabId: activeTab.id, status: 'empty' })
-  }
-
-  const openExpandView = (expansionId: string, nodeId: string) => {
-    dispatchWorkspace({
-      type: 'open_tab',
-      tab: {
-        id: `expand_view_${expansionId}_${nodeId}`,
-        type: 'expand_view',
-        title: 'Expand View',
-        nodeId,
-        expansionId,
-        closable: true,
-        status: 'idle'
-      }
-    })
   }
 
   const backToExpansionGraph = (expansionId: string) => {
@@ -474,10 +400,7 @@ function App() {
         onGenerateLearningReport={generateReport}
         onMemoriesLoaded={setMemories}
         onMarkNeedsReview={markNeedsReview}
-        onOpenFieldMemory={openFieldMemory}
         onMouseDownResize={handleMouseDown}
-        onOpenExpandView={openExpandView}
-        onOpenNodeExpansion={openNodeExpansion}
         onOpenSettings={() => setSettingsOpen(true)}
         onRetryStage={retryStage}
         onClearExpansionGraph={clearActiveExpansionGraph}

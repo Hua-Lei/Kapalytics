@@ -1,5 +1,6 @@
 import type { ExpansionGraphNode } from '../../../../shared/kg4'
 import TruncatedText from './TruncatedText'
+import { useWorkspace } from '../../domains/workspace/useWorkspace'
 
 const expansionTypeLabel: Record<string, string> = {
   method_family: 'Method Family',
@@ -9,11 +10,24 @@ const expansionTypeLabel: Record<string, string> = {
   open_problem: 'Open Problem'
 }
 
-function ExpansionNodeInspector({ node, expansionId, onOpenExpandView }: {
+function ExpansionNodeInspector({ node, expansionId }: {
   node: ExpansionGraphNode
   expansionId: string
-  onOpenExpandView: (expansionId: string, nodeId: string) => void
 }) {
+  const { openTab } = useWorkspace()
+
+  const handleOpenExpandView = () => {
+    openTab({
+      id: `expand_view_${expansionId}_${node.id}`,
+      type: 'expand_view',
+      title: 'Expand View',
+      nodeId: node.id,
+      expansionId,
+      closable: true,
+      status: 'idle'
+    })
+  }
+
   return (
     <div className="ai-context-card">
       <span className="eyebrow">Expansion Node Inspector</span>
@@ -25,7 +39,7 @@ function ExpansionNodeInspector({ node, expansionId, onOpenExpandView }: {
         <div><strong>Sources</strong><p>{node.sourcePaperIds.length ? node.sourcePaperIds.join(', ') : '当前 fixture 未提供 source paper。'}</p></div>
       </div>
       <div className="ai-context-actions">
-        <button className="stage-btn stage-btn--primary" onClick={() => onOpenExpandView(expansionId, node.id)}>进入 Expand View</button>
+        <button className="stage-btn stage-btn--primary" onClick={handleOpenExpandView}>进入 Expand View</button>
         <p>在中央 Workspace 查看完整 Algorithm Idea Cards、对比和 feedback。</p>
       </div>
     </div>

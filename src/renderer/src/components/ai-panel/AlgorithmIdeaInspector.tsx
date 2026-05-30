@@ -1,11 +1,25 @@
 import type { AlgorithmIdeaCard } from '../../../../shared/kg4'
 import TruncatedText from './TruncatedText'
+import { useWorkspace } from '../../domains/workspace/useWorkspace'
 
-function AlgorithmIdeaInspector({ card, expansionId, onOpenExpandView }: {
+function AlgorithmIdeaInspector({ card, expansionId }: {
   card: AlgorithmIdeaCard
   expansionId: string
-  onOpenExpandView: (expansionId: string, nodeId: string) => void
 }) {
+  const { openTab } = useWorkspace()
+
+  const handleOpenExpandView = () => {
+    openTab({
+      id: `expand_view_${expansionId}_${card.id}`,
+      type: 'expand_view',
+      title: 'Expand View',
+      nodeId: card.id,
+      expansionId,
+      closable: true,
+      status: 'idle'
+    })
+  }
+
   return (
     <div className="ai-context-card">
       <span className="eyebrow">Algorithm Idea Inspector</span>
@@ -19,7 +33,7 @@ function AlgorithmIdeaInspector({ card, expansionId, onOpenExpandView }: {
         {card.limitation && <div><strong>Limitation</strong><TruncatedText text={card.limitation} /></div>}
       </div>
       <div className="ai-context-actions">
-        <button className="stage-btn stage-btn--primary" onClick={() => onOpenExpandView(expansionId, card.id)}>进入 Expand View</button>
+        <button className="stage-btn stage-btn--primary" onClick={handleOpenExpandView}>进入 Expand View</button>
         <p>在中央 Workspace 中对比多个算法思想卡。</p>
       </div>
     </div>

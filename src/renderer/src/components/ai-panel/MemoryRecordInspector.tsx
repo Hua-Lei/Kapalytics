@@ -1,7 +1,15 @@
 import type { NodeUnderstandingMemory } from '../../../../shared/kg4'
 import TruncatedText from './TruncatedText'
+import { useWorkspace } from '../../domains/workspace/useWorkspace'
 
-function MemoryRecordInspector({ memory, onOpenFieldMemory }: { memory: NodeUnderstandingMemory; onOpenFieldMemory: () => void }) {
+function MemoryRecordInspector({ memory }: { memory: NodeUnderstandingMemory }) {
+  const { activateTab, selectObject } = useWorkspace()
+
+  const handleOpenFieldMemory = () => {
+    activateTab('field_memory')
+    selectObject({ type: 'memory_record', id: memory.id })
+  }
+
   const note = memory.userEditedUnderstandingNote || memory.generatedUnderstandingNote || memory.aiFeedbackSummary
   return (
     <div className="ai-context-card">
@@ -15,7 +23,7 @@ function MemoryRecordInspector({ memory, onOpenFieldMemory }: { memory: NodeUnde
         <div><strong>Updated</strong><p>{new Date(memory.updatedAt || memory.createdAt).toLocaleString()}</p></div>
       </div>
       <div className="ai-context-actions">
-        <button className="stage-btn stage-btn--secondary" onClick={onOpenFieldMemory}>定位到 Field Memory</button>
+        <button className="stage-btn stage-btn--secondary" onClick={handleOpenFieldMemory}>定位到 Field Memory</button>
       </div>
     </div>
   )

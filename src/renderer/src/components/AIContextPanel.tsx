@@ -31,10 +31,6 @@ interface AIContextPanelProps {
   diagnosedStageIds: Set<string>
   onAnalyzePaper: () => void
   onGenerateLearningReport: () => void
-  onOpenExpandView: (expansionId: string, nodeId: string) => void
-  onOpenNodeExpansion: (nodeId: string) => void
-  onOpenStageLearning: (stageId: string) => void
-  onOpenFieldMemory: () => void
   onSelectPdf: () => void
 }
 
@@ -54,29 +50,29 @@ function AIContextPanel(props: AIContextPanelProps) {
     )
   } else if (props.selectedObject?.type === 'graph_node') {
     const node = props.graphNodes.find((item) => item.id === props.selectedObject?.id)
-    body = node ? <NodeInspector node={node} onOpenNodeExpansion={props.onOpenNodeExpansion} /> : <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
+    body = node ? <NodeInspector node={node} /> : <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
   } else if (props.selectedObject?.type === 'learning_stage') {
     const stage = props.stages.find((item) => item.id === props.selectedObject?.id)
     body = stage
-      ? <StageInspector stage={stage} diagnosed={props.diagnosedStageIds.has(stage.id)} diagnosis={props.diagnosisResults[stage.id]} onOpenStageLearning={props.onOpenStageLearning} />
+      ? <StageInspector stage={stage} diagnosed={props.diagnosedStageIds.has(stage.id)} diagnosis={props.diagnosisResults[stage.id]} />
       : <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
   } else if (props.selectedObject?.type === 'expansion_node') {
     const session = props.nodeExpansionSessions[props.selectedObject.expansionId]
     const node = session?.expansionGraph?.nodes.find((item) => item.id === props.selectedObject?.id)
     body = node
-      ? <ExpansionNodeInspector node={node} expansionId={props.selectedObject.expansionId} onOpenExpandView={props.onOpenExpandView} />
+      ? <ExpansionNodeInspector node={node} expansionId={props.selectedObject.expansionId} />
       : <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
   } else if (props.selectedObject?.type === 'algorithm_idea') {
     const card = Object.values(props.nodeExpansionSessions)
       .flatMap((s) => s.expansionRecord?.algorithmIdeaCards ?? [])
       .find((c) => c.id === props.selectedObject?.id)
     body = card
-      ? <AlgorithmIdeaInspector card={card} expansionId={props.selectedObject.expansionId} onOpenExpandView={props.onOpenExpandView} />
+      ? <AlgorithmIdeaInspector card={card} expansionId={props.selectedObject.expansionId} />
       : <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
   } else if (props.selectedObject?.type === 'memory_record') {
     const memory = props.memories.find((item) => item.id === props.selectedObject?.id)
     body = memory
-      ? <MemoryRecordInspector memory={memory} onOpenFieldMemory={props.onOpenFieldMemory} />
+      ? <MemoryRecordInspector memory={memory} />
       : <EmptyContextPanel pdfUrl={props.pdfUrl} stages={props.stages} />
   } else {
     body = (
