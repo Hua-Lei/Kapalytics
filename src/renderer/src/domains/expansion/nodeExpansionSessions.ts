@@ -1,7 +1,5 @@
-import type { GraphNode, PaperInsight } from '../../../../shared/paper'
 import type { Kg4ExpansionGraphLayer, Kg4NodeExpansionRecord } from '../../../../shared/kg4'
-import { buildKg4ExpansionRecord } from '../../modules/learning/kg4Workbench'
-import { electronApi } from '../../modules/ipc/electronApi'
+import type { ExpansionProgressEvent } from '../../../../shared/electron-api'
 
 export type NodeExpansionStatus = 'loading' | 'ready' | 'failed' | 'empty'
 export type NodeExpansionStepStatus = 'pending' | 'running' | 'done' | 'failed'
@@ -30,164 +28,74 @@ export interface NodeExpansionSession {
   updatedAt: string
 }
 
-const STEP_DEFINITIONS: Array<{ id: string; label: string; detail: string }> = [
-  { id: 'read_node_context', label: '读取节点上下文', detail: '整理当前节点的 summary、role、whyImportant 和 search queries。' },
-  { id: 'build_search_query', label: '构造检索查询', detail: '基于节点标签和可展开方向生成候选检索词。' },
-  { id: 'retrieve_papers', label: '检索候选论文', detail: '使用本地 mock/dev fixture 检索候选论文。' },
-  { id: 'rank_candidates', label: '排序候选证据', detail: '按查询 token 与内置候选论文的匹配程度排序。' },
-  { id: 'extract_algorithm_ideas', label: '抽取算法思想', detail: '从候选论文 fixture 构造可追溯 Algorithm Idea Cards。' },
-  { id: 'generate_expansion_graph', label: '生成临时扩展图谱', detail: '准备 temporary expansion nodes 和 dashed expansion edges。' },
-  { id: 'prepare_workspace', label: '准备后续 Workspace', detail: '完成后将自动进入 Expansion Graph View。' }
-]
-
-function safeId(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 52) || 'node'
-}
-
-function buildExpansionGraph(nodeId: string, record: Kg4NodeExpansionRecord): Kg4ExpansionGraphLayer {
-  return {
-    anchorNodeId: nodeId,
-    nodes: record.expansionGraphNodes,
-    edges: record.expansionGraphEdges
-  }
-}
-
-function makeLoadingSteps(): NodeExpansionStep[] {
-  return STEP_DEFINITIONS.map((step, index) => ({
-    ...step,
-    status: index === 0 ? ('running' as const) : ('pending' as const)
-  }))
-}
-
-function makeCompletedSteps(record: Kg4NodeExpansionRecord): NodeExpansionStep[] {
-  return STEP_DEFINITIONS.map((step) => ({
-    ...step,
-    status: 'done' as const,
-    detail: step.id === 'retrieve_papers'
-      ? `${step.detail} 已匹配 ${record.retrievedPaperIds.length} 个 mock candidate。`
-      : step.detail
-  }))
-}
-
-function makeFailedSteps(): NodeExpansionStep[] {
-  return STEP_DEFINITIONS.map((step, index) => {
-    if (step.id === 'retrieve_papers') return { ...step, status: 'failed' as const }
-    if (index > 2) return { ...step, status: 'pending' as const }
-    return { ...step, status: 'done' as const }
-  })
-}
-
-function makeEmptySteps(): NodeExpansionStep[] {
-  return STEP_DEFINITIONS.map((step, index) => {
-    if (index >= 4) return { ...step, status: index === 4 ? 'failed' as const : 'pending' as const }
-    return { ...step, status: 'done' as const }
-  })
-}
-
-/** Create a session that always starts in "loading" so the user sees the step timeline. */
-export function createNodeExpansionSession(node: GraphNode, _paperInsight: PaperInsight | null): NodeExpansionSession {
-  const timestamp = new Date().toISOString()
-  return {
-    id: `node_expansion_${safeId(node.id)}`,
-    nodeId: node.id,
-    nodeLabel: node.label,
-    status: 'loading',
-    currentStepId: 'read_node_context',
-    steps: makeLoadingSteps(),
-    usesMockData: true,
-    createdAt: timestamp,
-    updatedAt: timestamp
-  }
-}
-
-/** Create a real expansion session backed by the LLM orchestrator via IPC. Falls back to mock on failure. */
-export async function createRealExpansionSession(node: GraphNode, paperInsight: PaperInsight | null): Promise<NodeExpansionSession> {
-  const timestamp = new Date().toISOString()
-  try {
-    const result = await electronApi.kg4.startExpansion({
-      nodeId: node.id,
-      nodeLabel: node.label,
-      paperId: undefined
-    })
-    return {
-      id: result.sessionId,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      status: 'loading',
-      currentStepId: 'retrieve_papers',
-      steps: makeLoadingSteps(),
-      usesMockData: false,
-      createdAt: timestamp,
-      updatedAt: timestamp
-    }
-  } catch (error) {
-    // Fall back to mock if IPC fails
-    return createNodeExpansionSession(node, paperInsight)
-  }
-}
-
-/**
- * Advance the loading session to the next step. Returns a new session.
- * When all steps are done, the session transitions to 'ready' with the real
- * expansion record populated.
- */
-export function advanceExpansionStep(session: NodeExpansionSession, node: GraphNode, paperInsight: PaperInsight | null): NodeExpansionSession {
+export function updateSessionFromJobProgress(
+  session: NodeExpansionSession,
+  event: ExpansionProgressEvent
+): NodeExpansionSession {
   const now = new Date().toISOString()
-  const currentIndex = session.steps.findIndex((s) => s.status === 'running')
+  const stepOrder = ['job_created', 'retrieving', 'analyzing', 'generating', 'done'] as const
 
-  if (currentIndex < 0 || currentIndex >= STEP_DEFINITIONS.length - 1) {
-    // Last step finished — build the real result and transition to ready/failed/empty
-    try {
-      const expansionRecord = buildKg4ExpansionRecord(node, paperInsight)
-      if (!expansionRecord.expansionGraphNodes.length) {
-        return {
-          ...session,
-          status: 'empty',
-          currentStepId: 'extract_algorithm_ideas',
-          steps: makeEmptySteps(),
-          errorMessage: expansionRecord.missingDataReasons[0],
-          updatedAt: now
-        }
-      }
-      return {
-        ...session,
-        status: 'ready',
-        currentStepId: 'prepare_workspace',
-        steps: makeCompletedSteps(expansionRecord),
-        expansionGraph: buildExpansionGraph(node.id, expansionRecord),
-        expansionRecord,
-        updatedAt: now
-      }
-    } catch (error) {
-      return {
-        ...session,
-        status: 'failed',
-        currentStepId: 'retrieve_papers',
-        steps: makeFailedSteps(),
-        errorMessage: error instanceof Error ? error.message : 'Node expansion fixture failed.',
-        updatedAt: now
-      }
+  const currentIndex = stepOrder.indexOf(event.step as typeof stepOrder[number])
+  const steps = session.steps.map((step) => {
+    const stepIndex = stepOrder.indexOf(step.id as typeof stepOrder[number])
+    if (stepIndex < currentIndex) return { ...step, status: 'done' as const }
+    if (stepIndex === currentIndex) {
+      if (event.step === 'failed') return { ...step, status: 'failed' as const, detail: event.error || event.message }
+      return { ...step, status: 'running' as const, detail: event.message }
+    }
+    return step
+  })
+
+  if (event.step === 'failed') {
+    return {
+      ...session,
+      status: 'failed',
+      currentStepId: event.step,
+      steps,
+      errorMessage: event.error || event.message,
+      updatedAt: now
     }
   }
 
-  // Advance one step
-  const nextSteps = session.steps.map((step, index) => {
-    if (index === currentIndex) return { ...step, status: 'done' as const }
-    if (index === currentIndex + 1) return { ...step, status: 'running' as const }
-    return { ...step }
-  })
+  if (event.step === 'done') {
+    const result = event.result as Record<string, unknown> | undefined
+    const expansionGraph: Kg4ExpansionGraphLayer | undefined = result?.expansionGraphNodes ? {
+      anchorNodeId: session.nodeId,
+      nodes: (result.expansionGraphNodes || []) as Kg4ExpansionGraphLayer['nodes'],
+      edges: (result.expansionGraphEdges || []) as Kg4ExpansionGraphLayer['edges']
+    } : undefined
+
+    const expansionRecord: Kg4NodeExpansionRecord | undefined = result ? {
+      id: `kg4_expansion_${session.nodeId}_${Date.now()}`,
+      paperId: 'current-paper',
+      nodeId: session.nodeId,
+      retrievedPaperIds: (result.retrievedPaperIds || []) as string[],
+      algorithmIdeaCards: (result.algorithmIdeaCards || []) as Kg4NodeExpansionRecord['algorithmIdeaCards'],
+      expansionGraphNodes: (result.expansionGraphNodes || []) as Kg4NodeExpansionRecord['expansionGraphNodes'],
+      expansionGraphEdges: (result.expansionGraphEdges || []) as Kg4NodeExpansionRecord['expansionGraphEdges'],
+      fieldCognitionView: result.fieldCognitionView as Kg4NodeExpansionRecord['fieldCognitionView'],
+      dataCompleteness: (result.dataCompleteness as Kg4NodeExpansionRecord['dataCompleteness']) || 'partial',
+      missingDataReasons: (result.missingDataReasons || []) as string[],
+      generatedByJobIds: [event.jobId],
+      createdAt: session.createdAt,
+      updatedAt: now
+    } : undefined
+
+    return {
+      ...session,
+      status: 'ready',
+      currentStepId: 'done',
+      steps,
+      expansionGraph,
+      expansionRecord,
+      updatedAt: now
+    }
+  }
 
   return {
     ...session,
-    currentStepId: STEP_DEFINITIONS[currentIndex + 1].id,
-    steps: nextSteps,
+    currentStepId: event.step,
+    steps,
     updatedAt: now
   }
-}
-
-/** How many steps remain before completion. Used to calculate simulated delay. */
-export function remainingSteps(session: NodeExpansionSession): number {
-  const currentIndex = session.steps.findIndex((s) => s.status === 'running')
-  if (currentIndex < 0) return 0
-  return STEP_DEFINITIONS.length - currentIndex
 }
