@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect, useRef, useReducer } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import AppShell from './components/AppShell'
 import SettingsModal from './components/SettingsModal'
 import { electronApi } from './modules/ipc/electronApi'
-import { initialWorkspaceState, workspaceReducer } from './domains/workspace/workspaceReducer'
+import { initialWorkspaceState } from './domains/workspace/workspaceReducer'
 import type { WorkspaceState } from './domains/workspace/types'
 import { PersistenceGate } from './domains/persistence/PersistenceGate'
 import { PaperProvider } from './domains/paper/PaperProvider'
@@ -27,7 +27,7 @@ function StageSyncBridge({ setStagesRef: ref }: { setStagesRef: React.MutableRef
 }
 
 function App() {
-  const [workspaceState, dispatchWorkspace] = useReducer(workspaceReducer, initialWorkspaceState)
+  const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(initialWorkspaceState)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
   const [proxyUrl, setProxyUrl] = useState('')
@@ -52,7 +52,7 @@ function App() {
           if (data.workspaceState && typeof data.workspaceState === 'object') {
             const ws = data.workspaceState as Record<string, unknown>
             if (typeof ws.activeTabId === 'string' && Array.isArray(ws.tabs)) {
-              dispatchWorkspace({ type: 'restore_state', state: data.workspaceState as WorkspaceState })
+              setWorkspaceState(data.workspaceState as WorkspaceState)
             }
           }
         }
@@ -136,14 +136,18 @@ function App() {
     try { return await electronApi.testConnection() } catch { return { ok: false, message: '连接测试失败' } }
   }
 
+  const handleWorkspaceStateChange = useCallback((nextState: WorkspaceState) => {
+    setWorkspaceState(nextState)
+  }, [])
+
   return (
     <PersistenceGate onLoad={() => {}}>
-      <PaperProvider onAnalysisComplete={() => dispatchWorkspace({ type: 'activate_tab', tabId: 'paper_graph' })} setStagesRef={setStagesRef}>
+      <PaperProvider onAnalysisComplete={() => {}} setStagesRef={setStagesRef}>
         <StageProvider>
           <StageSyncBridge setStagesRef={setStagesRef} />
           <ExpansionProvider>
             <MemoryProvider>
-              <WorkspaceProvider>
+              <WorkspaceProvider initialState={workspaceState} onStateChange={handleWorkspaceStateChange}>
                 <div ref={containerRef} className="app-root">
                   <AppShell
                     fontScale={fontScale}

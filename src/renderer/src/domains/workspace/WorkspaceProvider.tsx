@@ -1,6 +1,5 @@
-import { createContext, useCallback, useReducer, type ReactNode } from 'react'
+import { createContext, useCallback, useEffect, useReducer, type ReactNode } from 'react'
 import { initialWorkspaceState, workspaceReducer } from './workspaceReducer'
-import type { WorkspaceAction } from './workspaceReducer'
 import type { SelectedObject, WorkspaceState, WorkspaceTab } from './types'
 
 export interface WorkspaceContextValue {
@@ -15,8 +14,20 @@ export interface WorkspaceContextValue {
 
 export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
-export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(workspaceReducer, initialWorkspaceState)
+export function WorkspaceProvider({
+  children,
+  initialState = initialWorkspaceState,
+  onStateChange
+}: {
+  children: ReactNode
+  initialState?: WorkspaceState
+  onStateChange?: (state: WorkspaceState) => void
+}) {
+  const [state, dispatch] = useReducer(workspaceReducer, initialState)
+
+  useEffect(() => {
+    onStateChange?.(state)
+  }, [onStateChange, state])
 
   const activeTab = state.tabs.find((t) => t.id === state.activeTabId)
 
