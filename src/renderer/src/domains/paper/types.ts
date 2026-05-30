@@ -18,6 +18,4 @@ export interface PaperActions {
   setPdfUrl: (url: string | null) => void
 }
 
-export type PaperContextValue = PaperState & PaperActions & {
-  paperTasks: Record<string, string> | null
-}
+export type PaperContextValue = PaperState & PaperActions

@@ -18,6 +18,14 @@ type ResizeTarget = 'left' | 'right' | null
 const MIN_PANEL = 200
 const DEFAULT_RIGHT = 340
 
+function StageSyncBridge({ setStagesRef: ref }: { setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null> }) {
+  const { setStages } = useStages()
+  ref.current = (tasks: Record<string, string>) => {
+    setStages(buildStagesFromTasks(tasks))
+  }
+  return null
+}
+
 function App() {
   const [workspaceState, dispatchWorkspace] = useReducer(workspaceReducer, initialWorkspaceState)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -126,14 +134,6 @@ function App() {
 
   const handleTestConnection = async (): Promise<{ ok: boolean; message: string }> => {
     try { return await electronApi.testConnection() } catch { return { ok: false, message: '连接测试失败' } }
-  }
-
-  function StageSyncBridge({ setStagesRef: ref }: { setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null> }) {
-    const { setStages } = useStages()
-    ref.current = (tasks: Record<string, string>) => {
-      setStages(buildStagesFromTasks(tasks))
-    }
-    return null
   }
 
   return (

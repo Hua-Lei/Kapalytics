@@ -45,7 +45,6 @@ export function usePaperAnalysis({
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
   const [genProgress, setGenProgress] = useState('')
-  const [paperTasks, setPaperTasks] = useState<Record<string, string> | null>(null)
   const [analysisSteps, setAnalysisSteps] = useState<AnalysisStep[]>(INITIAL_ANALYSIS_STEPS)
 
   const selectPdf = async () => {
@@ -104,7 +103,6 @@ export function usePaperAnalysis({
           edges: analysis.graph.edges
         })
         setPaperInsight(analysis.insight ?? derivePaperInsight(fullGraph))
-        setPaperTasks(analysis.tasks)
         setAnalysisSteps((prev) => updateStep(updateStep(prev, 'analyze', 'done'), 'reveal', 'active'))
 
         for (let i = 0; i < fullGraph.nodes.length; i += 1) {
@@ -152,7 +150,6 @@ export function usePaperAnalysis({
     genProgress,
     graph,
     paperInsight,
-    paperTasks,
     pdfUrl,
     selectPdf,
     setGraph,
