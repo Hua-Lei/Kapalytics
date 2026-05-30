@@ -1,11 +1,9 @@
-import type { PaperInsight } from '../../../shared/paper'
+import { usePaper } from '../domains/paper/usePaper'
 import MathText from './MathText'
 
-interface ArgumentChainViewProps {
-  paperInsight: PaperInsight | null
-}
+function ArgumentChainView() {
+  const { paperInsight } = usePaper()
 
-function ArgumentChainView({ paperInsight }: ArgumentChainViewProps) {
   return (
     <div className="workspace-placeholder-view">
       <span className="eyebrow">Argument Chain</span>

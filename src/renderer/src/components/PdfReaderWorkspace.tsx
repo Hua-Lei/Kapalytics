@@ -1,18 +1,16 @@
+import { usePaper } from '../domains/paper/usePaper'
 import PdfViewer from './PdfViewer'
 
-interface PdfReaderWorkspaceProps {
-  pdfUrl: string | null
-  onSelectPdf: () => void
-}
+function PdfReaderWorkspace() {
+  const { pdfUrl, selectPdf } = usePaper()
 
-function PdfReaderWorkspace({ pdfUrl, onSelectPdf }: PdfReaderWorkspaceProps) {
   if (!pdfUrl) {
     return (
       <div className="pdf-workspace-empty">
         <div className="pdf-empty-state__mark">PDF</div>
         <h2>选择一篇 AI 论文开始构建学习地图</h2>
-        <p>PDF Reader 现在是一个独立 Workspace。上传 PDF 后，可在这里阅读原文，并切换到 Paper Graph 生成图谱。</p>
-        <button className="upload-btn" onClick={onSelectPdf}>选择 PDF 文件</button>
+        <p>PDF Reader 是一个独立 Workspace。上传 PDF 后，可在这里阅读原文，并切换到 Paper Graph 生成图谱。</p>
+        <button className="upload-btn" onClick={selectPdf}>选择 PDF 文件</button>
       </div>
     )
   }

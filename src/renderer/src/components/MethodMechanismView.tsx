@@ -1,11 +1,8 @@
-import type { KnowledgeGraph as KGType } from '../modules/graph/types'
+import { usePaper } from '../domains/paper/usePaper'
 import MathText from './MathText'
 
-interface MethodMechanismViewProps {
-  graph: KGType
-}
-
-function MethodMechanismView({ graph }: MethodMechanismViewProps) {
+function MethodMechanismView() {
+  const { graph } = usePaper()
   const methodNodes = graph.nodes.filter((node) => ['method', 'formula', 'experiment'].includes(node.type))
   return (
     <div className="workspace-placeholder-view">
