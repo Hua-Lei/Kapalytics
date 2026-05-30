@@ -22,8 +22,7 @@ function PdfReaderWorkspace() {
   return (
     <div className="pdf-workspace-reader">
       <div className="pdf-workspace-toolbar">
-        <button className="upload-btn" onClick={selectPdf}>重新选择 PDF</button>
-        {!hasAnalysis && (
+        {!hasAnalysis ? (
           <button
             className="stage-btn stage-btn--primary"
             onClick={analyzePaper}
@@ -31,8 +30,7 @@ function PdfReaderWorkspace() {
           >
             {generating ? '分析中...' : '分析论文'}
           </button>
-        )}
-        {hasAnalysis && (
+        ) : (
           <button
             className="stage-btn stage-btn--secondary"
             onClick={() => activateTab('paper_graph')}
@@ -40,6 +38,7 @@ function PdfReaderWorkspace() {
             查看知识图谱
           </button>
         )}
+        <button className="stage-btn stage-btn--secondary" onClick={selectPdf}>更换 PDF</button>
       </div>
       {generating && (
         <div className="analysis-progress-banner">
