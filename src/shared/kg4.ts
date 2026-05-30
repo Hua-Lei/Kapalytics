@@ -329,9 +329,48 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string'
+}
+
 function hasStringProperties(value: Record<string, unknown>, properties: string[]): boolean {
   return properties.every((property) => typeof value[property] === 'string')
 }
+
+function isOneOf<T extends string>(value: unknown, allowedValues: readonly T[]): value is T {
+  return typeof value === 'string' && allowedValues.includes(value as T)
+}
+
+const algorithmIdeaCardRelations = [
+  'same_problem_different_method',
+  'predecessor',
+  'parallel',
+  'successor',
+  'foundation',
+  'variant'
+] as const satisfies readonly AlgorithmIdeaCard['relationToCurrentNode'][]
+
+const evidenceSources = ['arxiv', 'semantic_scholar', 'openalex', 'local_library', 'mock'] as const satisfies readonly AlgorithmIdeaCard['evidenceSource']['source'][]
+
+const expansionNodeTypes = [
+  'related_paper',
+  'algorithm_idea',
+  'method_family',
+  'prerequisite_concept',
+  'open_problem'
+] as const satisfies readonly ExpansionGraphNode['type'][]
+
+const expansionEdgeRelations = [
+  'same_problem_different_method',
+  'extends',
+  'contrasts_with',
+  'uses_as_foundation',
+  'solves_limitation_of',
+  'shares_assumption_with',
+  'requires_prerequisite'
+] as const satisfies readonly ExpansionGraphEdge['relation'][]
+
+const expansionNodeVisualStyles = ['faded', 'highlighted', 'normal'] as const satisfies readonly NonNullable<ExpansionGraphNode['visualStyle']>[]
 
 function isAlgorithmIdeaCard(value: unknown): value is AlgorithmIdeaCard {
   if (!isRecordObject(value)) return false
@@ -347,33 +386,62 @@ function isAlgorithmIdeaCard(value: unknown): value is AlgorithmIdeaCard {
       'mechanism',
       'strength',
       'limitation',
-      'relationToCurrentNode',
       'relationExplanation'
     ]) &&
+    isOneOf(value.relationToCurrentNode, algorithmIdeaCardRelations) &&
     isRecordObject(evidenceSource) &&
-    hasStringProperties(evidenceSource, ['paperId', 'source'])
+    hasStringProperties(evidenceSource, ['paperId']) &&
+    isOneOf(evidenceSource.source, evidenceSources) &&
+    isOptionalString(value.objectiveOrUpdateRule) &&
+    isOptionalString(value.updatedObject) &&
+    isOptionalString(value.bestUseCase) &&
+    isOptionalString(value.insufficientInformation) &&
+    isOptionalString(evidenceSource.url) &&
+    isOptionalString(evidenceSource.externalId)
   )
 }
 
 function isExpansionGraphNode(value: unknown): value is ExpansionGraphNode {
   return (
     isRecordObject(value) &&
-    hasStringProperties(value, ['id', 'type', 'label', 'description']) &&
+    hasStringProperties(value, ['id', 'label', 'description']) &&
+    isOneOf(value.type, expansionNodeTypes) &&
     typeof value.isTemporary === 'boolean' &&
-    isStringArray(value.sourcePaperIds)
+    isStringArray(value.sourcePaperIds) &&
+    isOptionalString(value.visualStyle) &&
+    (value.visualStyle === undefined || isOneOf(value.visualStyle, expansionNodeVisualStyles))
   )
 }
 
 function isExpansionGraphEdge(value: unknown): value is ExpansionGraphEdge {
-  return isRecordObject(value) && hasStringProperties(value, ['id', 'sourceId', 'targetId', 'relation', 'explanation'])
+  return (
+    isRecordObject(value) &&
+    hasStringProperties(value, ['id', 'sourceId', 'targetId', 'explanation']) &&
+    isOneOf(value.relation, expansionEdgeRelations)
+  )
 }
 
 function isFieldCognitionView(value: unknown): value is FieldCognitionView {
+  if (!isRecordObject(value)) return false
+
   return (
-    isRecordObject(value) &&
     hasStringProperties(value, ['id', 'nodeId', 'fieldTitle', 'coreProblemSummary']) &&
     Array.isArray(value.methodFamilies) &&
-    Array.isArray(value.prerequisiteConcepts)
+    value.methodFamilies.every(
+      (methodFamily) =>
+        isRecordObject(methodFamily) &&
+        hasStringProperties(methodFamily, ['id', 'label', 'routeExplanation']) &&
+        typeof methodFamily.isCurrentPaperRoute === 'boolean' &&
+        isStringArray(methodFamily.ideaCardIds) &&
+        isStringArray(methodFamily.representativePaperIds)
+    ) &&
+    Array.isArray(value.prerequisiteConcepts) &&
+    value.prerequisiteConcepts.every(
+      (prerequisiteConcept) =>
+        isRecordObject(prerequisiteConcept) &&
+        hasStringProperties(prerequisiteConcept, ['label', 'whyNeeded'])
+    ) &&
+    isOptionalString(value.insufficientInformation)
   )
 }
 
