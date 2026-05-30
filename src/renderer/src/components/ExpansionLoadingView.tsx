@@ -33,7 +33,7 @@ function ExpansionLoadingView() {
         <div>
           <span className="eyebrow">Node Expansion Loading View</span>
           <h3>正在展开：{session.nodeLabel}</h3>
-          <p>当前数据源：mock/dev fixture。后续将接入真实检索 API 和 LLM 任务。</p>
+          <p>通过 LLM 任务检索和分析相关论文，生成可展开的算法思想图谱。</p>
         </div>
         <span className={`expansion-status expansion-status--${session.status}`}>{STATUS_LABEL[session.status]}</span>
       </section>
@@ -41,7 +41,7 @@ function ExpansionLoadingView() {
       <section className="expansion-loading-summary">
         <article>
           <span>Provider</span>
-          <strong>{session.usesMockData ? 'mock fixture' : 'local provider'}</strong>
+          <strong>DeepSeek + local retrieval</strong>
         </article>
         <article>
           <span>Candidate papers</span>
@@ -67,8 +67,8 @@ function ExpansionLoadingView() {
 
       {session.status === 'ready' && (
         <section className="expansion-loading-note">
-          <strong>Fixture 已准备完成</strong>
-          <p>展开任务完成，可以切换到 Expansion Graph View 查看临时扩展图谱。</p>
+          <strong>展开完成</strong>
+          <p>可以切换到 Expansion Graph View 查看扩展图谱。</p>
         </section>
       )}
 
