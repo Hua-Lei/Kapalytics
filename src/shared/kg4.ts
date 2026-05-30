@@ -321,6 +321,62 @@ export interface Kg4ExpansionRecordQuery {
   nodeId: string
 }
 
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function hasStringProperties(value: Record<string, unknown>, properties: string[]): boolean {
+  return properties.every((property) => typeof value[property] === 'string')
+}
+
+function isAlgorithmIdeaCard(value: unknown): value is AlgorithmIdeaCard {
+  if (!isRecordObject(value)) return false
+  const evidenceSource = value.evidenceSource
+  return (
+    hasStringProperties(value, [
+      'id',
+      'paperId',
+      'paperTitle',
+      'problemSetting',
+      'coreIdea',
+      'keyAssumption',
+      'mechanism',
+      'strength',
+      'limitation',
+      'relationToCurrentNode',
+      'relationExplanation'
+    ]) &&
+    isRecordObject(evidenceSource) &&
+    hasStringProperties(evidenceSource, ['paperId', 'source'])
+  )
+}
+
+function isExpansionGraphNode(value: unknown): value is ExpansionGraphNode {
+  return (
+    isRecordObject(value) &&
+    hasStringProperties(value, ['id', 'type', 'label', 'description']) &&
+    typeof value.isTemporary === 'boolean' &&
+    isStringArray(value.sourcePaperIds)
+  )
+}
+
+function isExpansionGraphEdge(value: unknown): value is ExpansionGraphEdge {
+  return isRecordObject(value) && hasStringProperties(value, ['id', 'sourceId', 'targetId', 'relation', 'explanation'])
+}
+
+function isFieldCognitionView(value: unknown): value is FieldCognitionView {
+  return (
+    isRecordObject(value) &&
+    hasStringProperties(value, ['id', 'nodeId', 'fieldTitle', 'coreProblemSummary']) &&
+    Array.isArray(value.methodFamilies) &&
+    Array.isArray(value.prerequisiteConcepts)
+  )
+}
+
 export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpansionRecord {
   if (!value || typeof value !== 'object') return false
   const record = value as Partial<Kg4NodeExpansionRecord>
@@ -328,13 +384,17 @@ export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpans
     typeof record.id === 'string' &&
     typeof record.paperId === 'string' &&
     typeof record.nodeId === 'string' &&
-    Array.isArray(record.retrievedPaperIds) &&
+    isStringArray(record.retrievedPaperIds) &&
     Array.isArray(record.algorithmIdeaCards) &&
+    record.algorithmIdeaCards.every(isAlgorithmIdeaCard) &&
     Array.isArray(record.expansionGraphNodes) &&
+    record.expansionGraphNodes.every(isExpansionGraphNode) &&
     Array.isArray(record.expansionGraphEdges) &&
+    record.expansionGraphEdges.every(isExpansionGraphEdge) &&
+    (record.fieldCognitionView === undefined || isFieldCognitionView(record.fieldCognitionView)) &&
     (record.dataCompleteness === 'complete' || record.dataCompleteness === 'partial' || record.dataCompleteness === 'insufficient') &&
-    Array.isArray(record.missingDataReasons) &&
-    Array.isArray(record.generatedByJobIds) &&
+    isStringArray(record.missingDataReasons) &&
+    isStringArray(record.generatedByJobIds) &&
     typeof record.createdAt === 'string' &&
     typeof record.updatedAt === 'string'
   )
