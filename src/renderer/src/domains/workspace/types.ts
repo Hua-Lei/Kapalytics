@@ -15,6 +15,7 @@ export interface WorkspaceTab {
   title: string
   paperId?: string
   nodeId?: string
+  anchorNodeId?: string
   expansionId?: string
   closable: boolean
   status?: 'idle' | 'loading' | 'ready' | 'failed' | 'empty'

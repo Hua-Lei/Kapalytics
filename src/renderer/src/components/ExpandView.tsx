@@ -27,7 +27,8 @@ function ExpandView() {
   const { setStages, selectStage } = useStages()
 
   const session = activeTab?.expansionId ? sessions[activeTab.expansionId] : undefined
-  const anchorNode = session ? graph.nodes.find((node) => node.id === session.nodeId) : undefined
+  const anchorNodeId = activeTab?.anchorNodeId ?? session?.nodeId
+  const anchorNode = anchorNodeId ? graph.nodes.find((node) => node.id === anchorNodeId) : undefined
   const selectedExpansionNodeId = activeTab?.nodeId
 
   const record = session?.expansionRecord

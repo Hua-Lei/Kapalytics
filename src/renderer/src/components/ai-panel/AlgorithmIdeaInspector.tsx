@@ -1,12 +1,15 @@
 import type { AlgorithmIdeaCard } from '../../../../shared/kg4'
 import TruncatedText from './TruncatedText'
 import { useWorkspace } from '../../domains/workspace/useWorkspace'
+import { useExpansion } from '../../domains/expansion/useExpansion'
 
 function AlgorithmIdeaInspector({ card, expansionId }: {
   card: AlgorithmIdeaCard
   expansionId: string
 }) {
   const { openTab } = useWorkspace()
+  const { sessions } = useExpansion()
+  const session = sessions[expansionId]
 
   const handleOpenExpandView = () => {
     openTab({
@@ -14,6 +17,7 @@ function AlgorithmIdeaInspector({ card, expansionId }: {
       type: 'expand_view',
       title: 'Expand View',
       nodeId: card.id,
+      anchorNodeId: session?.nodeId,
       expansionId,
       closable: true,
       status: 'idle'

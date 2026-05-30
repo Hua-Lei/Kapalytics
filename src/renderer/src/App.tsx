@@ -9,7 +9,6 @@ import { PaperProvider } from './domains/paper/PaperProvider'
 import { StageProvider } from './domains/stages/StageProvider'
 import { ExpansionProvider } from './domains/expansion/ExpansionProvider'
 import { ExpansionPaperSyncBridge } from './domains/expansion/ExpansionPaperSyncBridge'
-import { ExpansionWorkspaceRestoreBridge } from './domains/expansion/ExpansionWorkspaceRestoreBridge'
 import { MemoryProvider } from './domains/memory/MemoryProvider'
 import { WorkspaceProvider } from './domains/workspace/WorkspaceProvider'
 import { buildStagesFromTasks } from './domains/stages/stageFramework'
@@ -158,7 +157,6 @@ function App() {
             <StageSyncBridge setStagesRef={setStagesRef} />
             <ExpansionProvider>
               <ExpansionPaperSyncBridge />
-              <ExpansionWorkspaceRestoreBridge />
               <MemoryProvider>
                 <div ref={containerRef} className="app-root">
                   <AppShell

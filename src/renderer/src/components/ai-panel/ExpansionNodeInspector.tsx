@@ -1,6 +1,7 @@
 import type { ExpansionGraphNode } from '../../../../shared/kg4'
 import TruncatedText from './TruncatedText'
 import { useWorkspace } from '../../domains/workspace/useWorkspace'
+import { useExpansion } from '../../domains/expansion/useExpansion'
 
 const expansionTypeLabel: Record<string, string> = {
   method_family: 'Method Family',
@@ -15,6 +16,8 @@ function ExpansionNodeInspector({ node, expansionId }: {
   expansionId: string
 }) {
   const { openTab } = useWorkspace()
+  const { sessions } = useExpansion()
+  const session = sessions[expansionId]
 
   const handleOpenExpandView = () => {
     openTab({
@@ -22,6 +25,7 @@ function ExpansionNodeInspector({ node, expansionId }: {
       type: 'expand_view',
       title: 'Expand View',
       nodeId: node.id,
+      anchorNodeId: session?.nodeId,
       expansionId,
       closable: true,
       status: 'idle'
