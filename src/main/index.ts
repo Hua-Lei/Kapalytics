@@ -372,9 +372,9 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           message: '正在分析算法思想...'
         })
 
-        let result = await llmTaskOrchestrator.runJob(job.id)
-        for (let attempt = 1; result.status === 'queued' && attempt < 3; attempt += 1) {
-          result = await llmTaskOrchestrator.runJob(job.id)
+        const result = await llmTaskOrchestrator.runJob(job.id)
+        if (result.status === 'queued') {
+          throw new Error('展开任务正在后台重试，请稍后重新展开该节点。')
         }
         if (result.status !== 'succeeded' && result.status !== 'cache_hit') {
           throw new Error(result.errorMessage || '展开任务失败')

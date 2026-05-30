@@ -223,7 +223,7 @@ export function validateReferencedPapers(output: unknown, allowedPaperIds: strin
 
 export function validateJobOutput(job: LLMJob, output: unknown): ReferencedPaperValidationResult {
   if (['expand_node', 'compare_papers', 'generate_transfer_task', 'diagnose_answer'].includes(job.type) || KG4_JOB_TYPES.has(job.type)) {
-    return validateReferencedPapers(output, job.relatedPaperIds)
+    return validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])])
   }
   return { ok: true, hallucinatedIds: [], hallucinatedTitles: [], errors: [] }
 }
