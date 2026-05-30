@@ -289,13 +289,70 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('kg4:start-expansion', async (_e, params: { nodeId: string; nodeLabel: string; paperId?: string }) => {
     const sessionId = `expansion_${params.nodeId}_${Date.now()}`
-    const job = await llmTaskOrchestrator.enqueueJob({
+    const job = await llmTaskOrchestrator.createJob({
       type: 'expand_node_retrieve_context',
       input: { nodeId: params.nodeId, nodeLabel: params.nodeLabel },
       nodeId: params.nodeId,
       paperId: params.paperId,
       sessionId
     })
+
+    // Push: job created
+    mainWindow.webContents.send('expansion:progress', {
+      sessionId, jobId: job.id,
+      step: 'job_created',
+      message: '正在准备检索任务...'
+    })
+
+    // Run job asynchronously, pushing progress at each key phase
+    ;(async () => {
+      try {
+        mainWindow.webContents.send('expansion:progress', {
+          sessionId, jobId: job.id,
+          step: 'retrieving',
+          message: '正在检索相关论文...'
+        })
+
+        const result = await llmTaskOrchestrator.runJob(job.id)
+
+        if (result.status === 'succeeded') {
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId, jobId: job.id,
+            step: 'analyzing',
+            message: '正在分析算法思想...'
+          })
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId, jobId: job.id,
+            step: 'generating',
+            message: '正在生成扩展图谱...'
+          })
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId, jobId: job.id,
+            step: 'done',
+            message: '展开完成',
+            result: result.resultJson
+          })
+        } else {
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId, jobId: job.id,
+            step: 'failed',
+            message: result.errorMessage || '展开任务失败',
+            error: result.errorMessage
+          })
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        mainWindow.webContents.send('expansion:progress', {
+          sessionId, jobId: job.id,
+          step: 'failed',
+          message,
+          error: message
+        })
+      }
+    })()
+
     return { sessionId, jobs: [{ jobId: job.id, type: job.type }] }
   })
 
