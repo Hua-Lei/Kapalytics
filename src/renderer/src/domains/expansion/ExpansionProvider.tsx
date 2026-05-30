@@ -38,7 +38,16 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
     const result = await electronApi.kg4.startExpansion({
       nodeId: node.id,
       nodeLabel: node.label,
-      paperId: paperIdRef.current ?? undefined
+      paperId: paperIdRef.current ?? undefined,
+      searchQueries: node.searchQueries ?? [],
+      paperInsight: paperInsightRef.current
+        ? {
+            title: paperInsightRef.current.centralInsight,
+            problem: paperInsightRef.current.priorLimitation,
+            method: paperInsightRef.current.methodMechanism,
+            contribution: paperInsightRef.current.remainingGap
+          }
+        : undefined
     })
 
     const now = new Date().toISOString()
