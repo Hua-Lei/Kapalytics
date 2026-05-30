@@ -64,6 +64,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       topicTags?: string[]
       methodFamilyTags?: string[]
       limit?: number
-    }): Promise<MemoryReuseSuggestion[]> => ipcRenderer.invoke('kg4:find-reusable-node-memories', params)
+    }): Promise<MemoryReuseSuggestion[]> => ipcRenderer.invoke('kg4:find-reusable-node-memories', params),
+    startExpansion: (params: { nodeId: string; nodeLabel: string; paperId?: string }): Promise<{ sessionId: string; jobs: Array<{ jobId: string; type: string }> }> =>
+      ipcRenderer.invoke('kg4:start-expansion', params),
+    getJobStatus: (jobId: string): Promise<{ status: string; progressStep?: string; progressMessage?: string; errorMessage?: string }> =>
+      ipcRenderer.invoke('kg4:get-job-status', jobId),
+    cancelJob: (jobId: string): Promise<void> =>
+      ipcRenderer.invoke('kg4:cancel-job', jobId)
   }
 })

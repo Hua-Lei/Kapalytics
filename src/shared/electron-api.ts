@@ -63,5 +63,8 @@ export interface ElectronApi {
       methodFamilyTags?: string[]
       limit?: number
     }) => Promise<MemoryReuseSuggestion[]>
+    startExpansion: (params: { nodeId: string; nodeLabel: string; paperId?: string }) => Promise<{ sessionId: string; jobs: Array<{ jobId: string; type: string }> }>
+    getJobStatus: (jobId: string) => Promise<{ status: string; progressStep?: string; progressMessage?: string; errorMessage?: string }>
+    cancelJob: (jobId: string) => Promise<void>
   }
 }

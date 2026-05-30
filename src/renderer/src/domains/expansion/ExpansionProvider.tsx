@@ -1,7 +1,7 @@
 import { createContext, useCallback, useRef, useState, type ReactNode } from 'react'
 import type { GraphNode, PaperInsight } from '../../../../shared/paper'
 import type { ExpansionGraphNode } from '../../../../shared/kg4'
-import { createNodeExpansionSession } from '../../domains/expansion/nodeExpansionSessions'
+import { createNodeExpansionSession, createRealExpansionSession } from '../../domains/expansion/nodeExpansionSessions'
 import type { NodeExpansionSession } from '../../domains/expansion/nodeExpansionSessions'
 import type { ExpansionContextValue } from './types'
 
@@ -15,10 +15,18 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
   const setGraphNodes = useCallback((nodes: GraphNode[]) => { graphRef.current = nodes }, [])
   const setPaperInsightRef = useCallback((pi: PaperInsight | null) => { paperInsightRef.current = pi }, [])
 
-  const startExpansion = useCallback((nodeId: string): string | undefined => {
+  const startExpansion = useCallback(async (nodeId: string): Promise<string | undefined> => {
     const node = graphRef.current.find((n) => n.id === nodeId)
     if (!node) return undefined
-    const session = createNodeExpansionSession(node, paperInsightRef.current)
+
+    // Try real IPC expansion first, fall back to mock
+    let session: NodeExpansionSession
+    try {
+      session = await createRealExpansionSession(node, paperInsightRef.current)
+    } catch {
+      session = createNodeExpansionSession(node, paperInsightRef.current)
+    }
+
     setSessions((prev) => ({ ...prev, [session.id]: session }))
     return session.id
   }, [])

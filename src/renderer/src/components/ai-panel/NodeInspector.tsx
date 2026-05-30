@@ -21,9 +21,9 @@ function NodeInspector({ node }: { node: GraphNode }) {
   const { startExpansion } = useExpansion()
   const { openTab } = useWorkspace()
 
-  const requestExpansion = () => {
+  const requestExpansion = async () => {
     setExpansionRequested(true)
-    const sessionId = startExpansion(node.id)
+    const sessionId = await startExpansion(node.id)
     if (!sessionId) return
     openTab({
       id: sessionId,

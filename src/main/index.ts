@@ -286,6 +286,35 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
       limit: params.limit
     })
   })
+
+  ipcMain.handle('kg4:start-expansion', async (_e, params: { nodeId: string; nodeLabel: string; paperId?: string }) => {
+    const sessionId = `expansion_${params.nodeId}_${Date.now()}`
+    const contextJob = await llmTaskOrchestrator.createJob({
+      type: 'expand_node_retrieve_context',
+      input: { nodeId: params.nodeId, nodeLabel: params.nodeLabel },
+      nodeId: params.nodeId,
+      paperId: params.paperId,
+      sessionId
+    })
+    await llmTaskOrchestrator.enqueueJob(contextJob)
+    return { sessionId, jobs: [{ jobId: contextJob.id, type: contextJob.type }] }
+  })
+
+  ipcMain.handle('kg4:get-job-status', async (_e, jobId: string) => {
+    const snapshot = await paperMemoryRepository.getSnapshot()
+    const job = snapshot.llmJobs.find((j) => j.id === jobId)
+    if (!job) return { status: 'not_found' }
+    return {
+      status: job.status,
+      progressStep: job.progressStep,
+      progressMessage: job.progressMessage,
+      errorMessage: job.errorMessage
+    }
+  })
+
+  ipcMain.handle('kg4:cancel-job', async (_e, jobId: string) => {
+    await llmTaskOrchestrator.cancel(jobId)
+  })
 }
 
 app.whenReady().then(() => {

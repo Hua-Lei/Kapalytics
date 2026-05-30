@@ -1,6 +1,7 @@
 import type { GraphNode, PaperInsight } from '../../../../shared/paper'
 import type { Kg4ExpansionGraphLayer, Kg4NodeExpansionRecord } from '../../../../shared/kg4'
 import { buildKg4ExpansionRecord } from '../../modules/learning/kg4Workbench'
+import { electronApi } from '../../modules/ipc/electronApi'
 
 export type NodeExpansionStatus = 'loading' | 'ready' | 'failed' | 'empty'
 export type NodeExpansionStepStatus = 'pending' | 'running' | 'done' | 'failed'
@@ -96,6 +97,32 @@ export function createNodeExpansionSession(node: GraphNode, _paperInsight: Paper
     usesMockData: true,
     createdAt: timestamp,
     updatedAt: timestamp
+  }
+}
+
+/** Create a real expansion session backed by the LLM orchestrator via IPC. Falls back to mock on failure. */
+export async function createRealExpansionSession(node: GraphNode, paperInsight: PaperInsight | null): Promise<NodeExpansionSession> {
+  const timestamp = new Date().toISOString()
+  try {
+    const result = await electronApi.kg4.startExpansion({
+      nodeId: node.id,
+      nodeLabel: node.label,
+      paperId: paperInsight?.paperId
+    })
+    return {
+      id: result.sessionId,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: 'loading',
+      currentStepId: 'retrieve_papers',
+      steps: makeLoadingSteps(),
+      usesMockData: false,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    }
+  } catch (error) {
+    // Fall back to mock if IPC fails
+    return createNodeExpansionSession(node, paperInsight)
   }
 }
 
