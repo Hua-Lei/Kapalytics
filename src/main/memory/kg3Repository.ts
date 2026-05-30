@@ -83,6 +83,12 @@ function writeSnapshot(path: string, snapshot: Kg3MemorySnapshot): void {
   writeFileSync(path, JSON.stringify(snapshot, null, 2), 'utf-8')
 }
 
+function writeFileStore(path: string, store: FileStoreWithKg4Expansions): void {
+  const dir = dirname(path)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(path, JSON.stringify(store, null, 2), 'utf-8')
+}
+
 function upsertById<T extends { id: string }>(records: T[], record: T): T[] {
   const index = records.findIndex((item) => item.id === record.id)
   if (index === -1) return [...records, record]
@@ -277,9 +283,10 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async saveKg4ExpansionRecord(record: Kg4NodeExpansionRecord): Promise<void> {
+    if (!isKg4NodeExpansionRecord(record)) throw new Error('invalid_kg4_expansion_record')
     const store = readFileStore(this.path)
     store.kg4NodeExpansions = upsertById(store.kg4NodeExpansions ?? [], { ...record, updatedAt: now() })
-    writeSnapshot(this.path, store)
+    writeFileStore(this.path, store)
   }
 
   async getKg4ExpansionRecord(paperId: string, nodeId: string): Promise<Kg4NodeExpansionRecord | null> {
@@ -321,7 +328,8 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async saveSnapshot(snapshot: Kg3MemorySnapshot): Promise<void> {
-    writeSnapshot(this.path, snapshot)
+    const existing = readFileStore(this.path)
+    writeFileStore(this.path, { ...snapshot, kg4NodeExpansions: existing.kg4NodeExpansions ?? [] })
   }
 }
 
@@ -429,6 +437,7 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async saveKg4ExpansionRecord(record: Kg4NodeExpansionRecord): Promise<void> {
+    if (!isKg4NodeExpansionRecord(record)) throw new Error('invalid_kg4_expansion_record')
     this.upsertJson('kg4_node_expansions', { ...record, updatedAt: now() }, { paperId: record.paperId, nodeId: record.nodeId })
   }
 
