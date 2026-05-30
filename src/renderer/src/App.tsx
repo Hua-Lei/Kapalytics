@@ -12,6 +12,7 @@ import { MemoryProvider } from './domains/memory/MemoryProvider'
 import { WorkspaceProvider } from './domains/workspace/WorkspaceProvider'
 import { buildStagesFromTasks } from './domains/stages/stageFramework'
 import { useStages } from './domains/stages/useStages'
+import { useWorkspace } from './domains/workspace/useWorkspace'
 
 type ResizeTarget = 'left' | 'right' | null
 
@@ -26,15 +27,31 @@ function StageSyncBridge({ setStagesRef: ref }: { setStagesRef: React.MutableRef
   return null
 }
 
+function PaperWorkspaceBridge({
+  children,
+  setStagesRef
+}: {
+  children: React.ReactNode
+  setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null>
+}) {
+  const { activateTab } = useWorkspace()
+
+  return (
+    <PaperProvider onAnalysisComplete={() => activateTab('paper_graph')} setStagesRef={setStagesRef}>
+      {children}
+    </PaperProvider>
+  )
+}
+
 function App() {
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(initialWorkspaceState)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
   const [proxyUrl, setProxyUrl] = useState('')
-  const [hydrated, setHydrated] = useState(false)
   const [fontScale, setFontScale] = useState(1)
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT)
   const [rightCollapsed, setRightCollapsed] = useState(false)
+  const workspaceStateReady = useRef(false)
 
   // Check API key status on mount
   useEffect(() => {
@@ -42,31 +59,12 @@ function App() {
     electronApi.getLlmConfig().then((config) => setProxyUrl(config.proxyUrl ?? '')).catch(() => {})
   }, [])
 
-  // Load saved workspace state on mount
-  useEffect(() => {
-    electronApi
-      .load()
-      .then((saved) => {
-        if (saved && typeof saved === 'object') {
-          const data = saved as Record<string, unknown>
-          if (data.workspaceState && typeof data.workspaceState === 'object') {
-            const ws = data.workspaceState as Record<string, unknown>
-            if (typeof ws.activeTabId === 'string' && Array.isArray(ws.tabs)) {
-              setWorkspaceState(data.workspaceState as WorkspaceState)
-            }
-          }
-        }
-      })
-      .catch(() => {})
-      .finally(() => setHydrated(true))
-  }, [])
-
   const setStagesRef = useRef<((tasks: Record<string, string>) => void) | null>(null)
 
   // Auto-save workspace state when it changes (debounced, only after hydration)
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => {
-    if (!hydrated) return
+    if (!workspaceStateReady.current) return
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(() => {
       electronApi.save({ workspaceState })
@@ -74,7 +72,7 @@ function App() {
     return () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current)
     }
-  }, [workspaceState, hydrated])
+  }, [workspaceState])
 
   const fontSizes = [0.85, 1, 1.15, 1.3]
 
@@ -137,17 +135,27 @@ function App() {
   }
 
   const handleWorkspaceStateChange = useCallback((nextState: WorkspaceState) => {
+    workspaceStateReady.current = true
     setWorkspaceState(nextState)
   }, [])
 
+  const handlePersistenceLoad = useCallback((data: Record<string, unknown>) => {
+    if (data.workspaceState && typeof data.workspaceState === 'object') {
+      const ws = data.workspaceState as Record<string, unknown>
+      if (typeof ws.activeTabId === 'string' && Array.isArray(ws.tabs)) {
+        setWorkspaceState(data.workspaceState as WorkspaceState)
+      }
+    }
+  }, [])
+
   return (
-    <PersistenceGate onLoad={() => {}}>
-      <PaperProvider onAnalysisComplete={() => {}} setStagesRef={setStagesRef}>
-        <StageProvider>
-          <StageSyncBridge setStagesRef={setStagesRef} />
-          <ExpansionProvider>
-            <MemoryProvider>
-              <WorkspaceProvider initialState={workspaceState} onStateChange={handleWorkspaceStateChange}>
+    <PersistenceGate onLoad={handlePersistenceLoad}>
+      <WorkspaceProvider initialState={workspaceState} onStateChange={handleWorkspaceStateChange}>
+        <PaperWorkspaceBridge setStagesRef={setStagesRef}>
+          <StageProvider>
+            <StageSyncBridge setStagesRef={setStagesRef} />
+            <ExpansionProvider>
+              <MemoryProvider>
                 <div ref={containerRef} className="app-root">
                   <AppShell
                     fontScale={fontScale}
@@ -179,11 +187,11 @@ function App() {
                     onTestConnection={handleTestConnection}
                   />
                 </div>
-              </WorkspaceProvider>
-            </MemoryProvider>
-          </ExpansionProvider>
-        </StageProvider>
-      </PaperProvider>
+              </MemoryProvider>
+            </ExpansionProvider>
+          </StageProvider>
+        </PaperWorkspaceBridge>
+      </WorkspaceProvider>
     </PersistenceGate>
   )
 }
