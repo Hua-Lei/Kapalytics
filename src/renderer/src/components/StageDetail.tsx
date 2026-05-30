@@ -5,11 +5,14 @@ import MathText from './MathText'
 interface StageDetailProps {
   answer: string
   diagnosed: boolean
+  diagnosisError: string | null
+  diagnosisLoading: boolean
   diagnosisResult: DiagnosisResult | undefined
   draft: string
   onConfirmDiagnosis: () => void
   onEnterStage: () => void
   onMarkNeedsReview: () => void
+  onRetryDiagnosis: () => void
   onRetryStage: () => void
   onSubmitAnswer: () => void
   onUpdateDraft: (value: string) => void
@@ -26,11 +29,14 @@ const statusText: Record<Stage['status'], string> = {
 function StageDetail({
   answer,
   diagnosed,
+  diagnosisError,
+  diagnosisLoading,
   diagnosisResult,
   draft,
   onConfirmDiagnosis,
   onEnterStage,
   onMarkNeedsReview,
+  onRetryDiagnosis,
   onRetryStage,
   onSubmitAnswer,
   onUpdateDraft,
@@ -103,13 +109,29 @@ function StageDetail({
               value={currentAnswer}
               onChange={(e) => onUpdateDraft(e.target.value)}
             />
+            {diagnosisError && (
+              <div className="diagnosis-banner diagnosis-banner--fail" style={{ marginTop: 12 }}>
+                <span className="diagnosis-icon">!</span>
+                <div>
+                  <div className="diagnosis-title">诊断失败</div>
+                  <p className="diagnosis-text">{diagnosisError}</p>
+                </div>
+                <button
+                  className="stage-btn stage-btn--primary"
+                  onClick={onRetryDiagnosis}
+                  disabled={diagnosisLoading}
+                >
+                  {diagnosisLoading ? '重试中...' : '重试'}
+                </button>
+              </div>
+            )}
             <div className="stage-actions">
               <button
                 className="stage-btn stage-btn--primary"
-                disabled={!draft.trim()}
+                disabled={!draft.trim() || diagnosisLoading}
                 onClick={onSubmitAnswer}
               >
-                提交答案
+                {diagnosisLoading ? '诊断中...' : '提交答案'}
               </button>
               {stage.status === 'in_progress' && (
                 <button

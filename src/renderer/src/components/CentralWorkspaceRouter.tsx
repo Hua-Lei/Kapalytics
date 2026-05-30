@@ -27,7 +27,7 @@ function WorkspaceHeader() {
 }
 
 function StageLearningWorkspace() {
-  const { stages, selectedStageId, selectStage, answers, drafts, diagnosisResults, diagnosedStageIds, confirmDiagnosis, enterStage, markNeedsReview, retryStage, submitAnswer, updateDraft } = useStages()
+  const { stages, selectedStageId, selectStage, answers, drafts, diagnosisResults, diagnosedStageIds, diagnosisError, diagnosisLoading, confirmDiagnosis, enterStage, markNeedsReview, retryDiagnosis, retryStage, submitAnswer, updateDraft } = useStages()
   const selectedStage = stages.find((s) => s.id === selectedStageId) ?? null
 
   return (
@@ -40,11 +40,14 @@ function StageLearningWorkspace() {
           <StageDetail
             answer={answers[selectedStage.id] ?? ''}
             diagnosed={diagnosedStageIds.has(selectedStage.id)}
+            diagnosisError={diagnosisError}
+            diagnosisLoading={diagnosisLoading}
             diagnosisResult={diagnosisResults[selectedStage.id]}
             draft={drafts[selectedStage.id] ?? ''}
             onConfirmDiagnosis={() => confirmDiagnosis(selectedStage.id)}
             onEnterStage={() => enterStage(selectedStage.id)}
             onMarkNeedsReview={() => markNeedsReview(selectedStage.id)}
+            onRetryDiagnosis={retryDiagnosis}
             onRetryStage={() => retryStage(selectedStage.id)}
             onSubmitAnswer={() => submitAnswer(selectedStage.id)}
             onUpdateDraft={(value) => updateDraft(selectedStage.id, value)}
