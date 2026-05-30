@@ -4,3 +4,5 @@ out/
 .opencode/
 design-previews/
 *.log
+
+.worktrees/
