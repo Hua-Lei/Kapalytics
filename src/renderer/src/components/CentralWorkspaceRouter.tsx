@@ -100,7 +100,7 @@ function CentralWorkspaceRouter(props: CentralWorkspaceRouterProps) {
     <main className="central-workspace">
       <WorkspaceHeader activeTab={props.activeTab} />
       <div className="central-workspace__body">
-        {type === 'pdf_reader' && <PdfReaderWorkspace pdfUrl={props.pdfUrl} onSelectPdf={props.onSelectPdf} />}
+        {type === 'pdf_reader' && <PdfReaderWorkspace />}
         {type === 'paper_graph' && (
           <KnowledgeGraph
             graph={props.graph}
@@ -112,8 +112,8 @@ function CentralWorkspaceRouter(props: CentralWorkspaceRouterProps) {
             onClearExpansionGraph={props.onClearExpansionGraph}
           />
         )}
-        {type === 'argument_chain' && <ArgumentChainView paperInsight={props.paperInsight} />}
-        {type === 'method_mechanism' && <MethodMechanismView graph={props.graph} />}
+        {type === 'argument_chain' && <ArgumentChainView />}
+        {type === 'method_mechanism' && <MethodMechanismView />}
         {type === 'stage_learning' && <StageLearningWorkspace {...props} />}
         {type === 'node_expansion_loading' && (
           <ExpansionLoadingView session={activeExpansionSession} />
