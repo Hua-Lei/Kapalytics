@@ -2,20 +2,9 @@ import { createHash } from 'crypto'
 import type { LLMJob, LLMJobType, ReferencedPaperValidationResult } from '../../shared/kg3'
 import { callLlm } from './client'
 import { paperMemoryRepository } from '../memory/kg3Repository'
+import { isKg4JobType, systemPromptForJob } from './jobPrompts'
 
 const PROMPT_VERSION = 'kg3-2026-05-29'
-
-const KG4_JOB_TYPES = new Set<LLMJobType>([
-  'expand_node_retrieve_context',
-  'extract_algorithm_ideas',
-  'build_field_cognition_map',
-  'generate_expansion_graph',
-  'compare_algorithm_ideas',
-  'generate_reflective_feedback',
-  'generate_remedial_lesson',
-  'suggest_graph_fusion',
-  'generate_optional_transfer_task'
-])
 
 function now(): string {
   return new Date().toISOString()
@@ -222,23 +211,10 @@ export function validateReferencedPapers(output: unknown, allowedPaperIds: strin
 }
 
 export function validateJobOutput(job: LLMJob, output: unknown): ReferencedPaperValidationResult {
-  if (['expand_node', 'compare_papers', 'generate_transfer_task', 'diagnose_answer'].includes(job.type) || KG4_JOB_TYPES.has(job.type)) {
+  if (['expand_node', 'compare_papers', 'generate_transfer_task', 'diagnose_answer'].includes(job.type) || isKg4JobType(job.type)) {
     return validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])])
   }
   return { ok: true, hallucinatedIds: [], hallucinatedTitles: [], errors: [] }
-}
-
-function systemPromptForJob(type: LLMJobType): string {
-  if (KG4_JOB_TYPES.has(type)) {
-    return [
-      'You are a KG4 task worker. Return strict JSON only.',
-      'Only use currentPaper, currentNode, retrievedPapers, paperAnalyses, selectedIdeaCards, comparisonRows, and userReflection from input.',
-      'Never invent paper titles, authors, years, venues, experiment results, citations, URLs, or external IDs.',
-      'Every paperId in output must exist in currentPaper or retrievedPapers/selectedIdeaCards supplied by input.',
-      'If information is insufficient, return insufficient_information and explain missing fields.'
-    ].join(' ')
-  }
-  return 'You are a KG3 task worker. Return strict json only. Never invent papers. Only use IDs listed by the job input.'
 }
 
 function progressForJob(type: LLMJobType): string {

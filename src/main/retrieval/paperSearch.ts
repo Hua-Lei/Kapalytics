@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { setTimeout as delay } from 'timers/promises'
+import { ProxyAgent } from 'undici'
 import type { PaperRecord } from '../../shared/kg3'
 import type {
   DedupedPaperCandidate,
@@ -8,6 +8,25 @@ import type {
   PaperSearchResult
 } from '../../shared/kg3'
 import { paperMemoryRepository } from '../memory/kg3Repository'
+import { getLlmConfig } from '../llm/client'
+import { TokenBucketRateLimiter } from './rateLimiter'
+
+type FetchInitWithDispatcher = RequestInit & { dispatcher?: ProxyAgent }
+
+function logRetrieval(event: string, details: Record<string, unknown>): void {
+  console.info(`[Retrieval] ${event}`, details)
+}
+
+function retrievalFetchInit(timeoutMs = 15000): FetchInitWithDispatcher {
+  const init: FetchInitWithDispatcher = { signal: AbortSignal.timeout(timeoutMs) }
+  const proxyUrl = getLlmConfig().proxyUrl
+  if (proxyUrl) init.dispatcher = new ProxyAgent(proxyUrl)
+  return init
+}
+
+const arxivRateLimiter = new TokenBucketRateLimiter({ capacity: 1, refillPerSecond: 1 / 3 })
+const openAlexRateLimiter = new TokenBucketRateLimiter({ capacity: 20, refillPerSecond: 10 })
+const semanticScholarRateLimiter = new TokenBucketRateLimiter({ capacity: 20, refillPerSecond: 10 })
 
 function now(): string {
   return new Date().toISOString()
@@ -104,10 +123,9 @@ class ArxivProvider implements PaperSearchProvider {
   id = 'arxiv' as const
   displayName = 'arXiv'
   capabilities = ['keyword_search', 'title_search', 'id_lookup', 'open_access_pdf'] as PaperSearchProvider['capabilities']
-  private lastRequestAt = 0
 
   async search(query: PaperSearchQuery): Promise<PaperSearchResult[]> {
-    await this.throttle()
+    await arxivRateLimiter.acquire()
     const params = new URLSearchParams({
       search_query: `all:${query.query}`,
       start: '0',
@@ -115,24 +133,25 @@ class ArxivProvider implements PaperSearchProvider {
       sortBy: 'relevance',
       sortOrder: 'descending'
     })
-    const res = await fetch(`https://export.arxiv.org/api/query?${params.toString()}`, { signal: AbortSignal.timeout(15000) })
+    const url = `https://export.arxiv.org/api/query?${params.toString()}`
+    logRetrieval('provider_request', { provider: this.id, url, query: query.query })
+    const res = await fetch(url, retrievalFetchInit())
+    logRetrieval('provider_response', { provider: this.id, status: res.status, ok: res.ok })
     if (!res.ok) throw new Error(`arXiv API ${res.status}`)
     return parseArxivFeed(await res.text())
   }
 
   async getById(id: { provider: 'arxiv'; externalId: string }): Promise<PaperSearchResult | null> {
-    await this.throttle()
+    await arxivRateLimiter.acquire()
     const params = new URLSearchParams({ id_list: id.externalId, max_results: '1' })
-    const res = await fetch(`https://export.arxiv.org/api/query?${params.toString()}`, { signal: AbortSignal.timeout(15000) })
+    const url = `https://export.arxiv.org/api/query?${params.toString()}`
+    logRetrieval('provider_get_by_id_request', { provider: this.id, url, externalId: id.externalId })
+    const res = await fetch(url, retrievalFetchInit())
+    logRetrieval('provider_get_by_id_response', { provider: this.id, status: res.status, ok: res.ok })
     if (!res.ok) throw new Error(`arXiv API ${res.status}`)
     return parseArxivFeed(await res.text())[0] ?? null
   }
 
-  private async throttle(): Promise<void> {
-    const elapsed = Date.now() - this.lastRequestAt
-    if (elapsed < 3000) await delay(3000 - elapsed)
-    this.lastRequestAt = Date.now()
-  }
 }
 
 class OpenAlexProvider implements PaperSearchProvider {
@@ -141,15 +160,23 @@ class OpenAlexProvider implements PaperSearchProvider {
   capabilities = ['keyword_search', 'title_search', 'id_lookup', 'references', 'open_access_pdf'] as PaperSearchProvider['capabilities']
 
   async search(query: PaperSearchQuery): Promise<PaperSearchResult[]> {
+    await openAlexRateLimiter.acquire()
     const params = new URLSearchParams({ search: query.query, per_page: String(Math.min(query.maxResults, 25)) })
-    const res = await fetch(`https://api.openalex.org/works?${params.toString()}`, { signal: AbortSignal.timeout(15000) })
+    const url = `https://api.openalex.org/works?${params.toString()}`
+    logRetrieval('provider_request', { provider: this.id, url, query: query.query })
+    const res = await fetch(url, retrievalFetchInit())
+    logRetrieval('provider_response', { provider: this.id, status: res.status, ok: res.ok })
     if (!res.ok) throw new Error(`OpenAlex API ${res.status}`)
     const json = await res.json() as { results?: OpenAlexWork[] }
     return (json.results ?? []).map(parseOpenAlexWork)
   }
 
   async getById(id: { provider: 'openalex'; externalId: string }): Promise<PaperSearchResult | null> {
-    const res = await fetch(`https://api.openalex.org/works/${encodeURIComponent(id.externalId)}`, { signal: AbortSignal.timeout(15000) })
+    await openAlexRateLimiter.acquire()
+    const url = `https://api.openalex.org/works/${encodeURIComponent(id.externalId)}`
+    logRetrieval('provider_get_by_id_request', { provider: this.id, url, externalId: id.externalId })
+    const res = await fetch(url, retrievalFetchInit())
+    logRetrieval('provider_get_by_id_response', { provider: this.id, status: res.status, ok: res.ok })
     if (!res.ok) throw new Error(`OpenAlex API ${res.status}`)
     return parseOpenAlexWork(await res.json() as OpenAlexWork)
   }
@@ -161,20 +188,28 @@ class SemanticScholarProvider implements PaperSearchProvider {
   capabilities = ['keyword_search', 'title_search', 'id_lookup', 'references', 'citations'] as PaperSearchProvider['capabilities']
 
   async search(query: PaperSearchQuery): Promise<PaperSearchResult[]> {
+    await semanticScholarRateLimiter.acquire()
     const params = new URLSearchParams({
       query: query.query,
       limit: String(Math.min(query.maxResults, 20)),
       fields: 'paperId,corpusId,title,abstract,authors,year,venue,url,externalIds,citationCount,fieldsOfStudy'
     })
-    const res = await fetch(`https://api.semanticscholar.org/graph/v1/paper/search?${params.toString()}`, { signal: AbortSignal.timeout(15000) })
+    const url = `https://api.semanticscholar.org/graph/v1/paper/search?${params.toString()}`
+    logRetrieval('provider_request', { provider: this.id, url, query: query.query })
+    const res = await fetch(url, retrievalFetchInit())
+    logRetrieval('provider_response', { provider: this.id, status: res.status, ok: res.ok })
     if (!res.ok) throw new Error(`Semantic Scholar API ${res.status}`)
     const json = await res.json() as { data?: SemanticScholarPaper[] }
     return (json.data ?? []).map(parseSemanticScholarPaper)
   }
 
   async getById(id: { provider: 'semantic_scholar'; externalId: string }): Promise<PaperSearchResult | null> {
+    await semanticScholarRateLimiter.acquire()
     const params = new URLSearchParams({ fields: 'paperId,corpusId,title,abstract,authors,year,venue,url,externalIds,citationCount,fieldsOfStudy' })
-    const res = await fetch(`https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(id.externalId)}?${params.toString()}`, { signal: AbortSignal.timeout(15000) })
+    const url = `https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(id.externalId)}?${params.toString()}`
+    logRetrieval('provider_get_by_id_request', { provider: this.id, url, externalId: id.externalId })
+    const res = await fetch(url, retrievalFetchInit())
+    logRetrieval('provider_get_by_id_response', { provider: this.id, status: res.status, ok: res.ok })
     if (!res.ok) throw new Error(`Semantic Scholar API ${res.status}`)
     return parseSemanticScholarPaper(await res.json() as SemanticScholarPaper)
   }
@@ -224,9 +259,22 @@ export async function searchPapers(query: PaperSearchQuery): Promise<{
   const allResults: PaperSearchResult[] = []
   const providerStatus: Array<{ provider: string; status: 'success' | 'empty' | 'error'; message: string }> = []
 
+  logRetrieval('search_start', {
+    query: query.query,
+    nodeId: query.nodeId,
+    paperId: query.paperId,
+    searchQueries: query.searchQueries,
+    maxResults: query.maxResults,
+    requireAbstract: query.requireAbstract,
+    providers: enabled.map((provider) => provider.id),
+    proxyEnabled: Boolean(getLlmConfig().proxyUrl)
+  })
+
   for (const provider of enabled) {
     try {
+      logRetrieval('provider_start', { provider: provider.id, query: query.query })
       const results = await provider.search(query)
+      logRetrieval('provider_success', { provider: provider.id, resultCount: results.length })
       allResults.push(...results)
       providerStatus.push({
         provider: provider.id,
@@ -234,12 +282,16 @@ export async function searchPapers(query: PaperSearchQuery): Promise<{
         message: results.length ? `找到 ${results.length} 篇可验证论文` : `${provider.displayName} 暂无结果或未启用`
       })
     } catch (err) {
-      providerStatus.push({ provider: provider.id, status: 'error', message: err instanceof Error ? err.message : String(err) })
+      const message = err instanceof Error ? err.message : String(err)
+      logRetrieval('provider_error', { provider: provider.id, message })
+      providerStatus.push({ provider: provider.id, status: 'error', message })
     }
   }
 
   await paperMemoryRepository.saveSearchResults(query.query, allResults)
-  return { candidates: dedupeAndRankResults(query, allResults), providerStatus }
+  const candidates = dedupeAndRankResults(query, allResults)
+  logRetrieval('search_done', { rawResultCount: allResults.length, candidateCount: candidates.length, providerStatus })
+  return { candidates, providerStatus }
 }
 
 function paperToResult(paper: PaperRecord): PaperSearchResult {

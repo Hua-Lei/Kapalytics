@@ -9,6 +9,7 @@ import {
   sanitizeGraph,
   updateStep
 } from '../../modules/paper/analysisState'
+import { restoreSavedPaperAnalysis } from '../../modules/paper/savedPaperGraph'
 
 interface UsePaperAnalysisOptions {
   setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null>
@@ -51,16 +52,31 @@ export function usePaperAnalysis({
   const selectPdf = async () => {
     const selected = await electronApi.selectPdf()
     if (!selected) return
+    const nextPaperId = makeLocalPaperId(selected.fileUrl)
 
     setPdfUrl(selected.fileUrl)
     setPdfPath(selected.filePath)
-    setPaperId(makeLocalPaperId(selected.fileUrl))
-    setGraph(EMPTY_GRAPH)
-    setPaperInsight(null)
+    setPaperId(nextPaperId)
     setGenError('')
     setGenProgress('')
-    setAnalysisSteps(INITIAL_ANALYSIS_STEPS)
     setSelectedGraphNodeId(null)
+    setGraph(EMPTY_GRAPH)
+    setPaperInsight(null)
+    setAnalysisSteps(INITIAL_ANALYSIS_STEPS)
+
+    try {
+      const snapshot = await electronApi.kg3.getMemorySnapshot()
+      const savedAnalysis = restoreSavedPaperAnalysis(snapshot, nextPaperId)
+      if (savedAnalysis) {
+        setGraph(savedAnalysis.graph)
+        setPaperInsight(savedAnalysis.paperInsight ?? derivePaperInsight(savedAnalysis.graph))
+        setAnalysisSteps(INITIAL_ANALYSIS_STEPS.map((step) => ({ ...step, status: 'done' as const })))
+        setGenProgress('已加载本地保存的知识图谱。')
+      }
+    } catch (err) {
+      console.warn('[KG3] Failed to load saved graph:', err)
+    }
+
     onAnalysisComplete()
   }
 
