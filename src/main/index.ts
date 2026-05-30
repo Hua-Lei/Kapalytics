@@ -22,7 +22,7 @@ import { searchPapers } from './retrieval/paperSearch'
 import { llmTaskOrchestrator } from './llm/orchestrator'
 import { buildExpansionRecord, candidatePaperId } from './kg4/expansionRecord'
 import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
-import type { PaperRecord } from '../shared/kg3'
+import type { LLMJob, PaperRecord } from '../shared/kg3'
 import type { Kg4ExpansionRecordQuery, Kg4NodeExpansionRecord, StartKg4ExpansionParams } from '../shared/kg4'
 import { isKg4NodeExpansionRecord } from '../shared/kg4'
 
@@ -74,6 +74,19 @@ function isKg4ExpansionRecordQuery(value: unknown): value is Kg4ExpansionRecordQ
     typeof (value as Record<string, unknown>).paperId === 'string' &&
     typeof (value as Record<string, unknown>).nodeId === 'string'
   )
+}
+
+const KG4_JOB_TERMINAL_STATUSES = new Set<LLMJob['status']>(['succeeded', 'cache_hit', 'failed', 'cancelled'])
+
+async function waitForJobTerminalState(jobId: string, timeoutMs = 130000): Promise<LLMJob> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() <= deadline) {
+    const snapshot = await paperMemoryRepository.getSnapshot()
+    const job = snapshot.llmJobs.find((item) => item.id === jobId)
+    if (job && KG4_JOB_TERMINAL_STATUSES.has(job.status)) return job
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+  throw new Error(`展开任务等待后台重试超时: ${jobId}`)
 }
 
 const isDev = !app.isPackaged
@@ -372,10 +385,8 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           message: '正在分析算法思想...'
         })
 
-        const result = await llmTaskOrchestrator.runJob(job.id)
-        if (result.status === 'queued') {
-          throw new Error('展开任务正在后台重试，请稍后重新展开该节点。')
-        }
+        let result = await llmTaskOrchestrator.runJob(job.id)
+        if (result.status === 'queued' || result.status === 'running') result = await waitForJobTerminalState(job.id)
         if (result.status !== 'succeeded' && result.status !== 'cache_hit') {
           throw new Error(result.errorMessage || '展开任务失败')
         }
