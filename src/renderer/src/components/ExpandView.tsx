@@ -8,9 +8,7 @@ import type {
 } from '../../../shared/kg4'
 import {
   buildComparisonWorkspace,
-  buildLocalReuseSuggestions,
-  buildNodeUnderstandingMemory,
-  generateLocalFeedback
+  buildNodeUnderstandingMemory
 } from '../modules/learning/kg4Workbench'
 import { electronApi } from '../modules/ipc/electronApi'
 import IdeaCardGrid from './IdeaCardGrid'
@@ -51,9 +49,8 @@ function ExpandView() {
     setFeedback(null)
     setNoteDraft('')
     setSaveStatus(null)
-    electronApi.kg4.listNodeUnderstandingMemories({ limit: 50 })
-      .then((memories: NodeUnderstandingMemory[]) => setReuseSuggestions(buildLocalReuseSuggestions(anchorNode, memories)))
-      .catch(() => setReuseSuggestions([]))
+    // TODO(Task 13): wire real IPC for memory reuse suggestions
+    setReuseSuggestions([])
   }, [anchorNode?.id, paperInsight, session?.id])
 
   useEffect(() => {
@@ -79,11 +76,8 @@ function ExpandView() {
     })
   }
 
-  const requestFeedback = () => {
-    const next = generateLocalFeedback(anchorNode, workspace, reflection)
-    setFeedback(next)
-    setNoteDraft(next.suggestedUnderstandingNote)
-  }
+  // TODO(Task 13): wire real IPC for feedback generation
+  const requestFeedback = () => {}
 
   const saveMemory = async () => {
     if (!feedback) return

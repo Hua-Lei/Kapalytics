@@ -9,13 +9,9 @@ import type {
   FieldCognitionView,
   Kg4Feedback,
   Kg4NodeExpansionRecord,
-  MemoryReuseSuggestion,
-  NodeUnderstandingMemory,
-  ReflectiveFeedback,
-  RemedialLesson
+  NodeUnderstandingMemory
 } from '../../../../shared/kg4'
 import { normalizeKg4NodeLabel } from '../../../../shared/kg4'
-import { mockRelatedPapers } from './nodeExpansion'
 
 function now(): string {
   return new Date().toISOString()
@@ -25,55 +21,12 @@ function safeId(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'item'
 }
 
-function tokenize(text: string): string[] {
-  return text.toLowerCase().split(/[^a-z0-9\u4e00-\u9fa5]+/).filter((part) => part.length > 1)
-}
-
-function relationForIndex(index: number): AlgorithmIdeaCard['relationToCurrentNode'] {
-  return (['foundation', 'predecessor', 'parallel', 'variant', 'successor'] as const)[index] ?? 'parallel'
-}
-
-export function buildKg4MockIdeaCards(node: GraphNode): AlgorithmIdeaCard[] {
-  const queries = [...(node.searchQueries ?? []), node.label, node.description, node.insight ?? '']
-  const queryTokens = new Set(queries.flatMap(tokenize))
-  const matched = mockRelatedPapers
-    .map((paper) => {
-      const indexedText = [paper.title, paper.methodFamily, paper.branchLabel, paper.summary, ...paper.topicTags].join(' ')
-      const score = tokenize(indexedText).filter((token) => queryTokens.has(token)).length
-      return { paper, score }
-    })
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .map((item) => item.paper)
-
-  return matched.map((paper, index) => ({
-    id: `idea_${safeId(paper.id)}`,
-    paperId: paper.id,
-    paperTitle: paper.title,
-    problemSetting: paper.solves,
-    coreIdea: paper.summary,
-    keyAssumption: `假设 ${paper.methodFamily} 的核心机制能在当前节点“${node.label}”关注的问题中复用或对照。`,
-    mechanism: paper.relationToCurrentNode,
-    objectiveOrUpdateRule: paper.adaptationStage ? `适配阶段：${paper.adaptationStage}` : '信息不足：需要阅读原文确认优化目标。',
-    updatedObject: paper.updatedObject,
-    strength: paper.whyCompare,
-    limitation: paper.remainingGap,
-    bestUseCase: paper.relationToCurrentPaper,
-    relationToCurrentNode: relationForIndex(index),
-    relationExplanation: paper.relationToCurrentNode,
-    evidenceSource: {
-      paperId: paper.id,
-      source: 'mock',
-      url: paper.url,
-      externalId: paper.id
-    }
-  }))
-}
-
-export function buildKg4ExpansionRecord(node: GraphNode, paperInsight: PaperInsight | null): Kg4NodeExpansionRecord {
+export function buildKg4ExpansionRecord(
+  node: GraphNode,
+  ideaCards: AlgorithmIdeaCard[],
+  paperInsight: PaperInsight | null
+): Kg4NodeExpansionRecord {
   const timestamp = now()
-  const ideaCards = buildKg4MockIdeaCards(node)
   const families = [...new Set(ideaCards.map((card) => card.updatedObject || card.relationToCurrentNode))].slice(0, 3)
   const familyNodes: ExpansionGraphNode[] = families.map((family) => ({
     id: `kg4_family_${safeId(node.id)}_${safeId(family)}`,
@@ -227,52 +180,6 @@ export function buildComparisonWorkspace(
   }
 }
 
-export function generateLocalFeedback(
-  node: GraphNode,
-  workspace: AlgorithmIdeaComparisonWorkspace,
-  userReflection: string
-): Kg4Feedback {
-  const timestamp = now()
-  const selected = workspace.ideaCards.filter((card) => workspace.selectedIdeaCardIds.includes(card.id))
-  const tooShort = userReflection.trim().length < 40
-  const mentionsMechanism = /机制|假设|更新|目标|局限|适用|assumption|mechanism|objective|limitation/i.test(userReflection)
-
-  if (tooShort || !mentionsMechanism) {
-    const lesson: RemedialLesson = {
-      id: `feedback_remedial_${safeId(node.id)}_${Date.now()}`,
-      type: 'remedial',
-      paperId: workspace.currentPaperId,
-      nodeId: node.id,
-      missingPrerequisite: '算法思想对比维度',
-      whyItMattersForCurrentNode: `理解“${node.label}”时，需要能区分问题设置、关键假设、机制流程和更新对象。`,
-      shortExplanation: '先问每篇论文解决什么问题，再问它更新什么对象、依赖什么假设、在哪些场景会失败。这样能避免把相邻方法都概括成“效果更好”。',
-      example: selected[0] ? `例如 ${selected[0].paperTitle} 的更新对象是：${selected[0].updatedObject || '信息不足'}。` : undefined,
-      recommendedPapers: selected.map((card) => card.paperId),
-      recommendedArticles: [],
-      checkQuestion: '请用一句话分别说明一个候选方法的“更新对象”和“失败边界”。',
-      suggestedUnderstandingNote: `我对“${node.label}”的理解还需要补齐算法对比维度：问题设置、关键假设、机制流程、更新对象和局限。`,
-      createdAt: timestamp
-    }
-    return lesson
-  }
-
-  const feedback: ReflectiveFeedback = {
-    id: `feedback_reflective_${safeId(node.id)}_${Date.now()}`,
-    type: 'reflective',
-    paperId: workspace.currentPaperId,
-    nodeId: node.id,
-    selectedIdeaCardIds: workspace.selectedIdeaCardIds,
-    strengths: ['你已经开始用机制或假设来比较算法思想，而不是只比较论文主题。'],
-    missingDimensions: ['建议进一步明确更新对象、适用场景和可能失败条件。'],
-    possibleCounterArguments: ['如果两个方法的问题设置不同，直接比较机制优劣可能会误导。'],
-    evidenceFromPapers: selected.map((card) => ({ paperId: card.paperId, evidence: card.relationExplanation })),
-    followUpQuestions: workspace.reflectionQuestions.slice(0, 3),
-    suggestedUnderstandingNote: `关于“${node.label}”，我的当前理解是：${userReflection.trim()} 还需要继续用更新对象、关键假设和失败边界来验证这个判断。`,
-    createdAt: timestamp
-  }
-  return feedback
-}
-
 export function buildNodeUnderstandingMemory(params: {
   node: GraphNode
   workspace: AlgorithmIdeaComparisonWorkspace
@@ -310,28 +217,3 @@ export function buildNodeUnderstandingMemory(params: {
   }
 }
 
-export function buildLocalReuseSuggestions(node: GraphNode, memories: NodeUnderstandingMemory[]): MemoryReuseSuggestion[] {
-  const normalized = normalizeKg4NodeLabel(node.label)
-  const nodeTopics = new Set([...(node.searchQueries ?? []), node.label].map(normalizeKg4NodeLabel))
-  return memories
-    .map((memory) => {
-      const signals: MemoryReuseSuggestion['matchedSignals'] = []
-      if (memory.normalizedNodeLabel === normalized) signals.push('normalized_label')
-      if (memory.nodeType === node.type) signals.push('node_type')
-      if (memory.topicTags.some((tag) => nodeTopics.has(normalizeKg4NodeLabel(tag)))) signals.push('topic_tag')
-      const confidence = Math.min(0.95, signals.length * 0.25 + (signals.includes('normalized_label') ? 0.35 : 0))
-      return {
-        id: `reuse_${memory.id}_${safeId(node.id)}`,
-        memoryId: memory.id,
-        currentNodeId: node.id,
-        currentPaperId: 'current-paper',
-        matchReason: signals.length ? `匹配信号：${signals.join(', ')}` : '弱匹配，建议谨慎查看。',
-        matchedSignals: signals,
-        confidence,
-        suggestedReuseText: memory.userEditedUnderstandingNote || memory.generatedUnderstandingNote
-      }
-    })
-    .filter((suggestion) => suggestion.confidence >= 0.3)
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, 3)
-}
