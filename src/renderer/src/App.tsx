@@ -10,6 +10,8 @@ import { StageProvider } from './domains/stages/StageProvider'
 import { ExpansionProvider } from './domains/expansion/ExpansionProvider'
 import { MemoryProvider } from './domains/memory/MemoryProvider'
 import { WorkspaceProvider } from './domains/workspace/WorkspaceProvider'
+import { buildStagesFromTasks } from './domains/stages/stageFramework'
+import { useStages } from './domains/stages/useStages'
 
 type ResizeTarget = 'left' | 'right' | null
 
@@ -50,6 +52,8 @@ function App() {
       .catch(() => {})
       .finally(() => setHydrated(true))
   }, [])
+
+  const setStagesRef = useRef<((tasks: Record<string, string>) => void) | null>(null)
 
   // Auto-save workspace state when it changes (debounced, only after hydration)
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>()
@@ -124,10 +128,19 @@ function App() {
     try { return await electronApi.testConnection() } catch { return { ok: false, message: '连接测试失败' } }
   }
 
+  function StageSyncBridge({ setStagesRef: ref }: { setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null> }) {
+    const { setStages } = useStages()
+    ref.current = (tasks: Record<string, string>) => {
+      setStages(buildStagesFromTasks(tasks))
+    }
+    return null
+  }
+
   return (
     <PersistenceGate onLoad={() => {}}>
-      <PaperProvider onAnalysisComplete={() => dispatchWorkspace({ type: 'activate_tab', tabId: 'paper_graph' })}>
+      <PaperProvider onAnalysisComplete={() => dispatchWorkspace({ type: 'activate_tab', tabId: 'paper_graph' })} setStagesRef={setStagesRef}>
         <StageProvider>
+          <StageSyncBridge setStagesRef={setStagesRef} />
           <ExpansionProvider>
             <MemoryProvider>
               <WorkspaceProvider>

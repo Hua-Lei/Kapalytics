@@ -7,21 +7,22 @@ export const PaperContext = createContext<PaperContextValue | null>(null)
 interface PaperProviderProps {
   children: ReactNode
   onAnalysisComplete: () => void
+  setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null>
 }
 
-export function PaperProvider({ children, onAnalysisComplete }: PaperProviderProps) {
+export function PaperProvider({ children, onAnalysisComplete, setStagesRef }: PaperProviderProps) {
   const {
     analysisSteps, analyzePaper, generating, genError, genProgress,
-    graph, paperInsight, pdfUrl, selectPdf, setGraph, setPaperInsight, setPdfUrl
+    graph, paperInsight, paperTasks, pdfUrl, selectPdf, setGraph, setPaperInsight, setPdfUrl
   } = usePaperAnalysis({
-    setStages: () => {}, // wired to StageProvider in Phase 2
+    setStagesRef,
     onAnalysisComplete,
     setSelectedGraphNodeId: () => {} // wired in Phase 2
   })
 
   return (
     <PaperContext.Provider value={{
-      pdfUrl, graph, paperInsight, analysisSteps, generating, genError, genProgress,
+      pdfUrl, graph, paperInsight, paperTasks, analysisSteps, generating, genError, genProgress,
       selectPdf, analyzePaper, setGraph, setPaperInsight, setPdfUrl
     }}>
       {children}

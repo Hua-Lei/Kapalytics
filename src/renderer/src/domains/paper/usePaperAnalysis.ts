@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import type { Stage } from '../../types'
 import type { AnalysisStep, GraphNode, KnowledgeGraph, PaperInsight } from '../../../../shared/paper'
 import { electronApi } from '../../modules/ipc/electronApi'
 import {
@@ -12,7 +11,7 @@ import {
 } from '../../modules/paper/analysisState'
 
 interface UsePaperAnalysisOptions {
-  setStages: React.Dispatch<React.SetStateAction<Stage[]>>
+  setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null>
   onAnalysisComplete: () => void
   setSelectedGraphNodeId: (nodeId: string | null) => void
 }
@@ -35,7 +34,7 @@ function inferTitleFromPdfUrl(pdfUrl: string): string {
 }
 
 export function usePaperAnalysis({
-  setStages,
+  setStagesRef,
   onAnalysisComplete,
   setSelectedGraphNodeId
 }: UsePaperAnalysisOptions) {
@@ -46,6 +45,7 @@ export function usePaperAnalysis({
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
   const [genProgress, setGenProgress] = useState('')
+  const [paperTasks, setPaperTasks] = useState<Record<string, string> | null>(null)
   const [analysisSteps, setAnalysisSteps] = useState<AnalysisStep[]>(INITIAL_ANALYSIS_STEPS)
 
   const selectPdf = async () => {
@@ -104,7 +104,7 @@ export function usePaperAnalysis({
           edges: analysis.graph.edges
         })
         setPaperInsight(analysis.insight ?? derivePaperInsight(fullGraph))
-        setStages((prev) => prev.map((stage) => ({ ...stage, task: analysis.tasks[stage.id] ?? stage.task })))
+        setPaperTasks(analysis.tasks)
         setAnalysisSteps((prev) => updateStep(updateStep(prev, 'analyze', 'done'), 'reveal', 'active'))
 
         for (let i = 0; i < fullGraph.nodes.length; i += 1) {
@@ -119,6 +119,7 @@ export function usePaperAnalysis({
         }
 
         setAnalysisSteps((prev) => updateStep(prev, 'reveal', 'done'))
+        setStagesRef.current?.(analysis.tasks)
         setGenProgress('分析完成：知识图谱和学习任务已生成。')
         const paperId = makeLocalPaperId(pdfUrl)
         electronApi.kg3.saveCurrentGraph({
@@ -151,6 +152,7 @@ export function usePaperAnalysis({
     genProgress,
     graph,
     paperInsight,
+    paperTasks,
     pdfUrl,
     selectPdf,
     setGraph,
