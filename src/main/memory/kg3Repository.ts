@@ -95,6 +95,13 @@ function upsertById<T extends { id: string }>(records: T[], record: T): T[] {
   return records.map((item, itemIndex) => (itemIndex === index ? record : item))
 }
 
+function newestValidKg4ExpansionRecord(records: unknown[]): Kg4NodeExpansionRecord | null {
+  for (const record of records) {
+    if (isKg4NodeExpansionRecord(record)) return record
+  }
+  return null
+}
+
 type JsonTableName =
   | 'papers'
   | 'paper_insights'
@@ -291,11 +298,10 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
 
   async getKg4ExpansionRecord(paperId: string, nodeId: string): Promise<Kg4NodeExpansionRecord | null> {
     const store = readFileStore(this.path)
-    const records = Array.isArray(store.kg4NodeExpansions) ? store.kg4NodeExpansions : []
-    const record = records
+    const records = (Array.isArray(store.kg4NodeExpansions) ? store.kg4NodeExpansions : [])
       .filter((item) => item && typeof item === 'object' && item.paperId === paperId && item.nodeId === nodeId)
-      .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')))[0]
-    return isKg4NodeExpansionRecord(record) ? record : null
+      .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')))
+    return newestValidKg4ExpansionRecord(records)
   }
 
   async saveLLMJob(job: LLMJob): Promise<void> {
@@ -442,15 +448,20 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async getKg4ExpansionRecord(paperId: string, nodeId: string): Promise<Kg4NodeExpansionRecord | null> {
-    const row = this.db
-      .prepare('SELECT json FROM kg4_node_expansions WHERE paper_id = ? AND node_id = ? ORDER BY updated_at DESC LIMIT 1')
-      .get(paperId, nodeId) as JsonRow | undefined
-    try {
-      const record = row ? JSON.parse(row.json) : null
-      return isKg4NodeExpansionRecord(record) ? record : null
-    } catch {
-      return null
+    const rows = this.db
+      .prepare('SELECT json FROM kg4_node_expansions WHERE paper_id = ? AND node_id = ? ORDER BY updated_at DESC')
+      .all(paperId, nodeId) as JsonRow[]
+
+    const candidates: unknown[] = []
+    for (const row of rows) {
+      try {
+        candidates.push(JSON.parse(row.json))
+      } catch {
+        // Ignore corrupt JSON and continue scanning older records.
+      }
     }
+
+    return newestValidKg4ExpansionRecord(candidates)
   }
 
   async saveLLMJob(job: LLMJob): Promise<void> {
