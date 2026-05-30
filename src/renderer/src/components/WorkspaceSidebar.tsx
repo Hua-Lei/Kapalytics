@@ -1,11 +1,4 @@
-import type { WorkspaceTab } from '../domains/workspace/types'
-
-interface WorkspaceSidebarProps {
-  activeTabId: string
-  tabs: WorkspaceTab[]
-  onActivateTab: (tabId: string) => void
-  onCloseTab: (tabId: string) => void
-}
+import { useWorkspace } from '../domains/workspace/useWorkspace'
 
 const WORKSPACE_DESCRIPTIONS: Record<string, string> = {
   pdf_reader: '论文原文阅读',
@@ -19,9 +12,10 @@ const WORKSPACE_DESCRIPTIONS: Record<string, string> = {
   field_memory: '长期理解记忆'
 }
 
-function WorkspaceSidebar({ activeTabId, tabs, onActivateTab, onCloseTab }: WorkspaceSidebarProps) {
-  const coreTabs = tabs.filter((tab) => !tab.closable)
-  const sessionTabs = tabs.filter((tab) => tab.closable)
+function WorkspaceSidebar() {
+  const { state, activateTab, closeTab } = useWorkspace()
+  const coreTabs = state.tabs.filter((tab) => !tab.closable)
+  const sessionTabs = state.tabs.filter((tab) => tab.closable)
 
   return (
     <aside className="workspace-sidebar" aria-label="Workspace navigation">
@@ -31,8 +25,8 @@ function WorkspaceSidebar({ activeTabId, tabs, onActivateTab, onCloseTab }: Work
           {coreTabs.map((tab) => (
             <button
               key={tab.id}
-              className={`workspace-nav-item ${activeTabId === tab.id ? 'workspace-nav-item--active' : ''}`}
-              onClick={() => onActivateTab(tab.id)}
+              className={`workspace-nav-item ${state.activeTabId === tab.id ? 'workspace-nav-item--active' : ''}`}
+              onClick={() => activateTab(tab.id)}
               type="button"
             >
               <strong>{tab.title}</strong>
@@ -49,13 +43,13 @@ function WorkspaceSidebar({ activeTabId, tabs, onActivateTab, onCloseTab }: Work
             {sessionTabs.map((tab) => (
               <div
                 key={tab.id}
-                className={`workspace-nav-item ${activeTabId === tab.id ? 'workspace-nav-item--active' : ''}`}
+                className={`workspace-nav-item ${state.activeTabId === tab.id ? 'workspace-nav-item--active' : ''}`}
               >
-                <button className="workspace-nav-item__main" onClick={() => onActivateTab(tab.id)} type="button">
+                <button className="workspace-nav-item__main" onClick={() => activateTab(tab.id)} type="button">
                   <strong>{tab.title}</strong>
                   <span>{tab.status ?? tab.type}</span>
                 </button>
-                <button className="workspace-nav-item__close" onClick={() => onCloseTab(tab.id)} title="关闭 workspace" type="button">×</button>
+                <button className="workspace-nav-item__close" onClick={() => closeTab(tab.id)} title="关闭 workspace" type="button">×</button>
               </div>
             ))}
           </div>

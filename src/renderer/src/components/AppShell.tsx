@@ -137,10 +137,7 @@ function AppShell({
   return (
     <div className="app-container workspace-shell">
       <TopBar
-        activeTab={activeWorkspaceTab}
         fontScale={fontScale}
-        hasPdf={Boolean(pdfUrl)}
-        hasGraph={graph.nodes.length > 0}
         onCycleFontSize={onCycleFontSize}
         onOpenSettings={onOpenSettings}
       />
@@ -151,12 +148,7 @@ function AppShell({
           gridTemplateColumns: `190px minmax(0, 1fr) ${!rightCollapsed ? '10px' : ''} ${rightCollapsed ? '36px' : `${rightWidth}px`}`
         }}
       >
-        <WorkspaceSidebar
-          activeTabId={workspaceState.activeTabId}
-          tabs={workspaceState.tabs}
-          onActivateTab={onActivateWorkspaceTab}
-          onCloseTab={onCloseWorkspaceTab}
-        />
+        <WorkspaceSidebar />
 
         <CentralWorkspaceRouter
           activeTab={activeWorkspaceTab}

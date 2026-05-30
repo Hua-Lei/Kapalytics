@@ -1,15 +1,18 @@
-import type { WorkspaceTab } from '../domains/workspace/types'
+import { useWorkspace } from '../domains/workspace/useWorkspace'
+import { usePaper } from '../domains/paper/usePaper'
 
 interface TopBarProps {
-  activeTab: WorkspaceTab | undefined
   fontScale: number
-  hasGraph: boolean
-  hasPdf: boolean
   onCycleFontSize: () => void
   onOpenSettings: () => void
 }
 
-function TopBar({ activeTab, fontScale, hasGraph, hasPdf, onCycleFontSize, onOpenSettings }: TopBarProps) {
+function TopBar({ fontScale, onCycleFontSize, onOpenSettings }: TopBarProps) {
+  const { activeTab } = useWorkspace()
+  const { pdfUrl, graph } = usePaper()
+  const hasPdf = Boolean(pdfUrl)
+  const hasGraph = graph.nodes.length > 0
+
   return (
     <header className="workspace-topbar">
       <div className="workspace-topbar__brand">
@@ -20,7 +23,7 @@ function TopBar({ activeTab, fontScale, hasGraph, hasPdf, onCycleFontSize, onOpe
         <span>Workspace</span>
         <strong>{activeTab?.title ?? 'Paper Graph'}</strong>
       </div>
-      <div className="workspace-topbar__status" aria-label="论文状态">
+      <div className="workspace-topbar__status">
         <span className={`status-pill ${hasPdf ? 'status-pill--ready' : ''}`}>{hasPdf ? 'PDF 已载入' : '等待 PDF'}</span>
         <span className={`status-pill ${hasGraph ? 'status-pill--ready' : ''}`}>{hasGraph ? '图谱已生成' : '未分析'}</span>
         <button className="header-btn" onClick={onCycleFontSize} title="调整字体大小">A {Math.round(fontScale * 100)}%</button>
