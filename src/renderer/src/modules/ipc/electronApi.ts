@@ -80,7 +80,9 @@ export const electronApi = {
     getJobStatus: (jobId: string) =>
       getApi()?.kg4?.getJobStatus?.(jobId) ?? Promise.reject(new Error('KG4 API unavailable')),
     cancelJob: (jobId: string) =>
-      getApi()?.kg4?.cancelJob?.(jobId) ?? Promise.resolve()
+      getApi()?.kg4?.cancelJob?.(jobId) ?? Promise.resolve(),
+    onExpansionProgress: (cb: (event: import('../../../../shared/electron-api').ExpansionProgressEvent) => void) =>
+      getApi()?.kg4?.onExpansionProgress?.(cb)
   },
   selectPdf: () => getApi()?.selectPdf?.() ?? Promise.resolve(null),
   extractPdfText: async (url: string) => {

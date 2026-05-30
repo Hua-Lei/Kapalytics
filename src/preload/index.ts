@@ -70,6 +70,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getJobStatus: (jobId: string): Promise<{ status: string; progressStep?: string; progressMessage?: string; errorMessage?: string }> =>
       ipcRenderer.invoke('kg4:get-job-status', jobId),
     cancelJob: (jobId: string): Promise<void> =>
-      ipcRenderer.invoke('kg4:cancel-job', jobId)
+      ipcRenderer.invoke('kg4:cancel-job', jobId),
+    onExpansionProgress: (cb: (event: import('../../shared/electron-api').ExpansionProgressEvent) => void) => {
+      const handler = (_e: unknown, event: import('../../shared/electron-api').ExpansionProgressEvent) => cb(event)
+      ipcRenderer.on('expansion:progress', handler)
+      return () => { ipcRenderer.removeListener('expansion:progress', handler) }
+    }
   }
 })
