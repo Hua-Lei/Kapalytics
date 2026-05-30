@@ -6,8 +6,13 @@ export interface ExpansionState {
   sessions: Record<string, NodeExpansionSession>
 }
 
+export interface StartExpansionUiResult {
+  sessionId: string
+  status: 'loading' | 'ready-from-cache'
+}
+
 export interface ExpansionActions {
-  startExpansion: (nodeId: string) => Promise<string | undefined>
+  startExpansion: (nodeId: string) => Promise<StartExpansionUiResult | undefined>
   selectExpansionNode: (node: ExpansionGraphNode, expansionId: string) => void
   clearExpansionGraph: (sessionId: string) => void
   setSessions: React.Dispatch<React.SetStateAction<Record<string, NodeExpansionSession>>>

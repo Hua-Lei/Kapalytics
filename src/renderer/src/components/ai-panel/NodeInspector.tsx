@@ -23,14 +23,14 @@ function NodeInspector({ node }: { node: GraphNode }) {
 
   const requestExpansion = async () => {
     setExpansionRequested(true)
-    const sessionId = await startExpansion(node.id)
-    if (!sessionId) return
+    const result = await startExpansion(node.id)
+    if (!result) return
     openTab({
-      id: sessionId,
+      id: result.sessionId,
       type: 'node_expansion_loading',
       title: `Expand: ${node.label}`,
       nodeId: node.id,
-      expansionId: sessionId,
+      expansionId: result.sessionId,
       closable: true,
       status: 'loading'
     })

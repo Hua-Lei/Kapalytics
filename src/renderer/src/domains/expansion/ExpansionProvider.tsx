@@ -1,9 +1,9 @@
 import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { GraphNode, PaperInsight } from '../../../../shared/paper'
 import type { ExpansionGraphNode } from '../../../../shared/kg4'
-import { updateSessionFromJobProgress } from '../../domains/expansion/nodeExpansionSessions'
+import { createReadySessionFromRecord, EXPANSION_STEPS, updateSessionFromJobProgress } from '../../domains/expansion/nodeExpansionSessions'
 import type { NodeExpansionSession } from '../../domains/expansion/nodeExpansionSessions'
-import type { ExpansionContextValue } from './types'
+import type { ExpansionContextValue, StartExpansionUiResult } from './types'
 import { electronApi } from '../../modules/ipc/electronApi'
 
 export const ExpansionContext = createContext<ExpansionContextValue | null>(null)
@@ -31,14 +31,41 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
     paperIdRef.current = context.paperId
   }, [])
 
-  const startExpansion = useCallback(async (nodeId: string): Promise<string | undefined> => {
+  const startExpansion = useCallback(async (nodeId: string): Promise<StartExpansionUiResult | undefined> => {
     const node = graphRef.current.find((n) => n.id === nodeId)
     if (!node) return undefined
+    const paperId = paperIdRef.current ?? undefined
+
+    if (paperId) {
+      const record = await electronApi.kg4.getExpansionRecord({ paperId, nodeId: node.id })
+      if (record) {
+        const session = createReadySessionFromRecord(record, node)
+        setSessions((prev) => ({ ...prev, [session.id]: session }))
+        return { sessionId: session.id, status: 'ready-from-cache' }
+      }
+    }
+
+    const now = new Date().toISOString()
+    const sessionId = `expansion_${node.id}_${Date.now()}`
+    const session: NodeExpansionSession = {
+      id: sessionId,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      paperId,
+      status: 'loading',
+      currentStepId: 'job_created',
+      steps: EXPANSION_STEPS.map((step) => step.id === 'job_created' ? { ...step, status: 'running' as const } : { ...step }),
+      usesMockData: false,
+      createdAt: now,
+      updatedAt: now
+    }
+
+    setSessions((prev) => ({ ...prev, [session.id]: session }))
 
     const result = await electronApi.kg4.startExpansion({
       nodeId: node.id,
       nodeLabel: node.label,
-      paperId: paperIdRef.current ?? undefined,
+      paperId,
       searchQueries: node.searchQueries ?? [],
       paperInsight: paperInsightRef.current
         ? {
@@ -50,27 +77,16 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
         : undefined
     })
 
-    const now = new Date().toISOString()
-    const session: NodeExpansionSession = {
-      id: result.sessionId,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      status: 'loading',
-      currentStepId: 'job_created',
-      steps: [
-        { id: 'job_created', label: '创建检索任务', status: 'running', detail: '正在准备检索任务...' },
-        { id: 'retrieving', label: '检索相关论文', status: 'pending', detail: '检索本地和外部论文源...' },
-        { id: 'analyzing', label: '分析算法思想', status: 'pending', detail: 'LLM 抽取和对比算法思想...' },
-        { id: 'generating', label: '生成扩展图谱', status: 'pending', detail: '构建临时扩展节点和边...' },
-        { id: 'done', label: '完成', status: 'pending', detail: '展开结果已就绪' }
-      ],
-      usesMockData: false,
-      createdAt: now,
-      updatedAt: now
+    if (result.sessionId !== sessionId) {
+      setSessions((prev) => {
+        const current = prev[sessionId]
+        if (!current) return prev
+        const { [sessionId]: _removed, ...rest } = prev
+        return { ...rest, [result.sessionId]: { ...current, id: result.sessionId, updatedAt: new Date().toISOString() } }
+      })
     }
 
-    setSessions((prev) => ({ ...prev, [session.id]: session }))
-    return session.id
+    return { sessionId: result.sessionId, status: 'loading' }
   }, [])
 
   const selectExpansionNode = useCallback((node: ExpansionGraphNode, expansionId: string) => {
