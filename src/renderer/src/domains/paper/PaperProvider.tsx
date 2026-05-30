@@ -13,7 +13,7 @@ interface PaperProviderProps {
 export function PaperProvider({ children, onAnalysisComplete, setStagesRef }: PaperProviderProps) {
   const {
     analysisSteps, analyzePaper, generating, genError, genProgress,
-    graph, paperInsight, pdfUrl, selectPdf, setGraph, setPaperInsight, setPdfUrl
+    graph, paperInsight, pdfUrl, paperId, selectPdf, setGraph, setPaperInsight, setPdfUrl
   } = usePaperAnalysis({
     setStagesRef,
     onAnalysisComplete,
@@ -22,7 +22,7 @@ export function PaperProvider({ children, onAnalysisComplete, setStagesRef }: Pa
 
   return (
     <PaperContext.Provider value={{
-      pdfUrl, graph, paperInsight, analysisSteps, generating, genError, genProgress,
+      pdfUrl, paperId, graph, paperInsight, analysisSteps, generating, genError, genProgress,
       selectPdf, analyzePaper, setGraph, setPaperInsight, setPdfUrl
     }}>
       {children}

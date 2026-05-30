@@ -40,6 +40,7 @@ export function usePaperAnalysis({
 }: UsePaperAnalysisOptions) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [pdfPath, setPdfPath] = useState<string | null>(null)
+  const [paperId, setPaperId] = useState<string | null>(null)
   const [graph, setGraph] = useState<KnowledgeGraph>(EMPTY_GRAPH)
   const [paperInsight, setPaperInsight] = useState<PaperInsight | null>(null)
   const [generating, setGenerating] = useState(false)
@@ -53,6 +54,7 @@ export function usePaperAnalysis({
 
     setPdfUrl(selected.fileUrl)
     setPdfPath(selected.filePath)
+    setPaperId(makeLocalPaperId(selected.fileUrl))
     setGraph(EMPTY_GRAPH)
     setPaperInsight(null)
     setGenError('')
@@ -119,14 +121,14 @@ export function usePaperAnalysis({
         setAnalysisSteps((prev) => updateStep(prev, 'reveal', 'done'))
         setStagesRef.current?.(analysis.tasks)
         setGenProgress('分析完成：知识图谱和学习任务已生成。')
-        const paperId = makeLocalPaperId(pdfUrl)
+        const activePaperId = paperId ?? makeLocalPaperId(pdfUrl)
         electronApi.kg3.saveCurrentGraph({
-          paperId,
+          paperId: activePaperId,
           title: inferTitleFromPdfUrl(pdfUrl),
           fileUrl: pdfUrl,
           filePath: pdfPath ?? undefined,
           data: { graph: fullGraph, paperInsight: analysis.insight ?? derivePaperInsight(fullGraph) }
-        }).then(() => electronApi.kg3.fusePaperGraph(paperId)).catch((err) => {
+        }).then(() => electronApi.kg3.fusePaperGraph(activePaperId)).catch((err) => {
           console.warn('[KG3] Failed to save long-term memory:', err)
           setGenProgress('分析完成，但长期记忆保存失败。你仍可继续学习。')
         })
@@ -151,6 +153,7 @@ export function usePaperAnalysis({
     graph,
     paperInsight,
     pdfUrl,
+    paperId,
     selectPdf,
     setGraph,
     setPaperInsight,

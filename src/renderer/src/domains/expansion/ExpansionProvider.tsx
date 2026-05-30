@@ -12,6 +12,7 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<Record<string, NodeExpansionSession>>({})
   const graphRef = useRef<GraphNode[]>([])
   const paperInsightRef = useRef<PaperInsight | null>(null)
+  const paperIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const unsub = electronApi.kg4.onExpansionProgress((event) => {
@@ -24,8 +25,11 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
     return unsub
   }, [])
 
-  const setGraphNodes = useCallback((nodes: GraphNode[]) => { graphRef.current = nodes }, [])
-  const setPaperInsightRef = useCallback((pi: PaperInsight | null) => { paperInsightRef.current = pi }, [])
+  const setPaperContext = useCallback((context: { graphNodes: GraphNode[]; paperInsight: PaperInsight | null; paperId: string | null }) => {
+    graphRef.current = context.graphNodes
+    paperInsightRef.current = context.paperInsight
+    paperIdRef.current = context.paperId
+  }, [])
 
   const startExpansion = useCallback(async (nodeId: string): Promise<string | undefined> => {
     const node = graphRef.current.find((n) => n.id === nodeId)
@@ -34,7 +38,7 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
     const result = await electronApi.kg4.startExpansion({
       nodeId: node.id,
       nodeLabel: node.label,
-      paperId: undefined
+      paperId: paperIdRef.current ?? undefined
     })
 
     const now = new Date().toISOString()
@@ -77,7 +81,7 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <ExpansionContext.Provider value={{ sessions, setSessions, startExpansion, selectExpansionNode, clearExpansionGraph, setGraphNodes, setPaperInsightRef }}>
+    <ExpansionContext.Provider value={{ sessions, setSessions, startExpansion, selectExpansionNode, clearExpansionGraph, setPaperContext }}>
       {children}
     </ExpansionContext.Provider>
   )

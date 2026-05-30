@@ -8,6 +8,7 @@ import { PersistenceGate } from './domains/persistence/PersistenceGate'
 import { PaperProvider } from './domains/paper/PaperProvider'
 import { StageProvider } from './domains/stages/StageProvider'
 import { ExpansionProvider } from './domains/expansion/ExpansionProvider'
+import { ExpansionPaperSyncBridge } from './domains/expansion/ExpansionPaperSyncBridge'
 import { MemoryProvider } from './domains/memory/MemoryProvider'
 import { WorkspaceProvider } from './domains/workspace/WorkspaceProvider'
 import { buildStagesFromTasks } from './domains/stages/stageFramework'
@@ -155,6 +156,7 @@ function App() {
           <StageProvider>
             <StageSyncBridge setStagesRef={setStagesRef} />
             <ExpansionProvider>
+              <ExpansionPaperSyncBridge />
               <MemoryProvider>
                 <div ref={containerRef} className="app-root">
                   <AppShell

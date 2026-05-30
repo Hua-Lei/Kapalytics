@@ -2,6 +2,7 @@ import type { AnalysisStep, KnowledgeGraph, PaperInsight } from '../../../../sha
 
 export interface PaperState {
   pdfUrl: string | null
+  paperId: string | null
   graph: KnowledgeGraph
   paperInsight: PaperInsight | null
   analysisSteps: AnalysisStep[]
