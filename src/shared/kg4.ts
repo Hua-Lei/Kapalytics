@@ -298,6 +298,48 @@ export type Kg4NodeLike = Pick<GraphNode, 'id' | 'type' | 'label' | 'description
   roleInPaper?: string
 }
 
+export interface StartKg4ExpansionParams {
+  nodeId: string
+  nodeLabel: string
+  paperId?: string
+  searchQueries?: string[]
+  paperInsight?: {
+    title?: string
+    problem?: string
+    method?: string
+    contribution?: string
+  }
+}
+
+export interface StartKg4ExpansionResult {
+  sessionId: string
+  jobs: Array<{ jobId: string; type: string }>
+}
+
+export interface Kg4ExpansionRecordQuery {
+  paperId: string
+  nodeId: string
+}
+
+export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpansionRecord {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Partial<Kg4NodeExpansionRecord>
+  return (
+    typeof record.id === 'string' &&
+    typeof record.paperId === 'string' &&
+    typeof record.nodeId === 'string' &&
+    Array.isArray(record.retrievedPaperIds) &&
+    Array.isArray(record.algorithmIdeaCards) &&
+    Array.isArray(record.expansionGraphNodes) &&
+    Array.isArray(record.expansionGraphEdges) &&
+    (record.dataCompleteness === 'complete' || record.dataCompleteness === 'partial' || record.dataCompleteness === 'insufficient') &&
+    Array.isArray(record.missingDataReasons) &&
+    Array.isArray(record.generatedByJobIds) &&
+    typeof record.createdAt === 'string' &&
+    typeof record.updatedAt === 'string'
+  )
+}
+
 export function normalizeKg4NodeLabel(label: string): string {
   return label.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, ' ').trim()
 }

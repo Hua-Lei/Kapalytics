@@ -1,11 +1,19 @@
 import type { ExtractedPaperContent, PaperAnalysisResult, SelectedPdf } from './paper'
 import type { Kg3ExpansionContext, Kg3MemorySnapshot, LLMJob, PaperSearchQuery } from './kg3'
-import type { MemoryReuseSuggestion, NodeUnderstandingMemory, NodeUnderstandingMemoryQuery } from './kg4'
+import type {
+  Kg4ExpansionRecordQuery,
+  Kg4NodeExpansionRecord,
+  MemoryReuseSuggestion,
+  NodeUnderstandingMemory,
+  NodeUnderstandingMemoryQuery,
+  StartKg4ExpansionParams,
+  StartKg4ExpansionResult
+} from './kg4'
 
 export interface ExpansionProgressEvent {
   sessionId: string
   jobId: string
-  step: 'job_created' | 'retrieving' | 'analyzing' | 'generating' | 'done' | 'failed'
+  step: 'job_created' | 'retrieving' | 'analyzing' | 'generating' | 'persisting' | 'done' | 'failed'
   message: string
   result?: unknown
   error?: string
@@ -72,7 +80,9 @@ export interface ElectronApi {
       methodFamilyTags?: string[]
       limit?: number
     }) => Promise<MemoryReuseSuggestion[]>
-    startExpansion: (params: { nodeId: string; nodeLabel: string; paperId?: string }) => Promise<{ sessionId: string; jobs: Array<{ jobId: string; type: string }> }>
+    getExpansionRecord: (params: Kg4ExpansionRecordQuery) => Promise<Kg4NodeExpansionRecord | null>
+    saveExpansionRecord: (record: Kg4NodeExpansionRecord) => Promise<{ ok: boolean }>
+    startExpansion: (params: StartKg4ExpansionParams) => Promise<StartKg4ExpansionResult>
     onExpansionProgress: (cb: (event: ExpansionProgressEvent) => void) => () => void
     getJobStatus: (jobId: string) => Promise<{ status: string; progressStep?: string; progressMessage?: string; errorMessage?: string }>
     cancelJob: (jobId: string) => Promise<void>
