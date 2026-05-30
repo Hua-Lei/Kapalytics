@@ -107,7 +107,7 @@ export async function createRealExpansionSession(node: GraphNode, paperInsight: 
     const result = await electronApi.kg4.startExpansion({
       nodeId: node.id,
       nodeLabel: node.label,
-      paperId: paperInsight?.paperId
+      paperId: undefined
     })
     return {
       id: result.sessionId,

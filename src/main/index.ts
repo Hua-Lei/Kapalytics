@@ -289,15 +289,14 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('kg4:start-expansion', async (_e, params: { nodeId: string; nodeLabel: string; paperId?: string }) => {
     const sessionId = `expansion_${params.nodeId}_${Date.now()}`
-    const contextJob = await llmTaskOrchestrator.createJob({
+    const job = await llmTaskOrchestrator.enqueueJob({
       type: 'expand_node_retrieve_context',
       input: { nodeId: params.nodeId, nodeLabel: params.nodeLabel },
       nodeId: params.nodeId,
       paperId: params.paperId,
       sessionId
     })
-    await llmTaskOrchestrator.enqueueJob(contextJob)
-    return { sessionId, jobs: [{ jobId: contextJob.id, type: contextJob.type }] }
+    return { sessionId, jobs: [{ jobId: job.id, type: job.type }] }
   })
 
   ipcMain.handle('kg4:get-job-status', async (_e, jobId: string) => {
