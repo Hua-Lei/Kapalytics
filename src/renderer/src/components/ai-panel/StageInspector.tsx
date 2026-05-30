@@ -1,5 +1,5 @@
 import type { Stage } from '../../types'
-import type { DiagnosisResult } from '../../modules/diagnosis/types'
+import type { DiagnosisResult } from '../../../../shared/electron-api'
 import TruncatedText from './TruncatedText'
 import { useWorkspace } from '../../domains/workspace/useWorkspace'
 

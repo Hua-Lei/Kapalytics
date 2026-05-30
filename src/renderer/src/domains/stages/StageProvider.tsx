@@ -1,7 +1,7 @@
 import { createContext, useCallback, useState, type ReactNode } from 'react'
 import { electronApi } from '../../modules/ipc/electronApi'
 import type { Stage } from '../../types'
-import type { DiagnosisResult } from '../../modules/diagnosis/types'
+import type { DiagnosisResult } from '../../../../shared/electron-api'
 import { generateLearningReport, type LearningReport } from '../../modules/learning/report'
 import type { StageContextValue } from './types'
 

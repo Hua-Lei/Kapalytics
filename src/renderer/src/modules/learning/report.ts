@@ -1,4 +1,4 @@
-import type { DiagnosisResult } from '../diagnosis/types'
+import type { DiagnosisResult } from '../../../../shared/electron-api'
 import type { Stage } from '../../types'
 
 export interface LearningReport {
