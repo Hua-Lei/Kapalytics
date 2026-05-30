@@ -2,7 +2,7 @@ import type { KnowledgeGraph, PaperInsight } from '../../../../shared/paper'
 import type { Stage } from '../../types'
 import type { DiagnosisResult } from '../../modules/diagnosis/types'
 import type { LearningReport } from '../../modules/learning/report'
-import type { WorkspaceState } from '../../modules/workspace/types'
+import type { WorkspaceState } from '../workspace/types'
 
 export interface SavePayload {
   stages: Stage[]
