@@ -1,17 +1,8 @@
-import type { GraphNode } from '../../../shared/paper'
-import type { KnowledgeGraph as KGType } from '../modules/graph/types'
 import type { ExpansionGraphNode } from '../../../shared/kg4'
-import type { NodeExpansionSession } from '../modules/workspace/nodeExpansionSessions'
 import KnowledgeGraph from './KnowledgeGraph'
-
-interface ExpansionGraphViewProps {
-  anchorNode: GraphNode | undefined
-  graph: KGType
-  selectedExpansionNodeId?: string
-  session: NodeExpansionSession | undefined
-  onClear: () => void
-  onSelectExpansionNode: (node: ExpansionGraphNode, expansionId: string) => void
-}
+import { useWorkspace } from '../domains/workspace/useWorkspace'
+import { useExpansion } from '../domains/expansion/useExpansion'
+import { usePaper } from '../domains/paper/usePaper'
 
 const TYPE_LABELS: Record<string, string> = {
   method_family: 'method family',
@@ -21,7 +12,28 @@ const TYPE_LABELS: Record<string, string> = {
   open_problem: 'open problem'
 }
 
-function ExpansionGraphView({ anchorNode, graph, selectedExpansionNodeId, session, onClear, onSelectExpansionNode }: ExpansionGraphViewProps) {
+function ExpansionGraphView() {
+  const { activeTab, selectObject, updateTabStatus } = useWorkspace()
+  const { sessions, selectExpansionNode, clearExpansionGraph } = useExpansion()
+  const { graph } = usePaper()
+
+  const session = activeTab?.expansionId ? sessions[activeTab.expansionId] : undefined
+  const anchorNode = session ? graph.nodes.find((n) => n.id === session.nodeId) : undefined
+  const selectedExpansionNodeId = session?.selectedExpansionNodeId
+
+  const handleClear = () => {
+    if (!session) return
+    clearExpansionGraph(session.id)
+    updateTabStatus(activeTab?.id ?? '', 'empty')
+    selectObject(undefined)
+  }
+
+  const handleSelectExpansionNode = (node: ExpansionGraphNode) => {
+    if (!session) return
+    selectExpansionNode(node, session.id)
+    selectObject({ type: 'expansion_node', id: node.id, expansionId: session.id })
+  }
+
   if (!session || !session.expansionGraph || !anchorNode) {
     return (
       <div className="workspace-placeholder-view expansion-graph-view expansion-graph-view--empty">
@@ -49,7 +61,7 @@ function ExpansionGraphView({ anchorNode, graph, selectedExpansionNodeId, sessio
           <h3>{session.nodeLabel}</h3>
           <p>浅色节点是 temporary expansion nodes。点击节点只更新右侧 AI Panel，不打开完整 Workbench。</p>
         </div>
-        <button className="stage-btn stage-btn--secondary" onClick={onClear}>清除 temporary graph</button>
+        <button className="stage-btn stage-btn--secondary" onClick={handleClear}>清除 temporary graph</button>
       </section>
 
       <section className="expansion-graph-canvas">
@@ -61,8 +73,8 @@ function ExpansionGraphView({ anchorNode, graph, selectedExpansionNodeId, sessio
           view="argument"
           expansionGraph={expansionGraph}
           onNodeSelect={() => {}}
-          onClearExpansionGraph={onClear}
-          onExpansionNodeSelect={(node) => onSelectExpansionNode(node, session.id)}
+          onClearExpansionGraph={handleClear}
+          onExpansionNodeSelect={handleSelectExpansionNode}
         />
       </section>
 
@@ -71,7 +83,7 @@ function ExpansionGraphView({ anchorNode, graph, selectedExpansionNodeId, sessio
           <button
             className={`expansion-graph-node ${selectedExpansionNodeId === node.id ? 'expansion-graph-node--selected' : ''}`}
             key={node.id}
-            onClick={() => onSelectExpansionNode(node, session.id)}
+            onClick={() => handleSelectExpansionNode(node)}
             type="button"
           >
             <span>{TYPE_LABELS[node.type] ?? node.type}</span>

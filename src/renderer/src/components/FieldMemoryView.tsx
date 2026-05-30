@@ -1,27 +1,17 @@
-import { useEffect, useState } from 'react'
-import type { NodeUnderstandingMemory } from '../../../shared/kg4'
-import { electronApi } from '../modules/ipc/electronApi'
+import { useMemories } from '../domains/memory/useMemories'
+import { useWorkspace } from '../domains/workspace/useWorkspace'
 
-interface FieldMemoryViewProps {
-  memories: NodeUnderstandingMemory[]
-  selectedMemoryId?: string
-  onMemoriesLoaded: (memories: NodeUnderstandingMemory[]) => void
-  onSelectMemory: (memory: NodeUnderstandingMemory) => void
-}
-
-function FieldMemoryView({ memories, selectedMemoryId, onMemoriesLoaded, onSelectMemory }: FieldMemoryViewProps) {
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    setLoading(true)
-    electronApi.kg4.listNodeUnderstandingMemories({ limit: 100 })
-      .then(onMemoriesLoaded)
-      .catch(() => onMemoriesLoaded([]))
-      .finally(() => setLoading(false))
-  }, [onMemoriesLoaded])
+function FieldMemoryView() {
+  const { memories, loading } = useMemories()
+  const { selectObject, state } = useWorkspace()
+  const selectedMemoryId = state.selectedObject?.type === 'memory_record' ? state.selectedObject.id : undefined
 
   const totalIdeaCards = memories.reduce((sum, memory) => sum + memory.ideaCardIds.length, 0)
   const topicTags = [...new Set(memories.flatMap((memory) => memory.topicTags))].slice(0, 8)
+
+  const handleSelectMemory = (memory: typeof memories[number]) => {
+    selectObject({ type: 'memory_record', id: memory.id })
+  }
 
   return (
     <div className="field-memory-view">
@@ -52,7 +42,7 @@ function FieldMemoryView({ memories, selectedMemoryId, onMemoriesLoaded, onSelec
             <button
               className={`field-memory-card ${selectedMemoryId === memory.id ? 'field-memory-card--selected' : ''}`}
               key={memory.id}
-              onClick={() => onSelectMemory(memory)}
+              onClick={() => handleSelectMemory(memory)}
               type="button"
             >
               <span>{memory.nodeType} · {memory.aiFeedbackType}</span>

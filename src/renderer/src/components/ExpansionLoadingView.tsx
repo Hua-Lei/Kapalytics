@@ -1,8 +1,6 @@
+import { useExpansion } from '../domains/expansion/useExpansion'
+import { useWorkspace } from '../domains/workspace/useWorkspace'
 import type { NodeExpansionSession } from '../modules/workspace/nodeExpansionSessions'
-
-interface ExpansionLoadingViewProps {
-  session: NodeExpansionSession | undefined
-}
 
 const STATUS_LABEL: Record<NodeExpansionSession['status'], string> = {
   loading: 'Loading',
@@ -11,7 +9,11 @@ const STATUS_LABEL: Record<NodeExpansionSession['status'], string> = {
   empty: 'Empty'
 }
 
-function ExpansionLoadingView({ session }: ExpansionLoadingViewProps) {
+function ExpansionLoadingView() {
+  const { activeTab } = useWorkspace()
+  const { sessions } = useExpansion()
+  const session = activeTab?.expansionId ? sessions[activeTab.expansionId] : undefined
+
   if (!session) {
     return (
       <div className="workspace-placeholder-view expansion-loading-view expansion-loading-view--empty">
