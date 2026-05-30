@@ -14,6 +14,12 @@ import type { ExpansionGraphNode, NodeUnderstandingMemory } from '../../shared/k
 import { initialWorkspaceState, workspaceReducer } from './domains/workspace/workspaceReducer'
 import type { SelectedObject, WorkspaceState } from './domains/workspace/types'
 import { createNodeExpansionSession, advanceExpansionStep, type NodeExpansionSession } from './modules/workspace/nodeExpansionSessions'
+import { PersistenceGate } from './domains/persistence/PersistenceGate'
+import { PaperProvider } from './domains/paper/PaperProvider'
+import { StageProvider } from './domains/stages/StageProvider'
+import { ExpansionProvider } from './domains/expansion/ExpansionProvider'
+import { MemoryProvider } from './domains/memory/MemoryProvider'
+import { WorkspaceProvider } from './domains/workspace/WorkspaceProvider'
 
 type ResizeTarget = 'left' | 'right' | null
 
@@ -434,8 +440,14 @@ function App() {
   }
 
   return (
-    <div ref={containerRef} className="app-root">
-      <AppShell
+    <PersistenceGate onLoad={(data) => { /* restore logic stays in useEffect, unchanged */ }}>
+      <PaperProvider onAnalysisComplete={() => dispatchWorkspace({ type: 'activate_tab', tabId: 'paper_graph' })}>
+        <StageProvider>
+          <ExpansionProvider>
+            <MemoryProvider>
+              <WorkspaceProvider>
+                <div ref={containerRef} className="app-root">
+                  <AppShell
         analysisSteps={analysisSteps}
         answers={answers}
         diagnosedStageIds={diagnosedStageIds}
@@ -508,6 +520,12 @@ function App() {
         onTestConnection={handleTestConnection}
       />
     </div>
+              </WorkspaceProvider>
+            </MemoryProvider>
+          </ExpansionProvider>
+        </StageProvider>
+      </PaperProvider>
+    </PersistenceGate>
   )
 }
 
