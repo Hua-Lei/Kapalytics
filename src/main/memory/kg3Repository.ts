@@ -190,9 +190,9 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async savePaper(record: PaperRecord): Promise<void> {
-    const snapshot = readSnapshot(this.path)
+    const snapshot = readFileStore(this.path)
     snapshot.papers = upsertById(snapshot.papers, { ...record, updatedAt: now() })
-    writeSnapshot(this.path, snapshot)
+    writeFileStore(this.path, snapshot)
   }
 
   async getPaper(id: string): Promise<PaperRecord | null> {
@@ -209,7 +209,7 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
     edges: GraphEdge[],
     insight?: PaperInsight
   ): Promise<void> {
-    const snapshot = readSnapshot(this.path)
+    const snapshot = readFileStore(this.path)
     const timestamp = now()
 
     snapshot.graphNodes = snapshot.graphNodes.filter((node) => node.paperId !== paperId)
@@ -266,11 +266,11 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
       snapshot.paperInsights = upsertById(snapshot.paperInsights, insightRecord)
     }
 
-    writeSnapshot(this.path, snapshot)
+    writeFileStore(this.path, snapshot)
   }
 
   async saveSearchResults(query: string, results: PaperSearchResult[]): Promise<void> {
-    const snapshot = readSnapshot(this.path)
+    const snapshot = readFileStore(this.path)
     const timestamp = now()
     const records: PaperSearchResultRecord[] = results.map((result) => ({
       ...result,
@@ -280,13 +280,13 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
       fetchedAt: result.fetchedAt || timestamp
     }))
     for (const record of records) snapshot.paperSearchResults = upsertById(snapshot.paperSearchResults, record)
-    writeSnapshot(this.path, snapshot)
+    writeFileStore(this.path, snapshot)
   }
 
   async saveNodeExpansion(record: NodeExpansionRecord): Promise<void> {
-    const snapshot = readSnapshot(this.path)
+    const snapshot = readFileStore(this.path)
     snapshot.nodeExpansions = upsertById(snapshot.nodeExpansions, { ...record, updatedAt: now() })
-    writeSnapshot(this.path, snapshot)
+    writeFileStore(this.path, snapshot)
   }
 
   async saveKg4ExpansionRecord(record: Kg4NodeExpansionRecord): Promise<void> {
@@ -305,15 +305,15 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async saveLLMJob(job: LLMJob): Promise<void> {
-    const snapshot = readSnapshot(this.path)
+    const snapshot = readFileStore(this.path)
     snapshot.llmJobs = upsertById(snapshot.llmJobs, job)
-    writeSnapshot(this.path, snapshot)
+    writeFileStore(this.path, snapshot)
   }
 
   async saveNodeUnderstandingMemory(record: NodeUnderstandingMemory): Promise<void> {
-    const snapshot = readSnapshot(this.path)
+    const snapshot = readFileStore(this.path)
     snapshot.nodeUnderstandingMemories = upsertById(snapshot.nodeUnderstandingMemories, { ...record, updatedAt: now() })
-    writeSnapshot(this.path, snapshot)
+    writeFileStore(this.path, snapshot)
   }
 
   async listNodeUnderstandingMemories(query: NodeUnderstandingMemoryQuery = {}): Promise<NodeUnderstandingMemory[]> {
@@ -330,7 +330,8 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async getSnapshot(): Promise<Kg3MemorySnapshot> {
-    return readSnapshot(this.path)
+    const { kg4NodeExpansions: _kg4NodeExpansions, ...snapshot } = readFileStore(this.path)
+    return snapshot
   }
 
   async saveSnapshot(snapshot: Kg3MemorySnapshot): Promise<void> {
