@@ -326,7 +326,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
   })
 
   ipcMain.handle('kg4:start-expansion', async (_e, params: StartKg4ExpansionParams) => {
-    const sessionId = `expansion_${params.nodeId}_${Date.now()}`
+    const sessionId = params.sessionId ?? `expansion_${params.nodeId}_${Date.now()}`
     const searchQuery = [params.nodeLabel, ...(params.searchQueries ?? [])].filter(Boolean).join(' ')
 
     const runExpansion = async (): Promise<void> => {

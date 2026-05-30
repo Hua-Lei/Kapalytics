@@ -25,6 +25,19 @@ function NodeInspector({ node }: { node: GraphNode }) {
     setExpansionRequested(true)
     const result = await startExpansion(node.id)
     if (!result) return
+    if (result.status === 'ready-from-cache') {
+      openTab({
+        id: `expansion_graph_${result.sessionId}`,
+        type: 'expansion_graph',
+        title: `Expand: ${node.label}`,
+        nodeId: node.id,
+        expansionId: result.sessionId,
+        closable: true,
+        status: 'ready'
+      })
+      return
+    }
+
     openTab({
       id: result.sessionId,
       type: 'node_expansion_loading',

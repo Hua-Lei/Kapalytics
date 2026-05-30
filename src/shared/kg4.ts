@@ -299,6 +299,7 @@ export type Kg4NodeLike = Pick<GraphNode, 'id' | 'type' | 'label' | 'description
 }
 
 export interface StartKg4ExpansionParams {
+  sessionId?: string
   nodeId: string
   nodeLabel: string
   paperId?: string

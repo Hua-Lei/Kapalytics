@@ -63,6 +63,7 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
     setSessions((prev) => ({ ...prev, [session.id]: session }))
 
     const result = await electronApi.kg4.startExpansion({
+      sessionId,
       nodeId: node.id,
       nodeLabel: node.label,
       paperId,

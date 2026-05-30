@@ -1,4 +1,4 @@
-import type { Kg4ExpansionGraphLayer, Kg4NodeExpansionRecord } from '../../../../shared/kg4'
+import { isKg4NodeExpansionRecord, type Kg4ExpansionGraphLayer, type Kg4NodeExpansionRecord } from '../../../../shared/kg4'
 import type { ExpansionProgressEvent } from '../../../../shared/electron-api'
 import type { GraphNode } from '../../../../shared/paper'
 
@@ -67,30 +67,35 @@ export function updateSessionFromJobProgress(
   const now = new Date().toISOString()
   const stepOrder = ['job_created', 'retrieving', 'analyzing', 'generating', 'persisting', 'done'] as const
 
+  if (event.step === 'failed') {
+    const fallbackStepId =
+      session.steps.find((step) => step.status === 'running')?.id ??
+      session.currentStepId ??
+      [...session.steps].reverse().find((step) => step.status !== 'done')?.id
+    const errorMessage = event.error || event.message
+
+    return {
+      ...session,
+      status: 'failed',
+      currentStepId: fallbackStepId,
+      steps: session.steps.map((step) => step.id === fallbackStepId ? { ...step, status: 'failed' as const, detail: errorMessage } : step),
+      errorMessage,
+      updatedAt: now
+    }
+  }
+
   const currentIndex = stepOrder.indexOf(event.step as typeof stepOrder[number])
   const steps = session.steps.map((step) => {
     const stepIndex = stepOrder.indexOf(step.id as typeof stepOrder[number])
     if (stepIndex < currentIndex) return { ...step, status: 'done' as const }
     if (stepIndex === currentIndex) {
-      if (event.step === 'failed') return { ...step, status: 'failed' as const, detail: event.error || event.message }
       return { ...step, status: 'running' as const, detail: event.message }
     }
     return step
   })
 
-  if (event.step === 'failed') {
-    return {
-      ...session,
-      status: 'failed',
-      currentStepId: event.step,
-      steps,
-      errorMessage: event.error || event.message,
-      updatedAt: now
-    }
-  }
-
   if (event.step === 'done') {
-    const record = event.result as Kg4NodeExpansionRecord | undefined
+    const record = isKg4NodeExpansionRecord(event.result) ? event.result : undefined
     const expansionGraph: Kg4ExpansionGraphLayer | undefined = record ? {
       anchorNodeId: session.nodeId,
       nodes: record.expansionGraphNodes,
@@ -104,7 +109,7 @@ export function updateSessionFromJobProgress(
       steps: steps.map((step) => step.id === 'done' ? { ...step, status: 'done' as const, detail: event.message } : step),
       expansionGraph,
       expansionRecord: record,
-      errorMessage: record ? undefined : '展开任务完成，但没有返回可展示的 KG4 expansion record。',
+      errorMessage: record ? undefined : '展开任务完成，但返回的 KG4 expansion record 无效或不可展示。',
       updatedAt: now
     }
   }
