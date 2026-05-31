@@ -660,48 +660,6 @@ const conceptRelations = ['prerequisite', 'similar', 'contrasts_with', 'used_by'
 
 const conceptViewCompleteness = ['complete', 'partial', 'insufficient'] as const satisfies readonly ConceptLearningView['dataCompleteness'][]
 
-const readingRoles = ['survey', 'foundation', 'recent_hot', 'representative', 'needs_review'] as const satisfies readonly ResearchAreaView['recommendedReading'][number]['role'][]
-
-function isResearchAreaView(value: unknown): value is ResearchAreaView {
-  if (!isRecordObject(value)) return false
-  if (
-    typeof value.id !== 'string' || !value.id.trim() ||
-    typeof value.anchorNodeId !== 'string' || !value.anchorNodeId.trim() ||
-    typeof value.title !== 'string' || !value.title.trim() ||
-    typeof value.overview !== 'string' || !value.overview.trim()
-  ) return false
-  if (!isStringArray(value.keyProblems)) return false
-  if (
-    !Array.isArray(value.methodFamilies) ||
-    !value.methodFamilies.every((mf: unknown) =>
-      isRecordObject(mf) &&
-      typeof mf.label === 'string' && Boolean(mf.label.trim()) &&
-      typeof mf.summary === 'string' && Boolean(mf.summary.trim()) &&
-      isStringArray(mf.representativePaperIds)
-    )
-  ) return false
-  if (
-    !Array.isArray(value.recentHotDirections) ||
-    !value.recentHotDirections.every((rhd: unknown) =>
-      isRecordObject(rhd) &&
-      typeof rhd.label === 'string' && Boolean(rhd.label.trim()) &&
-      typeof rhd.summary === 'string' && Boolean(rhd.summary.trim()) &&
-      isStringArray(rhd.paperIds) &&
-      isNumberInRange(rhd.confidence, 0, 1)
-    )
-  ) return false
-  if (
-    !Array.isArray(value.recommendedReading) ||
-    !value.recommendedReading.every((rr: unknown) =>
-      isRecordObject(rr) &&
-      typeof rr.paperId === 'string' && Boolean(rr.paperId.trim()) &&
-      typeof rr.reason === 'string' && Boolean(rr.reason.trim()) &&
-      isOneOf(rr.role, readingRoles)
-    )
-  ) return false
-  return true
-}
-
 function isAlgorithmIdeaCard(value: unknown): value is AlgorithmIdeaCard {
   if (!isRecordObject(value)) return false
   const evidenceSource = value.evidenceSource
