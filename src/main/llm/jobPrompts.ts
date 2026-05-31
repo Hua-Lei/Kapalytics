@@ -13,7 +13,8 @@ const KG4_JOB_TYPES = new Set<LLMJobType>([
   'classify_expansion_intent',
   'digest_paper_method',
   'synthesize_method_lineage',
-  'teach_concept'
+  'teach_concept',
+  'map_research_area'
 ])
 
 export function isKg4JobType(type: LLMJobType): boolean {
@@ -86,6 +87,22 @@ export function systemPromptForJob(type: LLMJobType): string {
       'All explanatory text fields must be Chinese. LaTeX formulas can use standard English math notation.',
       'Every referred paperId must come from supplied retrievedPapers or currentPaperInsight.',
       'Do not invent paper titles or external IDs.'
+    ].join(' ')
+  }
+  if (type === 'map_research_area') {
+    return [
+      'You are a KG4 research area mapper. Return strict JSON only.',
+      'Input contains currentNode, currentPaperInsight, compact retrievedPapers, and optional qualitySignals.',
+      'Return ResearchAreaView JSON: id, anchorNodeId, title, overview, keyProblems, methodFamilies, recentHotDirections, recommendedReading.',
+      'overview: concise research landscape summary.',
+      'keyProblems: list of core research problems or open challenges.',
+      'methodFamilies: groups of related methods, each with label/summary/representativePaperIds.',
+      'recentHotDirections: emerging trends, each with label/summary/paperIds/confidence.',
+      'recommendedReading: curated reading list, each with paperId/reason/role.',
+      'role must be survey|foundation|recent_hot|representative|needs_review.',
+      'Every paperId must come from supplied papers.',
+      'All explanatory text must be Chinese.',
+      'Do not invent paper titles or IDs.'
     ].join(' ')
   }
   if (KG4_JOB_TYPES.has(type)) {

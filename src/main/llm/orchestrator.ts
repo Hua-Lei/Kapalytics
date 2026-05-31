@@ -255,6 +255,12 @@ export function validateJobOutput(job: LLMJob, output: unknown): ReferencedPaper
       validateConceptLearning(output)
     )
   }
+  if (job.type === 'map_research_area') {
+    return mergeValidationResults(
+      validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
+      validateResearchArea(output)
+    )
+  }
   if (job.type === 'synthesize_method_lineage') {
     return mergeValidationResults(
       validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
@@ -417,6 +423,19 @@ function validateMethodLineageEdge(edge: unknown, index: number, allowedPaperIds
     errors.push(`synthesize_method_lineage.edges[${index}].evidencePaperIds must only reference supplied papers`)
   }
   if (!isNumberInRange(edge.confidence, 0, 1)) errors.push(`synthesize_method_lineage.edges[${index}].confidence must be a number between 0 and 1`)
+}
+
+function validateResearchArea(output: unknown): ReferencedPaperValidationResult {
+  const errors: string[] = []
+  if (!isRecord(output)) return schemaErrors('map_research_area output must be an object')
+  if (!isNonEmptyString(output.id)) errors.push('map_research_area.id must be a non-empty string')
+  if (!isNonEmptyString(output.anchorNodeId)) errors.push('map_research_area.anchorNodeId must be a non-empty string')
+  if (!isNonEmptyString(output.title)) errors.push('map_research_area.title must be a non-empty string')
+  if (!isNonEmptyString(output.overview)) errors.push('map_research_area.overview must be a non-empty string')
+  if (!Array.isArray(output.keyProblems)) errors.push('map_research_area.keyProblems must be an array')
+  if (!Array.isArray(output.methodFamilies)) errors.push('map_research_area.methodFamilies must be an array')
+  if (!Array.isArray(output.recommendedReading)) errors.push('map_research_area.recommendedReading must be an array')
+  return schemaErrors(...errors)
 }
 
 function validateConceptLearning(output: unknown): ReferencedPaperValidationResult {

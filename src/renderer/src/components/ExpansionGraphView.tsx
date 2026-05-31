@@ -1,5 +1,6 @@
 import type { ExpansionGraphNode } from '../../../shared/kg4'
 import { ConceptLearningView } from './ConceptLearningView'
+import { ResearchAreaView } from './ResearchAreaView'
 import { ExpansionRouteHeader } from './ExpansionRouteHeader'
 import KnowledgeGraph from './KnowledgeGraph'
 import { useWorkspace } from '../domains/workspace/useWorkspace'
@@ -105,6 +106,10 @@ function ExpansionGraphView() {
 
       {record?.conceptLearningView ? (
         <ConceptLearningView concept={record.conceptLearningView} nodeLabel={session.nodeLabel} />
+      ) : null}
+
+      {record?.researchAreaView ? (
+        <ResearchAreaView area={record.researchAreaView} nodeLabel={session.nodeLabel} />
       ) : null}
 
       <section className="expansion-graph-canvas">
