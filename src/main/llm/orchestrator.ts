@@ -249,6 +249,12 @@ export function validateJobOutput(job: LLMJob, output: unknown): ReferencedPaper
       validatePaperMethodDigest(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])], expectedRetrievedPaperTitle(job.inputJson))
     )
   }
+  if (job.type === 'teach_concept') {
+    return mergeValidationResults(
+      validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
+      validateConceptLearning(output)
+    )
+  }
   if (job.type === 'synthesize_method_lineage') {
     return mergeValidationResults(
       validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
@@ -411,6 +417,32 @@ function validateMethodLineageEdge(edge: unknown, index: number, allowedPaperIds
     errors.push(`synthesize_method_lineage.edges[${index}].evidencePaperIds must only reference supplied papers`)
   }
   if (!isNumberInRange(edge.confidence, 0, 1)) errors.push(`synthesize_method_lineage.edges[${index}].confidence must be a number between 0 and 1`)
+}
+
+function validateConceptLearning(output: unknown): ReferencedPaperValidationResult {
+  const errors: string[] = []
+  if (!isRecord(output)) return schemaErrors('teach_concept output must be an object')
+  if (!isNonEmptyString(output.id)) errors.push('teach_concept.id must be a non-empty string')
+  if (!isNonEmptyString(output.anchorNodeId)) errors.push('teach_concept.anchorNodeId must be a non-empty string')
+  if (!isNonEmptyString(output.title)) errors.push('teach_concept.title must be a non-empty string')
+  const qe = output.quickExplanation
+  if (!isRecord(qe)) {
+    errors.push('teach_concept.quickExplanation must be an object')
+  } else {
+    if (!isNonEmptyString(qe.intuition)) errors.push('teach_concept.quickExplanation.intuition must be a non-empty string')
+    if (!isNonEmptyString(qe.problemSolved)) errors.push('teach_concept.quickExplanation.problemSolved must be a non-empty string')
+    if (!isNonEmptyString(qe.coreMechanism)) errors.push('teach_concept.quickExplanation.coreMechanism must be a non-empty string')
+    if (!isNonEmptyString(qe.whenToUse)) errors.push('teach_concept.quickExplanation.whenToUse must be a non-empty string')
+  }
+  const fe = output.formalExplanation
+  if (!isRecord(fe)) {
+    errors.push('teach_concept.formalExplanation must be an object')
+  } else {
+    if (!isNonEmptyString(fe.definition)) errors.push('teach_concept.formalExplanation.definition must be a non-empty string')
+    if (!Array.isArray(fe.formulas)) errors.push('teach_concept.formalExplanation.formulas must be an array')
+  }
+  if (!Array.isArray(output.misconceptions)) errors.push('teach_concept.misconceptions must be an array')
+  return schemaErrors(...errors)
 }
 
 function expectedRetrievedPaperTitle(input: unknown): string | undefined {

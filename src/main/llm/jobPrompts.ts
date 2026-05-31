@@ -12,7 +12,8 @@ const KG4_JOB_TYPES = new Set<LLMJobType>([
   'generate_optional_transfer_task',
   'classify_expansion_intent',
   'digest_paper_method',
-  'synthesize_method_lineage'
+  'synthesize_method_lineage',
+  'teach_concept'
 ])
 
 export function isKg4JobType(type: LLMJobType): boolean {
@@ -68,6 +69,23 @@ export function systemPromptForJob(type: LLMJobType): string {
       'Every representativePaperIds, digestIds, and evidencePaperIds item must come from the supplied inputs.',
       'Mark uncertain relationships as evidence_insufficient instead of inventing evidence.',
       'All explanatory text fields must be Chinese (中文).'
+    ].join(' ')
+  }
+  if (type === 'teach_concept') {
+    return [
+      'You are a KG4 concept teaching worker. Return strict JSON only.',
+      'Input contains currentNode, currentPaperInsight, compact retrievedPapers, and optional qualitySignals.',
+      'Return exactly one ConceptLearningView JSON with fields: id, anchorNodeId, title, quickExplanation, formalExplanation, misconceptions, relationMap, representativePaperIds, recentPaperIds, dataCompleteness, missingDataReasons.',
+      'quickExplanation must have: intuition, problemSolved, coreMechanism, whenToUse.',
+      'formalExplanation must have: definition, formulas, assumptions.',
+      'Each formula must have: latex (valid LaTeX), explanation, and variables array (each with symbol and meaning).',
+      'misconceptions: list of { misconception, correction } pairs.',
+      'relationMap: list of { label, relation (prerequisite|similar|contrasts_with|used_by|variant), explanation } describing how this concept relates to connected ideas.',
+      'representativePaperIds: representative, definitional, survey, or classic papers.',
+      'recentPaperIds: recent papers (within 2 years) building on or applying this concept.',
+      'All explanatory text fields must be Chinese. LaTeX formulas can use standard English math notation.',
+      'Every referred paperId must come from supplied retrievedPapers or currentPaperInsight.',
+      'Do not invent paper titles or external IDs.'
     ].join(' ')
   }
   if (KG4_JOB_TYPES.has(type)) {

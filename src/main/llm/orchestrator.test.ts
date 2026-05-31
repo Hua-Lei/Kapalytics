@@ -349,4 +349,54 @@ assert.equal(
   true
 )
 
-console.log('orchestrator tests passed')
+// teach_concept validation
+const teachConceptPrompt = systemPromptForJob('teach_concept')
+assert.match(teachConceptPrompt, /ConceptLearningView/i)
+assert.match(teachConceptPrompt, /quickExplanation/i)
+assert.match(teachConceptPrompt, /formalExplanation/i)
+assert.match(teachConceptPrompt, /misconceptions/i)
+assert.match(teachConceptPrompt, /relationMap/i)
+assert.match(teachConceptPrompt, /representativePaperIds/i)
+assert.match(teachConceptPrompt, /recentPaperIds/i)
+assert.match(teachConceptPrompt, /Chinese/)
+
+const conceptJob = {
+  type: 'teach_concept' as const,
+  relatedPaperIds: ['paper-lo'],
+  paperId: undefined,
+  nodeId: undefined
+} as any
+
+const validConcept = {
+  id: 'cv-lo',
+  anchorNodeId: 'n-lo',
+  title: 'LoRA: Low-Rank Adaptation',
+  quickExplanation: {
+    intuition: '用低秩矩阵近似全参数更新。',
+    problemSolved: '大模型全参数微调成本过高。',
+    coreMechanism: '冻结权重，通过低秩分解注入可训练参数。',
+    whenToUse: '高效适配预训练模型时。'
+  },
+  formalExplanation: {
+    definition: '对于权重 W，参数化为 W + BA。',
+    formulas: [{
+      latex: 'h = Wx + BAx',
+      explanation: '前向传播。',
+      variables: [{ symbol: 'W', meaning: '原始权重' }]
+    }],
+    assumptions: []
+  },
+  misconceptions: [{ misconception: '错误', correction: '正确' }],
+  relationMap: [{ label: 'Adapter', relation: 'similar', explanation: '类似' }],
+  representativePaperIds: ['paper-lo'],
+  recentPaperIds: [],
+  dataCompleteness: 'partial' as const,
+  missingDataReasons: []
+}
+
+assert.equal(validateJobOutput(conceptJob, validConcept).ok, true)
+
+const badConcept = { ...validConcept, quickExplanation: null }
+assert.equal(validateJobOutput(conceptJob, badConcept).ok, false)
+
+console.log('teach_concept tests passed')
