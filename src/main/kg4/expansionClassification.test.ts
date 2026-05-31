@@ -51,6 +51,17 @@ assert.equal(legacyLineage.primaryType, 'method')
 assert.equal(legacyLineage.recommendedPath, 'track_method_lineage')
 assert.equal(classificationToLegacyIntent(legacyLineage, 'Hypernetwork').queryFocus, 'Hypernetwork')
 
+const lowConfidenceLegacyLineage = normalizeExpansionClassification({
+  kind: 'algorithm_method_lineage',
+  confidence: 0.34,
+  queryFocus: 'uncertain method',
+  rationale: 'The legacy classifier was not confident.'
+}, { nodeLabel: 'Uncertain Method' })
+
+assert.equal(lowConfidenceLegacyLineage.primaryType, 'unknown')
+assert.equal(lowConfidenceLegacyLineage.recommendedPath, 'review_related_papers')
+assert.equal(lowConfidenceLegacyLineage.ambiguity?.competingType, 'method')
+
 const malformed = normalizeExpansionClassification(null, { nodeLabel: 'Unknown Thing' })
 assert.equal(malformed.primaryType, 'unknown')
 assert.equal(malformed.recommendedPath, 'review_related_papers')

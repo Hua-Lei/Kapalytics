@@ -20,7 +20,7 @@ export function normalizeExpansionClassification(
   if (!isRecord(value)) return fallbackClassification()
 
   if (value.kind === 'algorithm_method_lineage' || value.kind === 'generic_related_papers') {
-    return normalizeLegacyIntent(value)
+    return normalizeLegacyIntent(value, nodeLabel)
   }
 
   const suggestedPrimaryType = readPrimaryType(value.primaryType)
@@ -83,9 +83,26 @@ export function classificationToLegacyIntent(
   }
 }
 
-function normalizeLegacyIntent(value: ClassificationInput): ExpansionNodeClassification {
+function normalizeLegacyIntent(value: ClassificationInput, nodeLabel: string): ExpansionNodeClassification {
   const confidence = readConfidence(value.confidence, 0)
   const rationale = readString(value.rationale) ?? FALLBACK_RATIONALE
+
+  if (confidence < 0.5) {
+    return {
+      primaryType: 'unknown',
+      facets: [],
+      confidence,
+      rationale,
+      recommendedPath: 'review_related_papers',
+      alternativePaths: defaultAlternativePaths('unknown'),
+      ambiguity: value.kind === 'algorithm_method_lineage'
+        ? {
+            competingType: 'method',
+            reason: `Low confidence classification for ${nodeLabel}.`
+          }
+        : undefined
+    }
+  }
 
   if (value.kind === 'algorithm_method_lineage') {
     return {
