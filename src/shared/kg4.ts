@@ -192,7 +192,12 @@ export interface RelatedPaperRecommendation {
 export interface ExpansionRetrievalPlan {
   primaryQuery: string
   searchQueries: string[]
-  retrievalGoal: 'same_problem_methods' | 'generic_related_papers'
+  retrievalGoal:
+    | 'same_problem_methods'
+    | 'generic_related_papers'
+    | 'concept_learning_papers'
+    | 'research_area_papers'
+    | 'paper_evidence'
   maxResults: number
   requireAbstract: boolean
 }
