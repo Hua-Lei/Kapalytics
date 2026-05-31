@@ -821,6 +821,19 @@ function isMethodLineageView(value: unknown): value is MethodLineageView {
   )
 }
 
+function isConceptFormulaEntry(value: unknown): value is ConceptFormulaEntry {
+  if (!isRecordObject(value)) return false
+  if (typeof value.latex !== 'string' || !value.latex.trim()) return false
+  if (typeof value.explanation !== 'string' || !value.explanation.trim()) return false
+  if (!Array.isArray(value.variables)) return false
+  return value.variables.every(
+    (v: unknown) =>
+      isRecordObject(v) &&
+      typeof v.symbol === 'string' && Boolean(v.symbol.trim()) &&
+      typeof v.meaning === 'string' && Boolean(v.meaning.trim())
+  )
+}
+
 function isConceptLearningView(value: unknown): value is ConceptLearningView {
   if (!isRecordObject(value)) return false
   if (
@@ -835,7 +848,7 @@ function isConceptLearningView(value: unknown): value is ConceptLearningView {
   if (!isRecordObject(fe)) return false
   if (typeof fe.definition !== 'string' || !fe.definition.trim()) return false
   if (!Array.isArray(fe.formulas)) return false
-  if (!fe.formulas.every((f: unknown) => isRecordObject(f) && typeof f.latex === 'string' && Boolean(f.latex.trim()) && typeof f.explanation === 'string' && Boolean(f.explanation.trim()) && Array.isArray(f.variables) && f.variables.every((v: unknown) => isRecordObject(v) && typeof v.symbol === 'string' && typeof v.meaning === 'string'))) return false
+  if (!fe.formulas.every(isConceptFormulaEntry)) return false
   if (!isStringArray(fe.assumptions)) return false
   if (!Array.isArray(value.misconceptions) || !value.misconceptions.every((m: unknown) => isRecordObject(m) && typeof m.misconception === 'string' && Boolean(m.misconception.trim()) && typeof m.correction === 'string' && Boolean(m.correction.trim()))) return false
   if (!Array.isArray(value.relationMap) || !value.relationMap.every((r: unknown) => isRecordObject(r) && typeof r.label === 'string' && Boolean(r.label.trim()) && isOneOf(r.relation, conceptRelations) && typeof r.explanation === 'string' && Boolean(r.explanation.trim()))) return false
