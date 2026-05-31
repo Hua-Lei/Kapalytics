@@ -699,10 +699,11 @@ function isRelatedPaperRecommendation(value: unknown): value is RelatedPaperReco
     Boolean(value.paperId.trim()) &&
     typeof value.title === 'string' &&
     Boolean(value.title.trim()) &&
-    (value.year === undefined || typeof value.year === 'number') &&
+    (value.year === undefined ||
+      (typeof value.year === 'number' && Number.isInteger(value.year) && value.year >= 1900 && value.year <= 2100)) &&
     isOptionalString(value.venue) &&
     isStringArray(value.sources) &&
-    (value.citationCount === undefined || typeof value.citationCount === 'number') &&
+    (value.citationCount === undefined || (typeof value.citationCount === 'number' && Number.isFinite(value.citationCount) && value.citationCount >= 0)) &&
     (value.qualitySignal === undefined || isPaperQualitySignal(value.qualitySignal)) &&
     typeof value.whyRecommended === 'string' &&
     Boolean(value.whyRecommended.trim()) &&
