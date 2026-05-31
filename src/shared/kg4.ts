@@ -131,6 +131,64 @@ export interface ExpansionIntent {
   fallbackReason?: string
 }
 
+export type ExpansionPrimaryType = 'field' | 'problem' | 'concept' | 'method' | 'paper' | 'unknown'
+
+export type ExpansionPath =
+  | 'learn_concept'
+  | 'track_method_lineage'
+  | 'explore_research_area'
+  | 'review_related_papers'
+  | 'inspect_paper_evidence'
+
+export interface ExpansionNodeClassification {
+  primaryType: ExpansionPrimaryType
+  facets: string[]
+  confidence: number
+  rationale: string
+  recommendedPath: ExpansionPath
+  alternativePaths: ExpansionPath[]
+  ambiguity?: {
+    competingType: ExpansionPrimaryType
+    reason: string
+  }
+}
+
+export type PaperBadge =
+  | 'top_venue'
+  | 'strong_venue'
+  | 'highly_cited'
+  | 'recent'
+  | 'recent_hot'
+  | 'survey'
+  | 'benchmark'
+  | 'open_access'
+  | 'local_library'
+  | 'unknown_venue'
+  | 'needs_review'
+
+export interface PaperQualitySignal {
+  paperId: string
+  qualityScore: number
+  trendScore: number
+  badges: PaperBadge[]
+  reasons: string[]
+  warnings: string[]
+}
+
+export interface RelatedPaperRecommendation {
+  paperId: string
+  title: string
+  year?: number
+  venue?: string
+  sources: string[]
+  citationCount?: number
+  qualitySignal?: PaperQualitySignal
+  whyRecommended: string
+  relevanceSummary: string
+  bestUrl?: string
+  bestPdfUrl?: string
+}
+
 export interface ExpansionRetrievalPlan {
   primaryQuery: string
   searchQueries: string[]
@@ -220,6 +278,9 @@ export interface Kg4NodeExpansionRecord {
   expansionGraphEdges: ExpansionGraphEdge[]
   fieldCognitionView?: FieldCognitionView
   expansionIntent?: ExpansionIntent
+  expansionClassification?: ExpansionNodeClassification
+  qualitySignals?: PaperQualitySignal[]
+  relatedPaperRecommendations?: RelatedPaperRecommendation[]
   paperMethodDigests?: PaperMethodDigest[]
   methodLineageView?: MethodLineageView
   dataCompleteness: 'complete' | 'partial' | 'insufficient'
@@ -469,6 +530,30 @@ const expansionNodeVisualStyles = ['faded', 'highlighted', 'normal'] as const sa
 
 const expansionIntentKinds = ['algorithm_method_lineage', 'generic_related_papers'] as const satisfies readonly ExpansionIntent['kind'][]
 
+const expansionPrimaryTypes = ['field', 'problem', 'concept', 'method', 'paper', 'unknown'] as const satisfies readonly ExpansionPrimaryType[]
+
+const expansionPaths = [
+  'learn_concept',
+  'track_method_lineage',
+  'explore_research_area',
+  'review_related_papers',
+  'inspect_paper_evidence'
+] as const satisfies readonly ExpansionPath[]
+
+const paperBadges = [
+  'top_venue',
+  'strong_venue',
+  'highly_cited',
+  'recent',
+  'recent_hot',
+  'survey',
+  'benchmark',
+  'open_access',
+  'local_library',
+  'unknown_venue',
+  'needs_review'
+] as const satisfies readonly PaperBadge[]
+
 const paperMethodRelationHints = [
   'foundation',
   'parallel_variant',
@@ -573,6 +658,61 @@ function isNumberInRange(value: unknown, min: number, max: number): value is num
   return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
 }
 
+function isExpansionNodeClassification(value: unknown): value is ExpansionNodeClassification {
+  if (!isRecordObject(value)) return false
+  const ambiguity = value.ambiguity
+  return (
+    isOneOf(value.primaryType, expansionPrimaryTypes) &&
+    isStringArray(value.facets) &&
+    isNumberInRange(value.confidence, 0, 1) &&
+    typeof value.rationale === 'string' &&
+    Boolean(value.rationale.trim()) &&
+    isOneOf(value.recommendedPath, expansionPaths) &&
+    Array.isArray(value.alternativePaths) &&
+    value.alternativePaths.every((path) => isOneOf(path, expansionPaths)) &&
+    (ambiguity === undefined ||
+      (isRecordObject(ambiguity) &&
+        isOneOf(ambiguity.competingType, expansionPrimaryTypes) &&
+        typeof ambiguity.reason === 'string' &&
+        Boolean(ambiguity.reason.trim())))
+  )
+}
+
+function isPaperQualitySignal(value: unknown): value is PaperQualitySignal {
+  if (!isRecordObject(value)) return false
+  return (
+    typeof value.paperId === 'string' &&
+    Boolean(value.paperId.trim()) &&
+    isNumberInRange(value.qualityScore, 0, 1) &&
+    isNumberInRange(value.trendScore, 0, 1) &&
+    Array.isArray(value.badges) &&
+    value.badges.every((badge) => isOneOf(badge, paperBadges)) &&
+    isStringArray(value.reasons) &&
+    isStringArray(value.warnings)
+  )
+}
+
+function isRelatedPaperRecommendation(value: unknown): value is RelatedPaperRecommendation {
+  if (!isRecordObject(value)) return false
+  return (
+    typeof value.paperId === 'string' &&
+    Boolean(value.paperId.trim()) &&
+    typeof value.title === 'string' &&
+    Boolean(value.title.trim()) &&
+    (value.year === undefined || typeof value.year === 'number') &&
+    isOptionalString(value.venue) &&
+    isStringArray(value.sources) &&
+    (value.citationCount === undefined || typeof value.citationCount === 'number') &&
+    (value.qualitySignal === undefined || isPaperQualitySignal(value.qualitySignal)) &&
+    typeof value.whyRecommended === 'string' &&
+    Boolean(value.whyRecommended.trim()) &&
+    typeof value.relevanceSummary === 'string' &&
+    Boolean(value.relevanceSummary.trim()) &&
+    isOptionalString(value.bestUrl) &&
+    isOptionalString(value.bestPdfUrl)
+  )
+}
+
 function isExpansionIntent(value: unknown): value is ExpansionIntent {
   return (
     isRecordObject(value) &&
@@ -635,6 +775,14 @@ function isMethodLineageView(value: unknown): value is MethodLineageView {
 export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpansionRecord {
   if (!value || typeof value !== 'object') return false
   const record = value as Partial<Kg4NodeExpansionRecord>
+  if (record.expansionClassification !== undefined && !isExpansionNodeClassification(record.expansionClassification)) return false
+  if (record.qualitySignals !== undefined && (!Array.isArray(record.qualitySignals) || !record.qualitySignals.every(isPaperQualitySignal))) return false
+  if (
+    record.relatedPaperRecommendations !== undefined &&
+    (!Array.isArray(record.relatedPaperRecommendations) || !record.relatedPaperRecommendations.every(isRelatedPaperRecommendation))
+  ) {
+    return false
+  }
   return (
     typeof record.id === 'string' &&
     typeof record.paperId === 'string' &&
