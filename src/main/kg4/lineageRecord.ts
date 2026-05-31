@@ -3,11 +3,14 @@ import type { DedupedPaperCandidate } from '../../shared/kg3'
 import type {
   ExpansionGraphEdge,
   ExpansionGraphNode,
+  ExpansionNodeClassification,
   ExpansionRelation,
   Kg4NodeExpansionRecord,
   MethodLineageRelation,
   MethodLineageView,
   PaperMethodDigest,
+  PaperQualitySignal,
+  RelatedPaperRecommendation,
   ExpansionIntent
 } from '../../shared/kg4'
 import { isKg4NodeExpansionRecord } from '../../shared/kg4'
@@ -112,6 +115,9 @@ export function assembleLineageExpansionRecord(params: {
   retrievedPapers: DedupedPaperCandidate[]
   paperMethodDigests?: PaperMethodDigest[]
   methodLineageView?: MethodLineageView
+  classification?: ExpansionNodeClassification
+  qualitySignals?: PaperQualitySignal[]
+  relatedPaperRecommendations?: RelatedPaperRecommendation[]
 }): Kg4NodeExpansionRecord {
   const timestamp = now()
   const digests = params.paperMethodDigests ?? []
@@ -133,6 +139,9 @@ export function assembleLineageExpansionRecord(params: {
     expansionGraphNodes,
     expansionGraphEdges,
     expansionIntent: params.intent,
+    expansionClassification: params.classification,
+    qualitySignals: params.qualitySignals,
+    relatedPaperRecommendations: params.relatedPaperRecommendations,
     paperMethodDigests: digests.length ? digests : undefined,
     methodLineageView: params.methodLineageView,
     dataCompleteness,

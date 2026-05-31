@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import type { DedupedPaperCandidate } from '../../shared/kg3'
-import type { ExpansionIntent, MethodLineageView, PaperMethodDigest } from '../../shared/kg4'
-import { buildExpansionRetrievalPlan } from './expansionQuery'
+import type { ExpansionIntent, ExpansionNodeClassification, MethodLineageView, PaperMethodDigest, PaperQualitySignal } from '../../shared/kg4'
+import { buildExpansionRetrievalPlan, buildStrategyRetrievalPlan } from './expansionQuery'
 import { assembleLineageExpansionRecord, toShortDisplayText } from './lineageRecord'
 
 function candidate(id: string, title: string, abstract: string): DedupedPaperCandidate {
@@ -104,6 +104,24 @@ assert.equal(retrievalPlan.retrievalGoal, 'same_problem_methods')
 assert.equal(retrievalPlan.primaryQuery, 'policy optimization')
 assert.ok(retrievalPlan.searchQueries.some((query) => /sparse reward/i.test(query)))
 
+const conceptClassification: ExpansionNodeClassification = {
+  primaryType: 'concept',
+  facets: ['method_component', 'parameter_efficient_finetuning'],
+  confidence: 0.9,
+  rationale: 'LoRA is a reusable concept.',
+  recommendedPath: 'learn_concept',
+  alternativePaths: ['track_method_lineage', 'review_related_papers']
+}
+
+const conceptRetrievalPlan = buildStrategyRetrievalPlan({
+  classification: conceptClassification,
+  node: { id: 'n-lora', label: 'LoRA', searchQueries: ['low rank adaptation'] }
+})
+
+assert.equal(conceptRetrievalPlan.retrievalGoal, 'concept_learning_papers')
+assert.match(conceptRetrievalPlan.primaryQuery, /LoRA|low rank adaptation/)
+assert.ok(conceptRetrievalPlan.searchQueries.some((query) => /survey|tutorial|foundation/i.test(query)))
+
 const noisyRetrievalPlan = buildExpansionRetrievalPlan({
   intent: {
     kind: 'algorithm_method_lineage',
@@ -193,5 +211,41 @@ const digestCollisionFallback = assembleLineageExpansionRecord({
 
 assert.equal(digestCollisionFallback.expansionGraphNodes.length, 2)
 assert.notEqual(digestCollisionFallback.expansionGraphNodes[0].id, digestCollisionFallback.expansionGraphNodes[1].id)
+
+const qualitySignals: PaperQualitySignal[] = [
+  {
+    paperId: 'paper-a',
+    qualityScore: 0.92,
+    trendScore: 0.2,
+    badges: ['top_venue', 'highly_cited'],
+    reasons: ['Top venue.'],
+    warnings: []
+  }
+]
+
+const enrichedRecord = assembleLineageExpansionRecord({
+  paperId: 'paper-main',
+  nodeId: 'n1',
+  jobIds: ['job-enriched'],
+  intent,
+  classification: conceptClassification,
+  retrievedPapers: [candidate('paper-a', 'Foundation RL Method', longAbstract)],
+  qualitySignals,
+  relatedPaperRecommendations: [
+    {
+      paperId: 'paper-a',
+      title: 'Foundation RL Method',
+      sources: ['openalex'],
+      qualitySignal: qualitySignals[0],
+      whyRecommended: 'Top venue / high citation',
+      relevanceSummary: 'A foundation method.',
+      bestUrl: 'https://example.test/paper-a'
+    }
+  ]
+})
+
+assert.equal(enrichedRecord.expansionClassification?.primaryType, 'concept')
+assert.equal(enrichedRecord.qualitySignals?.[0].paperId, 'paper-a')
+assert.equal(enrichedRecord.relatedPaperRecommendations?.[0].whyRecommended, 'Top venue / high citation')
 
 console.log('lineageRecord tests passed')
