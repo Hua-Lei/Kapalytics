@@ -28,6 +28,7 @@ import { buildStrategyRetrievalPlan } from './kg4/expansionQuery'
 import { classificationToLegacyIntent, normalizeExpansionClassification } from './kg4/expansionClassification'
 import { buildRelatedPaperRecommendations, annotatePaperQuality } from './kg4/paperQuality'
 import { assembleLineageExpansionRecord } from './kg4/lineageRecord'
+import { normalizeConceptLearningView } from './kg4/conceptTeaching'
 import { KG4_EXPANSION_TOKEN_BUDGETS } from './kg4/tokenBudgets'
 import { compactRetrievedPapersForLineage } from './kg4/llmInput'
 import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
@@ -616,6 +617,83 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           relatedPaperIds,
           providerStatus
         })
+
+        if (expansionClassification.recommendedPath === 'learn_concept' && candidates.length >= 1) {
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'teaching',
+            message: '正在生成概念教学解释...'
+          })
+
+          const conceptJob = await llmTaskOrchestrator.createJob({
+            type: 'teach_concept',
+            input: {
+              currentNode: {
+                id: params.nodeId,
+                label: params.nodeLabel,
+                searchQueries: params.searchQueries ?? []
+              },
+              currentPaperInsight: params.paperInsight,
+              retrievedPapers: candidates.map((c) => ({
+                id: candidatePaperId(c),
+                title: c.title,
+                year: c.year,
+                abstract: c.abstract?.replace(/\s+/g, ' ').trim().slice(0, 300)
+              })).slice(0, 6),
+              qualitySignals: qualitySignals.slice(0, 8)
+            },
+            nodeId: params.nodeId,
+            paperId: params.paperId,
+            relatedPaperIds,
+            sessionId,
+            model: 'deepseek-v4-pro',
+            maxTokens: 8000,
+            temperature: 0.1
+          })
+          jobId = conceptJob.id
+
+          let conceptResult = await llmTaskOrchestrator.runJob(conceptJob.id)
+          if (conceptResult.status === 'queued' || conceptResult.status === 'running') {
+            conceptResult = await waitForJobTerminalState(conceptJob.id)
+          }
+          const conceptLearningView = normalizeConceptLearningView(
+            conceptResult.status === 'succeeded' || conceptResult.status === 'cache_hit' ? conceptResult.resultJson : undefined,
+            { anchorNodeId: params.nodeId }
+          )
+
+          const record = assembleLineageExpansionRecord({
+            paperId: params.paperId ?? 'current-paper',
+            nodeId: params.nodeId,
+            jobIds: [classifyJob.id, conceptJob.id],
+            intent: expansionIntent,
+            classification: expansionClassification,
+            retrievedPapers: candidates,
+            qualitySignals,
+            relatedPaperRecommendations,
+            conceptLearningView
+          })
+          if (!conceptLearningView) {
+            record.missingDataReasons = ['概念教学生成失败或输出不完整。']
+          }
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'persisting',
+            message: '正在保存概念教学结果...'
+          })
+          await paperMemoryRepository.saveKg4ExpansionRecord(record)
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'done',
+            message: '展开完成',
+            result: record
+          })
+          return
+        }
 
         if (expansionIntent.kind === 'generic_related_papers' || candidates.length < 2) {
           mainWindow.webContents.send('expansion:progress', {
