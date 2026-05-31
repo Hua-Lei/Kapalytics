@@ -1,4 +1,5 @@
 import type { ExpansionGraphNode } from '../../../shared/kg4'
+import { ExpansionRouteHeader } from './ExpansionRouteHeader'
 import KnowledgeGraph from './KnowledgeGraph'
 import { useWorkspace } from '../domains/workspace/useWorkspace'
 import { useExpansion } from '../domains/expansion/useExpansion'
@@ -94,6 +95,8 @@ function ExpansionGraphView() {
           <button className="stage-btn stage-btn--secondary" onClick={handleClear}>清除 temporary graph</button>
         </div>
       </section>
+
+      <ExpansionRouteHeader classification={record?.expansionClassification} nodeLabel={session.nodeLabel} />
 
       <section className="expansion-graph-canvas">
         <KnowledgeGraph
