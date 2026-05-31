@@ -399,4 +399,51 @@ assert.equal(validateJobOutput(conceptJob, validConcept).ok, true)
 const badConcept = { ...validConcept, quickExplanation: null }
 assert.equal(validateJobOutput(conceptJob, badConcept).ok, false)
 
-console.log('teach_concept tests passed')
+// map_research_area validation
+const mapaPrompt = systemPromptForJob('map_research_area')
+assert.match(mapaPrompt, /ResearchAreaView/i)
+assert.match(mapaPrompt, /overview/i)
+assert.match(mapaPrompt, /keyProblems/i)
+assert.match(mapaPrompt, /methodFamilies/i)
+assert.match(mapaPrompt, /recentHotDirections/i)
+assert.match(mapaPrompt, /recommendedReading/i)
+assert.match(mapaPrompt, /Chinese/)
+assert.match(mapaPrompt, /Do not invent paper titles or IDs/)
+
+const mapaJob = {
+  type: 'map_research_area' as const,
+  relatedPaperIds: ['paper-x'],
+  paperId: undefined,
+  nodeId: undefined
+} as any
+
+const validMapa = {
+  id: 'ra-lo',
+  anchorNodeId: 'n-lo',
+  title: 'Low-Rank Adaptation Research Area',
+  overview: '低秩适配是参数高效微调的重要研究方向。',
+  keyProblems: ['如何选择最优秩？', '如何扩展到不同模态？'],
+  methodFamilies: [{
+    label: 'LoRA Variants',
+    summary: 'LoRA 的各类变体。',
+    representativePaperIds: ['paper-x']
+  }],
+  recentHotDirections: [{
+    label: 'Dynamic Rank Selection',
+    summary: '动态选择秩大小。',
+    paperIds: ['paper-x'],
+    confidence: 0.8
+  }],
+  recommendedReading: [{
+    paperId: 'paper-x',
+    reason: '基础论文。',
+    role: 'foundation'
+  }]
+}
+
+assert.equal(validateJobOutput(mapaJob, validMapa).ok, true)
+
+const badMapa = { ...validMapa, overview: '' }
+assert.equal(validateJobOutput(mapaJob, badMapa).ok, false)
+
+console.log('map_research_area tests passed')

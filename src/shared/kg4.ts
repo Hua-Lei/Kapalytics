@@ -488,6 +488,7 @@ export type Kg4LLMTaskType =
   | 'suggest_graph_fusion'
   | 'generate_optional_transfer_task'
   | 'teach_concept'
+  | 'map_research_area'
 
 export type Kg4NodeLike = Pick<GraphNode, 'id' | 'type' | 'label' | 'description' | 'searchQueries'> & {
   insight?: string
