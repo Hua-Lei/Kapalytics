@@ -4,7 +4,6 @@ import { isRecord, readString } from './lineageTypes'
 export function buildExpansionRetrievalPlan(params: {
   intent: ExpansionIntent
   node: { id: string; label: string; searchQueries?: string[] }
-  paperInsight?: unknown
 }): ExpansionRetrievalPlan {
   const searchQueries = params.node.searchQueries?.filter((query) => query.trim()).map((query) => query.trim()) ?? []
   const uniqueQueries = (queries: string[]): string[] => [...new Set(queries.map((query) => query.trim()).filter(Boolean))]
@@ -85,6 +84,18 @@ export function buildStrategyRetrievalPlan(params: {
         kind: 'algorithm_method_lineage',
         confidence: params.classification.confidence,
         queryFocus: params.node.label,
+        rationale: params.classification.rationale
+      },
+      node: params.node
+    })
+  }
+
+  if (params.classification.recommendedPath === 'review_related_papers') {
+    return buildExpansionRetrievalPlan({
+      intent: {
+        kind: 'generic_related_papers',
+        confidence: params.classification.confidence,
+        queryFocus: 'related papers',
         rationale: params.classification.rationale
       },
       node: params.node

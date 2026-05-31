@@ -96,8 +96,7 @@ const lineage: MethodLineageView = {
 
 const retrievalPlan = buildExpansionRetrievalPlan({
   intent,
-  node: { id: 'n1', label: 'Sparse Reward RL', searchQueries: ['policy optimization'] },
-  paperInsight: { problem: 'sparse reward reinforcement learning', method: 'deep reinforcement learning' }
+  node: { id: 'n1', label: 'Sparse Reward RL', searchQueries: ['policy optimization'] }
 })
 
 assert.equal(retrievalPlan.retrievalGoal, 'same_problem_methods')
@@ -133,10 +132,6 @@ const noisyRetrievalPlan = buildExpansionRetrievalPlan({
     id: 'n5',
     label: 'Hypernetwork',
     searchQueries: ['hypernetwork meta-learning', 'Ha et al. 2016 hypernetwork', 'weight generating networks']
-  },
-  paperInsight: {
-    problem: '传统上下文蒸馏需要为每个提示单独进行昂贵的训练，导致高延迟和内存消耗，不适合频繁变化的上下文。',
-    method: '使用 Perceiver 架构的超网络 H_phi 将上下文 token 激活映射为低秩 LoRA 矩阵；通过分块机制实现长上下文的高秩组合。'
   }
 })
 

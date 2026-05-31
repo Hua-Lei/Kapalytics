@@ -78,28 +78,6 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item
   return results
 }
 
-function normalizeExpansionIntent(value: unknown): ExpansionIntent {
-  const fallback: ExpansionIntent = {
-    kind: 'generic_related_papers',
-    confidence: 0.3,
-    queryFocus: 'related papers',
-    rationale: '未能稳定分类展开意图，回退为通用相关论文检索。'
-  }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback
-
-  const record = value as Record<string, unknown>
-  const confidence = typeof record.confidence === 'number' && Number.isFinite(record.confidence) ? record.confidence : fallback.confidence
-  const fallbackReason = typeof record.fallbackReason === 'string' && record.fallbackReason.trim() ? record.fallbackReason.trim() : undefined
-  const lowConfidenceLineage = record.kind === 'algorithm_method_lineage' && confidence < 0.6
-  return {
-    kind: record.kind === 'algorithm_method_lineage' && !lowConfidenceLineage ? 'algorithm_method_lineage' : 'generic_related_papers',
-    confidence,
-    queryFocus: typeof record.queryFocus === 'string' && record.queryFocus.trim() ? record.queryFocus.trim() : fallback.queryFocus,
-    rationale: typeof record.rationale === 'string' && record.rationale.trim() ? record.rationale.trim() : fallback.rationale,
-    fallbackReason: fallbackReason ?? (lowConfidenceLineage ? '分类置信度低，降级为相关论文展开。' : undefined)
-  }
-}
-
 function normalizePaperMethodDigest(
   value: unknown,
   fallback: { id: string; paperTitle: string }
