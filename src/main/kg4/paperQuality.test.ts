@@ -67,6 +67,8 @@ assert.ok(surveySignal?.badges.includes('survey'))
 const fullNameVenueSignals = annotatePaperQuality([
   candidate('paper-icml-full', 'Full ICML Venue Name', [result({ venue: 'International Conference on Machine Learning', year: 2020, citedByCount: 120 })]),
   candidate('paper-neurips-full', 'Full NeurIPS Venue Name', [result({ venue: 'Conference on Neural Information Processing Systems', year: 2020, citedByCount: 120 })]),
+  candidate('paper-iclr-full', 'Full ICLR Venue Name', [result({ venue: 'International Conference on Learning Representations', year: 2020, citedByCount: 120 })]),
+  candidate('paper-acl-full', 'Full ACL Venue Name', [result({ venue: 'Annual Meeting of the Association for Computational Linguistics', year: 2020, citedByCount: 120 })]),
   candidate('paper-cvpr-full', 'Full CVPR Venue Name', [result({ venue: 'IEEE/CVF Conference on Computer Vision and Pattern Recognition', year: 2020, citedByCount: 120 })])
 ], { nowYear: 2026 })
 assert.ok(fullNameVenueSignals.every((item) => item.badges.includes('top_venue')))
