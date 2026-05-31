@@ -62,6 +62,17 @@ assert.equal(lowConfidenceLegacyLineage.primaryType, 'unknown')
 assert.equal(lowConfidenceLegacyLineage.recommendedPath, 'review_related_papers')
 assert.equal(lowConfidenceLegacyLineage.ambiguity?.competingType, 'method')
 
+const borderlineLegacyLineage = normalizeExpansionClassification({
+  kind: 'algorithm_method_lineage',
+  confidence: 0.55,
+  queryFocus: 'borderline method',
+  rationale: 'The legacy classifier is below the lineage cutoff.'
+}, { nodeLabel: 'Borderline Method' })
+
+assert.equal(borderlineLegacyLineage.primaryType, 'unknown')
+assert.equal(borderlineLegacyLineage.recommendedPath, 'review_related_papers')
+assert.equal(borderlineLegacyLineage.ambiguity?.competingType, 'method')
+
 const malformed = normalizeExpansionClassification(null, { nodeLabel: 'Unknown Thing' })
 assert.equal(malformed.primaryType, 'unknown')
 assert.equal(malformed.recommendedPath, 'review_related_papers')

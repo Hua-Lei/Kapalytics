@@ -86,8 +86,9 @@ export function classificationToLegacyIntent(
 function normalizeLegacyIntent(value: ClassificationInput, nodeLabel: string): ExpansionNodeClassification {
   const confidence = readConfidence(value.confidence, 0)
   const rationale = readString(value.rationale) ?? FALLBACK_RATIONALE
+  const lowConfidenceLineage = value.kind === 'algorithm_method_lineage' && confidence < 0.6
 
-  if (confidence < 0.5) {
+  if (confidence < 0.5 || lowConfidenceLineage) {
     return {
       primaryType: 'unknown',
       facets: [],
@@ -95,7 +96,7 @@ function normalizeLegacyIntent(value: ClassificationInput, nodeLabel: string): E
       rationale,
       recommendedPath: 'review_related_papers',
       alternativePaths: defaultAlternativePaths('unknown'),
-      ambiguity: value.kind === 'algorithm_method_lineage'
+      ambiguity: lowConfidenceLineage
         ? {
             competingType: 'method',
             reason: `Low confidence classification for ${nodeLabel}.`
