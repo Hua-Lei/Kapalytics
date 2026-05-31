@@ -24,44 +24,80 @@ function EvidencePaperDetailView() {
   }
 
   if (!digest && relatedNode) {
+    const recommendation = session?.expansionRecord?.relatedPaperRecommendations?.find(
+      (item) => item.paperId === activeTab?.nodeId || relatedNode.sourcePaperIds.includes(item.paperId)
+    )
     return (
-      <div className="expand-view kg4-workbench">
+      <div className="expand-view kg4-workbench evidence-paper-detail">
         <section className="expand-view__hero">
           <div>
             <span className="eyebrow">Related Paper Detail</span>
             <h3>{relatedNode.label}</h3>
-            <p>{relatedNode.description}</p>
+            <p>{recommendation?.whyRecommended ?? relatedNode.description}</p>
           </div>
         </section>
 
-        <section className="kg4-field-view">
-          <span className="node-expansion__label">Generic Related Paper</span>
-          <p><strong>Node Type</strong>: {relatedNode.type}</p>
-          <p><strong>Source Paper IDs</strong>: {relatedNode.sourcePaperIds.length ? relatedNode.sourcePaperIds.join(', ') : '暂无'}</p>
+        <section className="evidence-detail-grid">
+          <article>
+            <span className="node-expansion__label">Why Recommended</span>
+            <p>{recommendation?.whyRecommended ?? '这篇论文与当前展开节点相关。'}</p>
+          </article>
+          <article>
+            <span className="node-expansion__label">Understanding</span>
+            <p>{recommendation?.relevanceSummary ?? '当前节点与这篇论文存在关联，但缺少结构化方法摘要。'}</p>
+          </article>
+          <article>
+            <span className="node-expansion__label">Evidence and Limits</span>
+            <p>当前只有检索元数据或摘要级信息，具体实验结论需要打开原文确认。</p>
+          </article>
+          <article>
+            <span className="node-expansion__label">Read Next</span>
+            <p><strong>Source Paper IDs</strong>: {relatedNode.sourcePaperIds.length ? relatedNode.sourcePaperIds.join(', ') : '暂无'}</p>
+          </article>
         </section>
       </div>
     )
   }
+  const recommendation = session?.expansionRecord?.relatedPaperRecommendations?.find(
+    (item) => item.paperId === digest?.paperId
+  )
+
   if (!digest) return null
 
   return (
-    <div className="expand-view kg4-workbench">
+    <div className="expand-view kg4-workbench evidence-paper-detail">
       <section className="expand-view__hero">
         <div>
           <span className="eyebrow">Evidence Paper Detail</span>
           <h3>{digest.paperTitle}</h3>
-          <p>{digest.evidenceSummary}</p>
+          <p>{recommendation?.whyRecommended ?? digest.evidenceSummary}</p>
         </div>
       </section>
 
-      <section className="kg4-field-view">
-        <span className="node-expansion__label">Method Snapshot</span>
-        {digest.methodName ? <p><strong>Method</strong>: {digest.methodName}</p> : null}
-        <p><strong>Problem Setting</strong>: {digest.problemSetting}</p>
-        <p><strong>Core Mechanism</strong>: {digest.coreMechanism}</p>
-        {digest.claimedImprovement ? <p><strong>Claimed Improvement</strong>: {digest.claimedImprovement}</p> : null}
-        {digest.limitation ? <p><strong>Limitation</strong>: {digest.limitation}</p> : null}
-        <p><strong>Relation Hints</strong>: {digest.relationHints.length ? digest.relationHints.join(', ') : '暂无'}</p>
+      <section className="evidence-detail-grid">
+        <article>
+          <span className="node-expansion__label">Why Recommended</span>
+          <p>{recommendation?.whyRecommended ?? '这篇论文被当前节点的方法摘要引用。'}</p>
+          {recommendation?.qualitySignal?.badges.length ? <p><strong>Badges</strong>: {recommendation.qualitySignal.badges.join(', ')}</p> : null}
+        </article>
+        <article>
+          <span className="node-expansion__label">Understanding</span>
+          {digest.methodName ? <p><strong>Method</strong>: {digest.methodName}</p> : null}
+          <p><strong>Problem Setting</strong>: {digest.problemSetting}</p>
+          <p><strong>Core Mechanism</strong>: {digest.coreMechanism}</p>
+          {digest.claimedImprovement ? <p><strong>Claimed Improvement</strong>: {digest.claimedImprovement}</p> : null}
+        </article>
+        <article>
+          <span className="node-expansion__label">Evidence and Limits</span>
+          <p>{digest.evidenceSummary}</p>
+          {digest.limitation ? <p><strong>Limitation</strong>: {digest.limitation}</p> : null}
+          {digest.insufficientInformation ? <p><strong>Missing</strong>: {digest.insufficientInformation}</p> : null}
+        </article>
+        <article>
+          <span className="node-expansion__label">Read Next</span>
+          <p><strong>Relation Hints</strong>: {digest.relationHints.length ? digest.relationHints.join(', ') : '暂无'}</p>
+          <p>可以回到方法谱系查看它对应的 foundation、variant 或 improvement 位置。</p>
+        </article>
       </section>
     </div>
   )

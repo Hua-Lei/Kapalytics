@@ -22,6 +22,10 @@ function formatRelationHints(relationHints: string[]) {
   return relationHints.join(' / ')
 }
 
+function citationLabel(value: number | undefined) {
+  return typeof value === 'number' ? `${value} citations` : 'citation unknown'
+}
+
 function ExpansionGraphView() {
   const { activeTab, openTab, selectObject, updateTabStatus } = useWorkspace()
   const { sessions, selectExpansionNode, clearExpansionGraph, startExpansion } = useExpansion()
@@ -171,7 +175,30 @@ function ExpansionGraphView() {
         }) : <p>当前没有可展示的扩展边。</p>}
       </section>
 
-      {digests.length ? (
+      {record?.relatedPaperRecommendations?.length ? (
+        <section className="expansion-paper-list">
+          <span className="eyebrow">Quality-Aware Papers</span>
+          {record.relatedPaperRecommendations.slice(0, 6).map((paper) => (
+            <article className="expansion-paper-card" key={paper.paperId}>
+              <div>
+                <strong>{paper.title}</strong>
+                <p>{paper.whyRecommended}</p>
+              </div>
+              <div className="expansion-paper-card__meta">
+                <span>{paper.venue ?? 'Unknown venue'}</span>
+                <span>{paper.year ?? 'Year unknown'}</span>
+                <span>{citationLabel(paper.citationCount)}</span>
+              </div>
+              {paper.qualitySignal?.badges.length ? (
+                <div className="expansion-paper-card__badges">
+                  {paper.qualitySignal.badges.map((badge) => <span key={badge}>{badge.replace(/_/g, ' ')}</span>)}
+                </div>
+              ) : null}
+              <p className="expansion-paper-card__summary">{truncateDescription(paper.relevanceSummary, 170)}</p>
+            </article>
+          ))}
+        </section>
+      ) : digests.length ? (
         <section className="expansion-edge-list">
           <span className="eyebrow">Evidence Papers</span>
           {visibleDigests.map((digest) => (
