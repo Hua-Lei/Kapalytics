@@ -980,3 +980,146 @@
   color: #475569;
   line-height: 1.6;
 }
+
+.concept-learning-view {
+  display: grid;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.concept-learning-view h3 {
+  color: #0f172a;
+  margin: 0;
+}
+
+.concept-learning-view__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.concept-card {
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+.concept-card h4 {
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.concept-card__block {
+  margin-bottom: 12px;
+}
+
+.concept-card__block strong {
+  color: #475569;
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.concept-card__block p {
+  color: #334155;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.concept-card--quick {
+  border-left: 4px solid #3b82f6;
+}
+
+.concept-card--formal {
+  border-left: 4px solid #8b5cf6;
+}
+
+.concept-card--misconceptions {
+  border-left: 4px solid #f59e0b;
+}
+
+.concept-card__misconception {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+}
+
+.concept-card__misconception strong {
+  color: #c2410c;
+}
+
+.concept-card--relations {
+  border-left: 4px solid #10b981;
+}
+
+.concept-card__relation-tag {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: 8px;
+  text-transform: lowercase;
+}
+
+.concept-card--papers {
+  border-left: 4px solid #0ea5e9;
+}
+
+.concept-card--missing {
+  border-left: 4px solid #94a3b8;
+}
+
+.concept-card__formula {
+  padding: 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  font-family: monospace;
+}
+
+.concept-card__formula code {
+  display: block;
+  color: #1e293b;
+  margin-bottom: 8px;
+  font-size: 15px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.concept-card__variables {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.concept-card__variables td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.concept-card__variables td:first-child {
+  font-family: monospace;
+  font-weight: 700;
+  color: #1e293b;
+  width: 64px;
+}
+
+.concept-card__block ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: #64748b;
+}
+
+.concept-card__block li {
+  margin-bottom: 4px;
+  line-height: 1.5;
+}
