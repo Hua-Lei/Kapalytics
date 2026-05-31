@@ -26,6 +26,12 @@ export const deepseekProvider: LlmProvider = {
     }
     if (request.jsonMode) {
       body.response_format = { type: 'json_object' }
+      body.thinking = { type: request.thinking ?? 'disabled' }
+    } else if (request.thinking) {
+      body.thinking = { type: request.thinking }
+    }
+    if (request.reasoningEffort) {
+      body.reasoning_effort = request.reasoningEffort
     }
     return body
   },
@@ -34,6 +40,7 @@ export const deepseekProvider: LlmProvider = {
     const choice = data.choices?.[0]
     return {
       content: choice?.message?.content ?? '',
+      finishReason: choice?.finish_reason,
       usage: data.usage
         ? { inputTokens: data.usage.prompt_tokens, outputTokens: data.usage.completion_tokens }
         : undefined

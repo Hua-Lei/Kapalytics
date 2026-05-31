@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { systemPromptForJob } from './jobPrompts'
-import { validateJobOutput } from './orchestrator'
+import { timeoutMsForJob, validateJobOutput } from './orchestrator'
 import type { LLMJob } from '../../shared/kg3'
 
 const prompt = systemPromptForJob('expand_node_retrieve_context')
@@ -19,10 +19,20 @@ const digestPrompt = systemPromptForJob('digest_paper_method')
 assert.match(digestPrompt, /PaperMethodDigest/i)
 assert.match(digestPrompt, /PaperMethodDigest with id, paperId, paperTitle/i)
 assert.match(digestPrompt, /relationHints/i)
+assert.match(digestPrompt, /中文/)
+assert.match(digestPrompt, /confidence.*0.*1/i)
+assert.match(digestPrompt, /relationHints.*array/i)
 
 const lineagePrompt = systemPromptForJob('synthesize_method_lineage')
 assert.match(lineagePrompt, /MethodLineageView/i)
 assert.match(lineagePrompt, /evidencePaperIds/i)
+assert.match(lineagePrompt, /anchorNodeId/i)
+assert.match(lineagePrompt, /role.*current_method/i)
+assert.match(lineagePrompt, /Do not output.*methodName/i)
+assert.match(lineagePrompt, /At most 6 nodes/i)
+
+assert.equal(timeoutMsForJob('synthesize_method_lineage'), 240000)
+assert.equal(timeoutMsForJob('digest_paper_method'), 120000)
 
 function makeJob(overrides: Partial<LLMJob>): LLMJob {
   return {
@@ -93,6 +103,30 @@ assert.equal(
     }
   ).ok,
   false
+)
+
+assert.equal(
+  validateJobOutput(
+    makeJob({
+      type: 'digest_paper_method',
+      relatedPaperIds: ['paper-a'],
+      inputJson: {
+        retrievedPaper: { id: 'paper-a', title: 'True Paper Title' }
+      }
+    }),
+    {
+      id: 'digest-a',
+      paperId: 'paper-a',
+      paperTitle: 'True Paper Title',
+      methodName: 'HyperLoRA',
+      problemSetting: '方言适配缺少可扩展方法。',
+      coreMechanism: '使用超网络生成 LoRA 适配器。',
+      relationHints: 'extends',
+      evidenceSummary: '论文摘要说明该方法用于低秩适配器生成。',
+      confidence: 'medium'
+    }
+  ).ok,
+  true
 )
 
 assert.equal(

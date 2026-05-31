@@ -12,10 +12,13 @@ export interface LlmRequest {
   timeoutMs?: number
   jsonMode?: boolean
   model?: LLMModel
+  thinking?: 'enabled' | 'disabled'
+  reasoningEffort?: 'high' | 'max'
 }
 
 export interface LlmResponse {
   content: string
+  finishReason?: string
   usage?: { inputTokens: number; outputTokens: number }
 }
 

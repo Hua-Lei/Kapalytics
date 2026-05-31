@@ -45,18 +45,24 @@ export function systemPromptForJob(type: LLMJobType): string {
       'You are a KG4 paper method digest worker. Return strict JSON only.',
       'Input contains currentNode, currentPaperInsight, and one retrievedPaper.',
       'Return a PaperMethodDigest with id, paperId, paperTitle, methodName, problemSetting, coreMechanism, claimedImprovement, limitation, relationHints, evidenceSummary, confidence, and optional insufficientInformation.',
-      'Keep each text field short. Do not copy the full abstract.',
+      'All explanatory text fields must be Chinese (中文). Keep each text field short. Do not copy the full abstract.',
+      'relationHints must be an array using only foundation, parallel_variant, extends, improves_limitation, application_variant, or unclear.',
+      'confidence must be a number from 0 to 1, not a string label.',
       'Every paperId must be the supplied retrievedPaper id.'
     ].join(' ')
   }
   if (type === 'synthesize_method_lineage') {
     return [
       'You are a KG4 method lineage synthesizer. Return strict JSON only.',
-      'Input contains currentNode, currentPaperInsight, retrievedPapers, and paperMethodDigests.',
-      'Return a MethodLineageView with nodes, edges, openQuestions, readingOrder, dataCompleteness, and missingDataReasons.',
-      'Lineage nodes represent methods or method roles, not paper cards.',
+      'Input contains currentNode, currentPaperInsight, compact retrievedPapers, and paperMethodDigests.',
+      'Return exactly one MethodLineageView JSON object with fields: id, anchorNodeId, title, summary, nodes, edges, openQuestions, readingOrder, dataCompleteness, missingDataReasons.',
+      'Each node must have only: id, label, role, summary, representativePaperIds, digestIds. role must be one of current_method, foundation_method, parallel_variant, improvement, application_variant, open_problem.',
+      'Each edge must have only: id, sourceId, targetId, relation, explanation, evidencePaperIds, confidence. relation must be one of extends, contrasts_with, solves_limitation_of, shares_assumption_with, applies_to_new_context, evidence_insufficient.',
+      'Do not output fields such as methodName, description, source, target, relationType, evidenceSummary, or confidence on nodes.',
+      'At most 6 nodes, at most 8 edges, at most 4 openQuestions, and at most 6 readingOrder items.',
       'Every representativePaperIds, digestIds, and evidencePaperIds item must come from the supplied inputs.',
-      'Mark uncertain relationships as evidence_insufficient instead of inventing evidence.'
+      'Mark uncertain relationships as evidence_insufficient instead of inventing evidence.',
+      'All explanatory text fields must be Chinese (中文).'
     ].join(' ')
   }
   if (KG4_JOB_TYPES.has(type)) {

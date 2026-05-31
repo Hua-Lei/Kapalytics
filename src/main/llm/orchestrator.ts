@@ -73,7 +73,7 @@ export class LLMTaskOrchestrator {
       promptVersion: PROMPT_VERSION,
       model,
       jsonMode: params.jsonMode ?? true,
-      maxTokens: params.maxTokens ?? 4096,
+      maxTokens: params.maxTokens ?? 16000,
       temperature: params.temperature ?? 0.1,
       attempts: 0,
       maxAttempts: 2,
@@ -184,16 +184,31 @@ async function executeJob(job: LLMJob): Promise<unknown> {
     temperature: job.temperature,
     jsonMode: job.jsonMode,
     model: job.model,
-    timeoutMs: 120000
+    timeoutMs: timeoutMsForJob(job.type)
   })
+  if (res.finishReason === 'length') {
+    console.error('[LLM job JSON truncated before parse]', { jobId: job.id, type: job.type })
+    console.error('[LLM job JSON truncated content]\n' + res.content)
+    throw new Error('invalid_json:DeepSeek 输出因达到 max_tokens 被截断，JSON 不完整')
+  }
   return parseJsonObject(res.content)
+}
+
+export function timeoutMsForJob(type: LLMJobType): number {
+  return type === 'synthesize_method_lineage' ? 240000 : 120000
 }
 
 function parseJsonObject(text: string): unknown {
   if (!text.trim()) throw new Error('empty_output')
   const match = text.match(/\{[\s\S]*\}/)
   if (!match) throw new Error('invalid_json')
-  return JSON.parse(match[0])
+  try {
+    return JSON.parse(match[0])
+  } catch (err) {
+    console.error('[LLM job JSON parse failed]', err)
+    console.error('[LLM job JSON parse failed content]\n' + text)
+    throw err
+  }
 }
 
 export function validateReferencedPapers(output: unknown, allowedPaperIds: string[]): ReferencedPaperValidationResult {
@@ -276,11 +291,23 @@ function validatePaperMethodDigest(output: unknown, allowedPaperIds: string[], e
   if (output.claimedImprovement !== undefined && typeof output.claimedImprovement !== 'string') errors.push('digest_paper_method.claimedImprovement must be a string when present')
   if (output.limitation !== undefined && typeof output.limitation !== 'string') errors.push('digest_paper_method.limitation must be a string when present')
   if (output.insufficientInformation !== undefined && typeof output.insufficientInformation !== 'string') errors.push('digest_paper_method.insufficientInformation must be a string when present')
-  if (!Array.isArray(output.relationHints) || !output.relationHints.every((hint) => isOneOf(hint, PAPER_METHOD_RELATION_HINTS))) {
+  const relationHints = Array.isArray(output.relationHints) ? output.relationHints : [output.relationHints]
+  if (!relationHints.some((hint) => isOneOf(hint, PAPER_METHOD_RELATION_HINTS))) {
     errors.push('digest_paper_method.relationHints must be an array of allowed hints')
   }
-  if (!isNumberInRange(output.confidence, 0, 1)) errors.push('digest_paper_method.confidence must be a number between 0 and 1')
+  if (!isNumberInRange(normalizeConfidence(output.confidence), 0, 1)) errors.push('digest_paper_method.confidence must be a number between 0 and 1')
   return schemaErrors(...errors)
+}
+
+function normalizeConfidence(value: unknown): number | undefined {
+  if (typeof value === 'number') return value
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'high') return 0.85
+  if (normalized === 'medium') return 0.6
+  if (normalized === 'low') return 0.35
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function validateMethodLineageView(output: unknown, allowedPaperIds: string[], allowedDigestIdsSet: Set<string>): ReferencedPaperValidationResult {

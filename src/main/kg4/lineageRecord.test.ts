@@ -101,8 +101,8 @@ const retrievalPlan = buildExpansionRetrievalPlan({
 })
 
 assert.equal(retrievalPlan.retrievalGoal, 'same_problem_methods')
-assert.match(retrievalPlan.primaryQuery, /same problem alternative approach/i)
-assert.match(retrievalPlan.primaryQuery, /sparse reward/i)
+assert.equal(retrievalPlan.primaryQuery, 'policy optimization')
+assert.ok(retrievalPlan.searchQueries.some((query) => /sparse reward/i.test(query)))
 
 const noisyRetrievalPlan = buildExpansionRetrievalPlan({
   intent: {
@@ -125,6 +125,15 @@ const noisyRetrievalPlan = buildExpansionRetrievalPlan({
 assert.match(noisyRetrievalPlan.primaryQuery, /hypernetwork meta-learning/i)
 assert.doesNotMatch(noisyRetrievalPlan.primaryQuery, /传统上下文蒸馏/)
 assert.doesNotMatch(noisyRetrievalPlan.primaryQuery, /Perceiver 架构的超网络/)
+assert.equal(noisyRetrievalPlan.primaryQuery, 'hypernetwork meta-learning')
+assert.ok(noisyRetrievalPlan.primaryQuery.length < 80)
+assert.deepEqual(noisyRetrievalPlan.searchQueries, [
+  'hypernetwork meta-learning',
+  'Ha et al. 2016 hypernetwork',
+  'weight generating networks',
+  'Hypernetwork algorithm/method',
+  'Hypernetwork'
+])
 
 const short = toShortDisplayText(longAbstract, 120)
 assert.ok(short.length <= 121)

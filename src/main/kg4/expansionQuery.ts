@@ -7,29 +7,26 @@ export function buildExpansionRetrievalPlan(params: {
   paperInsight?: unknown
 }): ExpansionRetrievalPlan {
   const searchQueries = params.node.searchQueries?.filter((query) => query.trim()).map((query) => query.trim()) ?? []
+  const uniqueQueries = (queries: string[]): string[] => [...new Set(queries.map((query) => query.trim()).filter(Boolean))]
 
   if (params.intent.kind === 'algorithm_method_lineage') {
-    const parts = [
-      params.node.label,
-      params.intent.queryFocus,
-      ...searchQueries,
-      'algorithm method same problem alternative approach foundation variant improvement'
-    ].filter(Boolean)
+    const fallbackQuery = uniqueQueries([params.intent.queryFocus, params.node.label, 'algorithm method lineage']).join(' ')
+    const queries = uniqueQueries([...searchQueries, params.intent.queryFocus, params.node.label])
 
     return {
-      primaryQuery: parts.join(' '),
-      searchQueries: [parts.join(' '), ...searchQueries],
+      primaryQuery: queries[0] ?? fallbackQuery,
+      searchQueries: queries,
       retrievalGoal: 'same_problem_methods',
       maxResults: 8,
       requireAbstract: true
     }
   }
 
-  const genericParts = [params.node.label, params.intent.queryFocus, ...searchQueries, 'related papers'].filter(Boolean)
+  const genericQueries = uniqueQueries([...searchQueries, params.intent.queryFocus, params.node.label])
 
   return {
-    primaryQuery: genericParts.join(' '),
-    searchQueries: [genericParts.join(' '), ...searchQueries],
+    primaryQuery: genericQueries[0] ?? `${params.node.label} related papers`,
+    searchQueries: genericQueries,
     retrievalGoal: 'generic_related_papers',
     maxResults: 8,
     requireAbstract: true

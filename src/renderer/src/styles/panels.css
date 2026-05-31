@@ -397,6 +397,7 @@
 .expansion-loading-hero,
 .expansion-loading-summary article,
 .expansion-step,
+.expansion-loading-progress-note,
 .expansion-loading-note,
 .expansion-loading-error {
   background: var(--color-bg-elevated);
@@ -446,7 +447,7 @@
 .expansion-loading-summary {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .expansion-loading-summary article {
@@ -501,6 +502,24 @@
 .expansion-step--running .expansion-step__dot { background: var(--color-warning); box-shadow: 0 0 0 4px rgba(154, 107, 32, 0.12); }
 .expansion-step--done .expansion-step__dot { background: var(--color-success); }
 .expansion-step--failed .expansion-step__dot { background: var(--color-danger); }
+
+.expansion-loading-progress-note {
+  padding: 14px;
+}
+
+.expansion-loading-progress-note strong {
+  color: var(--color-text);
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.expansion-loading-progress-note p {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0;
+}
 
 .expansion-loading-note,
 .expansion-loading-error {

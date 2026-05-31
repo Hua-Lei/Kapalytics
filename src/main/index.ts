@@ -26,6 +26,8 @@ import { llmTaskOrchestrator } from './llm/orchestrator'
 import { candidatePaperId } from './kg4/expansionRecord'
 import { buildExpansionRetrievalPlan } from './kg4/expansionQuery'
 import { assembleLineageExpansionRecord } from './kg4/lineageRecord'
+import { KG4_EXPANSION_TOKEN_BUDGETS } from './kg4/tokenBudgets'
+import { compactRetrievedPapersForLineage } from './kg4/llmInput'
 import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
 import type { LLMJob, PaperRecord } from '../shared/kg3'
 import type {
@@ -116,11 +118,11 @@ function normalizePaperMethodDigest(
     'application_variant',
     'unclear'
   ]
-  const relationHints = Array.isArray(record.relationHints)
-    ? record.relationHints.filter(
-      (hint): hint is PaperMethodDigest['relationHints'][number] => typeof hint === 'string' && allowedRelationHints.includes(hint as PaperMethodDigest['relationHints'][number])
-    )
-    : []
+  const rawRelationHints = Array.isArray(record.relationHints) ? record.relationHints : [record.relationHints]
+  const relationHints = rawRelationHints.filter(
+    (hint): hint is PaperMethodDigest['relationHints'][number] => typeof hint === 'string' && allowedRelationHints.includes(hint as PaperMethodDigest['relationHints'][number])
+  )
+  const confidence = normalizeConfidence(record.confidence)
 
   return {
     id: typeof record.id === 'string' && record.id.trim() ? record.id.trim() : stableId('digest', paperId),
@@ -133,12 +135,23 @@ function normalizePaperMethodDigest(
     limitation: typeof record.limitation === 'string' && record.limitation.trim() ? record.limitation.trim() : undefined,
     relationHints: relationHints.length ? relationHints : ['unclear'],
     evidenceSummary,
-    confidence: typeof record.confidence === 'number' && Number.isFinite(record.confidence) ? record.confidence : 0.4,
+    confidence: confidence ?? 0.4,
     insufficientInformation:
       typeof record.insufficientInformation === 'string' && record.insufficientInformation.trim()
         ? record.insufficientInformation.trim()
         : undefined
   }
+}
+
+function normalizeConfidence(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'high') return 0.85
+  if (normalized === 'medium') return 0.6
+  if (normalized === 'low') return 0.35
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function normalizeMethodLineageView(value: unknown): MethodLineageView | undefined {
@@ -243,6 +256,10 @@ function isKg4ExpansionRecordQuery(value: unknown): value is Kg4ExpansionRecordQ
 }
 
 const KG4_JOB_TERMINAL_STATUSES = new Set<LLMJob['status']>(['succeeded', 'cache_hit', 'failed', 'cancelled'])
+
+function logBackend(event: string, details: Record<string, unknown>): void {
+  console.info(`[Backend] ${event}`, details)
+}
 
 async function waitForJobTerminalState(jobId: string, timeoutMs = 130000): Promise<LLMJob> {
   const deadline = Date.now() + timeoutMs
@@ -434,7 +451,9 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('kg3:get-memory-snapshot', () => paperMemoryRepository.getSnapshot())
 
   ipcMain.handle('kg3:search-papers', async (_e, query) => {
+    logBackend('kg3_search_papers', { query })
     const { candidates, providerStatus } = await searchPapers(query)
+    logBackend('kg3_search_papers_result', { candidateCount: candidates.length, providerStatus })
     return { retrievedPapers: candidates, mergedNodes: [], mergeCandidates: [], providerStatus }
   })
 
@@ -455,21 +474,32 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
       paperInsight?: PaperInsight | null
     }
     const paperId = payload.paperId || stableId('paper', payload.title)
+    logBackend('kg3_save_current_graph', {
+      paperId,
+      title: payload.title,
+      nodeCount: data.graph?.nodes?.length ?? 0,
+      edgeCount: data.graph?.edges?.length ?? 0,
+      hasInsight: Boolean(data.paperInsight)
+    })
     await paperMemoryRepository.savePaper(createPaperRecord(paperId, payload.title || paperId, payload.fileUrl, payload.filePath))
     await paperMemoryRepository.saveGraphForPaper(paperId, data.graph?.nodes ?? [], data.graph?.edges ?? [], data.paperInsight ?? undefined)
     return { ok: true, paperId }
   })
 
   ipcMain.handle('kg3:fuse-paper-graph', async (_e, paperId: string) => {
+    logBackend('kg3_fuse_paper_graph', { paperId })
     const fusion = await fusePaperGraph(paperId)
+    logBackend('kg3_fuse_paper_graph_result', { paperId, mergedNodeCount: fusion.mergedNodes.length, candidateCount: fusion.candidates.length })
     return { retrievedPapers: [], mergedNodes: fusion.mergedNodes, mergeCandidates: fusion.candidates, providerStatus: [] }
   })
 
   ipcMain.handle('kg3:create-llm-job', async (_e, payload: { type: Parameters<typeof llmTaskOrchestrator.createJob>[0]['type']; input: unknown; paperId?: string; nodeId?: string; relatedPaperIds?: string[] }) => {
+    logBackend('kg3_create_llm_job', { type: payload.type, paperId: payload.paperId, nodeId: payload.nodeId, relatedPaperIds: payload.relatedPaperIds })
     return llmTaskOrchestrator.createJob(payload)
   })
 
   ipcMain.handle('kg3:run-llm-job', async (_e, jobId: string) => {
+    logBackend('kg3_run_llm_job', { jobId })
     return llmTaskOrchestrator.runJob(jobId)
   })
 
@@ -500,18 +530,29 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('kg4:get-expansion-record', async (_e, params: unknown) => {
     if (!isKg4ExpansionRecordQuery(params)) return null
+    logBackend('kg4_get_expansion_record', { paperId: params.paperId, nodeId: params.nodeId })
     const record = await paperMemoryRepository.getKg4ExpansionRecord(params.paperId, params.nodeId)
+    logBackend('kg4_get_expansion_record_result', { paperId: params.paperId, nodeId: params.nodeId, found: Boolean(record) })
     return record && isKg4NodeExpansionRecord(record) ? record : null
   })
 
   ipcMain.handle('kg4:save-expansion-record', async (_e, record: Kg4NodeExpansionRecord) => {
     if (!isKg4NodeExpansionRecord(record)) throw new Error('invalid_kg4_expansion_record')
+    logBackend('kg4_save_expansion_record', { paperId: record.paperId, nodeId: record.nodeId, expansionNodeCount: record.expansionGraphNodes.length })
     await paperMemoryRepository.saveKg4ExpansionRecord(record)
     return { ok: true }
   })
 
   ipcMain.handle('kg4:start-expansion', async (_e, params: StartKg4ExpansionParams) => {
     const sessionId = params.sessionId ?? `expansion_${params.nodeId}_${Date.now()}`
+    logBackend('kg4_start_expansion', {
+      sessionId,
+      paperId: params.paperId,
+      nodeId: params.nodeId,
+      nodeLabel: params.nodeLabel,
+      searchQueries: params.searchQueries,
+      forceRefresh: Boolean(params.forceRefresh)
+    })
 
     const runExpansion = async (): Promise<void> => {
       let jobId = ''
@@ -544,7 +585,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           paperId: params.paperId,
           sessionId,
           model: 'deepseek-v4-flash',
-          maxTokens: 1200,
+          maxTokens: KG4_EXPANSION_TOKEN_BUDGETS.classifyExpansionIntent,
           temperature: 0.1
         })
         jobId = classifyJob.id
@@ -582,13 +623,14 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           requireAbstract: retrievalPlan.requireAbstract
         })
         const relatedPaperIds = candidates.map(candidatePaperId)
-        console.info('[KG4 expansion] retrieval plan', {
+        logBackend('kg4_expansion_retrieval_result', {
           sessionId,
           nodeId: params.nodeId,
           intent: expansionIntent.kind,
           retrievalGoal: retrievalPlan.retrievalGoal,
           query: retrievalPlan.primaryQuery,
           candidateCount: candidates.length,
+          relatedPaperIds,
           providerStatus
         })
 
@@ -610,6 +652,19 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             methodLineageView: undefined
           })
           if (candidates.length < 2) record.missingDataReasons = ['可用论文不足，未生成方法谱系。']
+          logBackend('kg4_expansion_record_built', {
+            sessionId,
+            jobId,
+            paperId: record.paperId,
+            nodeId: record.nodeId,
+            retrievedPaperCount: record.retrievedPaperIds.length,
+            digestCount: record.paperMethodDigests?.length ?? 0,
+            lineageNodeCount: record.methodLineageView?.nodes.length ?? 0,
+            ideaCardCount: record.algorithmIdeaCards.length,
+            expansionNodeCount: record.expansionGraphNodes.length,
+            dataCompleteness: record.dataCompleteness,
+            missingDataReasons: record.missingDataReasons
+          })
 
           mainWindow.webContents.send('expansion:progress', {
             sessionId,
@@ -618,6 +673,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             message: '正在保存展开结果...'
           })
           await paperMemoryRepository.saveKg4ExpansionRecord(record)
+          logBackend('kg4_expansion_record_saved', { sessionId, recordId: record.id })
 
           mainWindow.webContents.send('expansion:progress', {
             sessionId,
@@ -657,7 +713,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
               relatedPaperIds: [paperId],
               sessionId,
               model: 'deepseek-v4-flash',
-              maxTokens: 1800,
+              maxTokens: KG4_EXPANSION_TOKEN_BUDGETS.digestPaperMethod,
               temperature: 0.1
             })
 
@@ -698,6 +754,19 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             methodLineageView: undefined
           })
           record.missingDataReasons = ['可用方法摘要少于 2 个，未生成方法谱系。']
+          logBackend('kg4_expansion_record_built', {
+            sessionId,
+            jobId,
+            paperId: record.paperId,
+            nodeId: record.nodeId,
+            retrievedPaperCount: record.retrievedPaperIds.length,
+            digestCount: record.paperMethodDigests?.length ?? 0,
+            lineageNodeCount: record.methodLineageView?.nodes.length ?? 0,
+            ideaCardCount: record.algorithmIdeaCards.length,
+            expansionNodeCount: record.expansionGraphNodes.length,
+            dataCompleteness: record.dataCompleteness,
+            missingDataReasons: record.missingDataReasons
+          })
 
           mainWindow.webContents.send('expansion:progress', {
             sessionId,
@@ -706,6 +775,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             message: '正在保存展开结果...'
           })
           await paperMemoryRepository.saveKg4ExpansionRecord(record)
+          logBackend('kg4_expansion_record_saved', { sessionId, recordId: record.id })
 
           mainWindow.webContents.send('expansion:progress', {
             sessionId,
@@ -727,13 +797,14 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
         const lineageJob = await llmTaskOrchestrator.createJob({
           type: 'synthesize_method_lineage',
           input: {
+            requestNonce: params.forceRefresh ? Date.now() : undefined,
             currentNode: {
               id: params.nodeId,
               label: params.nodeLabel,
               searchQueries: params.searchQueries ?? []
             },
             currentPaperInsight: params.paperInsight,
-            retrievedPapers: candidates,
+            retrievedPapers: compactRetrievedPapersForLineage(candidates),
             paperMethodDigests
           },
           nodeId: params.nodeId,
@@ -741,15 +812,17 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           relatedPaperIds,
           sessionId,
           model: 'deepseek-v4-pro',
-          maxTokens: 6000,
+          maxTokens: KG4_EXPANSION_TOKEN_BUDGETS.synthesizeMethodLineage,
           temperature: 0.1
         })
         jobId = lineageJob.id
+        logBackend('kg4_expansion_job_created', { sessionId, jobId, nodeId: params.nodeId, relatedPaperCount: relatedPaperIds.length })
 
         let lineageResult = await llmTaskOrchestrator.runJob(lineageJob.id)
         if (lineageResult.status === 'queued' || lineageResult.status === 'running') {
           lineageResult = await waitForJobTerminalState(lineageJob.id)
         }
+        logBackend('kg4_expansion_job_result', { sessionId, jobId, status: lineageResult.status, errorMessage: lineageResult.errorMessage })
         const methodLineageView = normalizeMethodLineageView(
           lineageResult.status === 'succeeded' || lineageResult.status === 'cache_hit' ? lineageResult.resultJson : undefined
         )
@@ -773,6 +846,19 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
         if (!methodLineageView) {
           record.missingDataReasons = ['方法谱系汇总失败，展示论文方法摘要。']
         }
+        logBackend('kg4_expansion_record_built', {
+          sessionId,
+          jobId,
+          paperId: record.paperId,
+          nodeId: record.nodeId,
+          retrievedPaperCount: record.retrievedPaperIds.length,
+          digestCount: record.paperMethodDigests?.length ?? 0,
+          lineageNodeCount: record.methodLineageView?.nodes.length ?? 0,
+          ideaCardCount: record.algorithmIdeaCards.length,
+          expansionNodeCount: record.expansionGraphNodes.length,
+          dataCompleteness: record.dataCompleteness,
+          missingDataReasons: record.missingDataReasons
+        })
 
         mainWindow.webContents.send('expansion:progress', {
           sessionId,
@@ -781,6 +867,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           message: '正在保存展开结果...'
         })
         await paperMemoryRepository.saveKg4ExpansionRecord(record)
+        logBackend('kg4_expansion_record_saved', { sessionId, recordId: record.id })
 
         mainWindow.webContents.send('expansion:progress', {
           sessionId,
@@ -791,6 +878,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
         })
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
+        logBackend('kg4_expansion_failed', { sessionId, jobId, nodeId: params.nodeId, message })
         mainWindow.webContents.send('expansion:progress', {
           sessionId,
           jobId,
