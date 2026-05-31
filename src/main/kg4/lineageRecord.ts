@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import type { DedupedPaperCandidate } from '../../shared/kg3'
 import type {
+  ConceptLearningView,
   ExpansionGraphEdge,
   ExpansionGraphNode,
   ExpansionNodeClassification,
@@ -115,6 +116,7 @@ export function assembleLineageExpansionRecord(params: {
   retrievedPapers: DedupedPaperCandidate[]
   paperMethodDigests?: PaperMethodDigest[]
   methodLineageView?: MethodLineageView
+  conceptLearningView?: ConceptLearningView
   classification?: ExpansionNodeClassification
   qualitySignals?: PaperQualitySignal[]
   relatedPaperRecommendations?: RelatedPaperRecommendation[]
@@ -144,6 +146,7 @@ export function assembleLineageExpansionRecord(params: {
     relatedPaperRecommendations: params.relatedPaperRecommendations,
     paperMethodDigests: digests.length ? digests : undefined,
     methodLineageView: params.methodLineageView,
+    conceptLearningView: params.conceptLearningView,
     dataCompleteness,
     missingDataReasons,
     generatedByJobIds: params.jobIds,

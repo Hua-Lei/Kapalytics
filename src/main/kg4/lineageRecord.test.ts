@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import type { DedupedPaperCandidate } from '../../shared/kg3'
-import type { ExpansionIntent, ExpansionNodeClassification, MethodLineageView, PaperMethodDigest, PaperQualitySignal } from '../../shared/kg4'
+import type { ConceptLearningView, ExpansionIntent, ExpansionNodeClassification, MethodLineageView, PaperMethodDigest, PaperQualitySignal } from '../../shared/kg4'
 import { buildExpansionRetrievalPlan, buildStrategyRetrievalPlan } from './expansionQuery'
 import { assembleLineageExpansionRecord, toShortDisplayText } from './lineageRecord'
 
@@ -242,5 +242,40 @@ const enrichedRecord = assembleLineageExpansionRecord({
 assert.equal(enrichedRecord.expansionClassification?.primaryType, 'concept')
 assert.equal(enrichedRecord.qualitySignals?.[0].paperId, 'paper-a')
 assert.equal(enrichedRecord.relatedPaperRecommendations?.[0].whyRecommended, 'Top venue / high citation')
+
+const conceptView: ConceptLearningView = {
+  id: 'cv-n1',
+  anchorNodeId: 'n1',
+  title: 'Testing Concept',
+  quickExplanation: {
+    intuition: '直观理解。',
+    problemSolved: '解决了什么问题。',
+    coreMechanism: '核心机制。',
+    whenToUse: '什么时候用。'
+  },
+  formalExplanation: {
+    definition: '形式化定义。',
+    formulas: [],
+    assumptions: []
+  },
+  misconceptions: [],
+  relationMap: [],
+  representativePaperIds: ['paper-a'],
+  recentPaperIds: [],
+  dataCompleteness: 'partial' as const,
+  missingDataReasons: []
+}
+
+const conceptRecord = assembleLineageExpansionRecord({
+  paperId: 'paper-main',
+  nodeId: 'n1',
+  jobIds: ['job-concept'],
+  intent,
+  retrievedPapers: [candidate('paper-a', 'Foundation RL Method', longAbstract)],
+  conceptLearningView: conceptView
+})
+
+assert.equal(conceptRecord.conceptLearningView?.title, 'Testing Concept')
+assert.deepEqual(conceptRecord.conceptLearningView?.representativePaperIds, ['paper-a'])
 
 console.log('lineageRecord tests passed')
