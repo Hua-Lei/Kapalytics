@@ -73,6 +73,33 @@ assert.equal(borderlineLegacyLineage.primaryType, 'unknown')
 assert.equal(borderlineLegacyLineage.recommendedPath, 'review_related_papers')
 assert.equal(borderlineLegacyLineage.ambiguity?.competingType, 'method')
 
+const malformedLegacyConfidence = normalizeExpansionClassification({
+  kind: 'algorithm_method_lineage',
+  confidence: 85,
+  queryFocus: 'overconfident method',
+  rationale: 'The legacy classifier returned a percentage-like confidence.'
+}, { nodeLabel: 'Overconfident Method' })
+
+assert.equal(malformedLegacyConfidence.primaryType, 'unknown')
+assert.equal(malformedLegacyConfidence.confidence, 0)
+assert.equal(malformedLegacyConfidence.recommendedPath, 'review_related_papers')
+assert.equal(malformedLegacyConfidence.ambiguity?.competingType, 'method')
+assert.equal(classificationToLegacyIntent(malformedLegacyConfidence, 'Overconfident Method').kind, 'generic_related_papers')
+
+const malformedNegativeConfidence = normalizeExpansionClassification({
+  primaryType: 'method',
+  facets: [],
+  confidence: -0.2,
+  rationale: 'The classifier returned a negative confidence.',
+  recommendedPath: 'track_method_lineage',
+  alternativePaths: []
+}, { nodeLabel: 'Negative Confidence Method' })
+
+assert.equal(malformedNegativeConfidence.primaryType, 'unknown')
+assert.equal(malformedNegativeConfidence.confidence, 0)
+assert.equal(malformedNegativeConfidence.recommendedPath, 'review_related_papers')
+assert.equal(malformedNegativeConfidence.ambiguity?.competingType, 'method')
+
 const explicitUnknown = normalizeExpansionClassification({
   primaryType: 'unknown',
   facets: [],

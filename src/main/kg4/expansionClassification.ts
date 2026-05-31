@@ -189,7 +189,7 @@ function readString(value: unknown): string | undefined {
 }
 
 function readConfidence(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1 ? value : fallback
 }
 
 function dedupeStrings(value: unknown): string[] {
