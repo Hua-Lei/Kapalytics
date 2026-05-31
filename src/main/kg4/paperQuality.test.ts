@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import type { DedupedPaperCandidate, PaperSearchResult } from '../../shared/kg3'
+import { isKg4NodeExpansionRecord } from '../../shared/kg4'
 import { annotatePaperQuality, buildRelatedPaperRecommendations } from './paperQuality'
 
 function result(overrides: Partial<PaperSearchResult>): PaperSearchResult {
@@ -62,6 +63,36 @@ assert.ok((recentSignal?.trendScore ?? 0) > (recentSignal?.qualityScore ?? 0))
 
 const surveySignal = signals.find((item) => item.paperId === 'paper-survey')
 assert.ok(surveySignal?.badges.includes('survey'))
+
+const fullNameVenueSignals = annotatePaperQuality([
+  candidate('paper-icml-full', 'Full ICML Venue Name', [result({ venue: 'International Conference on Machine Learning', year: 2020, citedByCount: 120 })]),
+  candidate('paper-neurips-full', 'Full NeurIPS Venue Name', [result({ venue: 'Conference on Neural Information Processing Systems', year: 2020, citedByCount: 120 })]),
+  candidate('paper-cvpr-full', 'Full CVPR Venue Name', [result({ venue: 'IEEE/CVF Conference on Computer Vision and Pattern Recognition', year: 2020, citedByCount: 120 })])
+], { nowYear: 2026 })
+assert.ok(fullNameVenueSignals.every((item) => item.badges.includes('top_venue')))
+
+const invalidMetadata = candidate('paper-invalid-metadata', 'Invalid Metadata Paper', [result({ venue: 'ICLR', year: 1899.5, citedByCount: 12.7, abstract: 'Invalid metadata should not leak into recommendations.' })])
+const invalidMetadataRecommendations = buildRelatedPaperRecommendations(
+  [invalidMetadata],
+  annotatePaperQuality([invalidMetadata], { nowYear: 2026 })
+)
+assert.equal(invalidMetadataRecommendations[0].year, undefined)
+assert.equal(invalidMetadataRecommendations[0].citationCount, undefined)
+assert.equal(isKg4NodeExpansionRecord({
+  id: 'record-invalid-metadata',
+  paperId: 'paper-anchor',
+  nodeId: 'node-anchor',
+  retrievedPaperIds: [],
+  algorithmIdeaCards: [],
+  expansionGraphNodes: [],
+  expansionGraphEdges: [],
+  relatedPaperRecommendations: invalidMetadataRecommendations,
+  dataCompleteness: 'partial',
+  missingDataReasons: [],
+  generatedByJobIds: [],
+  createdAt: new Date('2026-05-31T00:00:00.000Z').toISOString(),
+  updatedAt: new Date('2026-05-31T00:00:00.000Z').toISOString()
+}), true)
 
 const recommendations = buildRelatedPaperRecommendations([topVenue, recentArxiv], signals)
 assert.equal(recommendations[0].paperId, 'paper-top')

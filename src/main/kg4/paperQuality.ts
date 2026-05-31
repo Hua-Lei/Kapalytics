@@ -33,6 +33,13 @@ const STRONG_VENUES = new Set([
 
 const UNKNOWN_VENUES = new Set(['ARXIV', 'CORR', 'PREPRINT', 'UNKNOWN', ''])
 
+const TOP_VENUE_ALIASES: Array<[string, string]> = [
+  ['INTERNATIONAL CONFERENCE ON MACHINE LEARNING', 'ICML'],
+  ['CONFERENCE ON NEURAL INFORMATION PROCESSING SYSTEMS', 'NEURIPS'],
+  ['NEURAL INFORMATION PROCESSING SYSTEMS', 'NEURIPS'],
+  ['CONFERENCE ON COMPUTER VISION AND PATTERN RECOGNITION', 'CVPR']
+]
+
 export function annotatePaperQuality(
   candidates: DedupedPaperCandidate[],
   options: { nowYear?: number } = {}
@@ -53,7 +60,7 @@ export function buildRelatedPaperRecommendations(
       const recommendation: RelatedPaperRecommendation = {
         paperId: candidate.canonicalId,
         title: candidate.title,
-        year: candidate.year ?? newestYear(candidate.mergedFrom),
+        year: validYear(candidate.year) ?? newestYear(candidate.mergedFrom),
         venue: representativeVenue(candidate.mergedFrom),
         sources: [...candidate.sources],
         citationCount: citationCount(candidate.mergedFrom),
@@ -79,7 +86,7 @@ function annotateCandidate(candidate: DedupedPaperCandidate, nowYear: number): P
   const reasons: string[] = []
   const warnings: string[] = []
   const citations = citationCount(candidate.mergedFrom) ?? 0
-  const year = candidate.year ?? newestYear(candidate.mergedFrom)
+  const year = validYear(candidate.year) ?? newestYear(candidate.mergedFrom)
   const age = year === undefined ? undefined : nowYear - year
   const recent = age !== undefined && age >= 0 && age <= 2
   const venueTier = bestVenueTier(candidate.mergedFrom)
@@ -238,25 +245,44 @@ function representativeVenue(results: PaperSearchResult[]): string | undefined {
 
 function venueTokensFor(venue: string | undefined): string[] {
   if (!venue?.trim()) return []
+  const normalizedVenue = normalizeVenue(venue)
+  const aliases = TOP_VENUE_ALIASES
+    .filter(([fullName]) => normalizedVenue.includes(fullName))
+    .map(([, acronym]) => acronym)
+  return [...normalizedVenue.split(' ').filter(Boolean), ...aliases]
+}
+
+function normalizeVenue(venue: string): string {
   return venue
     .toUpperCase()
-    .split(/[^A-Z0-9]+/)
-    .map((token) => token.trim())
-    .filter(Boolean)
+    .replace(/&/g, ' AND ')
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function citationCount(results: PaperSearchResult[]): number | undefined {
   const counts = results
     .map((result) => result.citedByCount)
-    .filter((count): count is number => typeof count === 'number' && Number.isFinite(count) && count >= 0)
+    .map(validCitationCount)
+    .filter((count): count is number => count !== undefined)
   return counts.length ? Math.max(...counts) : undefined
 }
 
 function newestYear(results: PaperSearchResult[]): number | undefined {
   const years = results
     .map((result) => result.year)
-    .filter((year): year is number => typeof year === 'number' && Number.isFinite(year))
+    .map(validYear)
+    .filter((year): year is number => year !== undefined)
   return years.length ? Math.max(...years) : undefined
+}
+
+function validYear(year: number | undefined): number | undefined {
+  return typeof year === 'number' && Number.isInteger(year) && year >= 1900 && year <= 2100 ? year : undefined
+}
+
+function validCitationCount(count: number | undefined): number | undefined {
+  return typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : undefined
 }
 
 function searchableText(candidate: DedupedPaperCandidate): string {
