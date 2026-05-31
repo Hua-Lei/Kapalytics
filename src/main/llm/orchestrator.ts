@@ -251,7 +251,7 @@ function validateExpansionIntent(output: unknown): ReferencedPaperValidationResu
   if (!isNumberInRange(output.confidence, 0, 1)) errors.push('classify_expansion_intent.confidence must be a number between 0 and 1')
   if (!isNonEmptyString(output.queryFocus)) errors.push('classify_expansion_intent.queryFocus must be a non-empty string')
   if (!isNonEmptyString(output.rationale)) errors.push('classify_expansion_intent.rationale must be a non-empty string')
-  if (output.fallbackReason !== undefined && typeof output.fallbackReason !== 'string') errors.push('classify_expansion_intent.fallbackReason must be a string when present')
+  if (output.fallbackReason !== undefined && output.fallbackReason !== null && typeof output.fallbackReason !== 'string') errors.push('classify_expansion_intent.fallbackReason must be a string when present')
   return schemaErrors(...errors)
 }
 

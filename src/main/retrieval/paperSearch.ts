@@ -26,7 +26,14 @@ function retrievalFetchInit(timeoutMs = 15000): FetchInitWithDispatcher {
 
 const arxivRateLimiter = new TokenBucketRateLimiter({ capacity: 1, refillPerSecond: 1 / 3 })
 const openAlexRateLimiter = new TokenBucketRateLimiter({ capacity: 20, refillPerSecond: 10 })
-const semanticScholarRateLimiter = new TokenBucketRateLimiter({ capacity: 20, refillPerSecond: 10 })
+const semanticScholarRateLimiter = new TokenBucketRateLimiter({ capacity: 1, refillPerSecond: 1 })
+
+const paperSearchConfig = {
+  arxivTimeoutMs: 30000,
+  openAlexTimeoutMs: 15000,
+  semanticScholarTimeoutMs: 20000,
+  semanticScholarRefillPerSecond: 1
+}
 
 function now(): string {
   return new Date().toISOString()
@@ -34,6 +41,17 @@ function now(): string {
 
 function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, ' ').trim()
+}
+
+function queryTokens(value: string): string[] {
+  return normalizeText(value)
+    .split(' ')
+    .filter((token) => token.length > 2 && !['related', 'papers', 'paper'].includes(token))
+}
+
+function buildArxivSearchQuery(query: PaperSearchQuery): string {
+  const tokens = [...new Set(queryTokens([query.query, ...(query.searchQueries ?? [])].join(' ')))].slice(0, 8)
+  return tokens.length ? tokens.map((token) => `all:${token}`).join(' AND ') : `all:${query.query}`
 }
 
 function hash(value: string): string {
@@ -67,7 +85,7 @@ function canonicalKey(result: PaperSearchResult): string {
 
 export function dedupeAndRankResults(query: PaperSearchQuery, results: PaperSearchResult[]): DedupedPaperCandidate[] {
   const groups = new Map<string, PaperSearchResult[]>()
-  for (const result of results.filter((item) => item.source && item.url && item.externalId)) {
+  for (const result of results.filter((item) => item.source && item.url && item.externalId && (!query.requireAbstract || Boolean(item.abstract?.trim())))) {
     const key = canonicalKey(result)
     groups.set(key, [...(groups.get(key) ?? []), result])
   }
@@ -127,7 +145,7 @@ class ArxivProvider implements PaperSearchProvider {
   async search(query: PaperSearchQuery): Promise<PaperSearchResult[]> {
     await arxivRateLimiter.acquire()
     const params = new URLSearchParams({
-      search_query: `all:${query.query}`,
+      search_query: buildArxivSearchQuery(query),
       start: '0',
       max_results: String(Math.min(query.maxResults, 20)),
       sortBy: 'relevance',
@@ -135,7 +153,7 @@ class ArxivProvider implements PaperSearchProvider {
     })
     const url = `https://export.arxiv.org/api/query?${params.toString()}`
     logRetrieval('provider_request', { provider: this.id, url, query: query.query })
-    const res = await fetch(url, retrievalFetchInit())
+    const res = await fetch(url, retrievalFetchInit(paperSearchConfig.arxivTimeoutMs))
     logRetrieval('provider_response', { provider: this.id, status: res.status, ok: res.ok })
     if (!res.ok) throw new Error(`arXiv API ${res.status}`)
     return parseArxivFeed(await res.text())
@@ -164,7 +182,7 @@ class OpenAlexProvider implements PaperSearchProvider {
     const params = new URLSearchParams({ search: query.query, per_page: String(Math.min(query.maxResults, 25)) })
     const url = `https://api.openalex.org/works?${params.toString()}`
     logRetrieval('provider_request', { provider: this.id, url, query: query.query })
-    const res = await fetch(url, retrievalFetchInit())
+    const res = await fetch(url, retrievalFetchInit(paperSearchConfig.openAlexTimeoutMs))
     logRetrieval('provider_response', { provider: this.id, status: res.status, ok: res.ok })
     if (!res.ok) throw new Error(`OpenAlex API ${res.status}`)
     const json = await res.json() as { results?: OpenAlexWork[] }
@@ -196,7 +214,10 @@ class SemanticScholarProvider implements PaperSearchProvider {
     })
     const url = `https://api.semanticscholar.org/graph/v1/paper/search?${params.toString()}`
     logRetrieval('provider_request', { provider: this.id, url, query: query.query })
-    const res = await fetch(url, retrievalFetchInit())
+    const init = retrievalFetchInit(paperSearchConfig.semanticScholarTimeoutMs)
+    const apiKey = process.env.SEMANTIC_SCHOLAR_API_KEY?.trim()
+    if (apiKey) init.headers = { ...(init.headers as Record<string, string> | undefined), 'x-api-key': apiKey }
+    const res = await fetch(url, init)
     logRetrieval('provider_response', { provider: this.id, status: res.status, ok: res.ok })
     if (!res.ok) throw new Error(`Semantic Scholar API ${res.status}`)
     const json = await res.json() as { data?: SemanticScholarPaper[] }
@@ -410,4 +431,9 @@ function reconstructOpenAlexAbstract(index: Record<string, number[]>): string {
     for (const pos of positions) words.push({ word, pos })
   }
   return words.sort((a, b) => a.pos - b.pos).map((item) => item.word).join(' ')
+}
+
+export const __testing = {
+  buildArxivSearchQuery,
+  paperSearchConfig
 }

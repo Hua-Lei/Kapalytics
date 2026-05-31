@@ -97,7 +97,7 @@ function nodesFromRetrievedPapers(papers: DedupedPaperCandidate[]): ExpansionGra
     id: `kg4_paper_${safeId(candidatePaperId(paper))}`,
     type: 'related_paper',
     label: paper.title,
-    description: toShortDisplayText(`相关论文：${paper.title}`),
+    description: toShortDisplayText(paper.abstract ?? `相关论文：${paper.title}`),
     sourcePaperIds: [candidatePaperId(paper)],
     isTemporary: true,
     visualStyle: 'faded'

@@ -145,8 +145,7 @@ const fallback = assembleLineageExpansionRecord({
 assert.equal(fallback.methodLineageView, undefined)
 assert.equal(fallback.expansionGraphNodes[0].type, 'related_paper')
 assert.ok(fallback.expansionGraphNodes[0].description.length <= 180)
-assert.notEqual(fallback.expansionGraphNodes[0].description, longAbstract)
-assert.doesNotMatch(fallback.expansionGraphNodes[0].description, /This is a very long abstract/)
+assert.match(fallback.expansionGraphNodes[0].description, /This is a very long abstract/)
 assert.equal(fallback.expansionIntent?.fallbackReason, '分类置信度低，降级为相关论文展开。')
 
 const digestCollisionFallback = assembleLineageExpansionRecord({

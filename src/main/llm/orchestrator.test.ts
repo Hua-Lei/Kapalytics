@@ -59,6 +59,14 @@ assert.equal(
 assert.equal(
   validateJobOutput(
     makeJob({ type: 'classify_expansion_intent' }),
+    { kind: 'algorithm_method_lineage', confidence: 0.95, queryFocus: 'hypernetwork meta-learning', rationale: 'concrete method family', fallbackReason: null }
+  ).ok,
+  true
+)
+
+assert.equal(
+  validateJobOutput(
+    makeJob({ type: 'classify_expansion_intent' }),
     { kind: 'wrong_kind', confidence: 7, queryFocus: '', rationale: '' }
   ).ok,
   false
