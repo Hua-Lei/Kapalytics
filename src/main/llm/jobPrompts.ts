@@ -33,11 +33,16 @@ export function systemPromptForJob(type: LLMJobType): string {
   }
   if (type === 'classify_expansion_intent') {
     return [
-      'You are a KG4 expansion intent classifier. Return strict JSON only.',
-      'Classify whether currentNode should produce algorithm_method_lineage or generic_related_papers.',
-      'Return fields: kind, confidence, queryFocus, rationale, and optional fallbackReason.',
-      'Use algorithm_method_lineage only for concrete algorithms, methods, mechanisms, or model components.',
-      'Use generic_related_papers for fields, concepts, broad topics, open problems, or low confidence.'
+      'You are a KG4 expansion node classifier. Return strict JSON only.',
+      'Classify currentNode with primaryType, facets, confidence, rationale, recommendedPath, alternativePaths, and optional ambiguity.',
+      'primaryType must be one of field, problem, concept, method, paper, unknown.',
+      'recommendedPath and alternativePaths must use learn_concept, track_method_lineage, explore_research_area, review_related_papers, or inspect_paper_evidence.',
+      'Use concept for reusable terms with definitions, formulas, or teachable mechanisms such as LoRA or Context Distillation.',
+      'Use method for concrete algorithms, training recipes, architecture modules, or paper-specific method names.',
+      'Use field for broad research areas and problem for bottlenecks, tasks, or desiderata.',
+      'Facets can include paper_specific, method_component, training_strategy, parameter_efficient_finetuning, survey, recent_hot, math_heavy, or application_area when useful.',
+      'Do not classify a paper-title-like method as field merely because it contains many words.',
+      'All explanatory text fields must be Chinese (中文).'
     ].join(' ')
   }
   if (type === 'digest_paper_method') {

@@ -7,6 +7,8 @@ import type { LLMModel } from './types'
 
 const PROMPT_VERSION = 'kg4-lineage-2026-05-31'
 const EXPANSION_INTENT_KINDS = ['algorithm_method_lineage', 'generic_related_papers'] as const
+const EXPANSION_PRIMARY_TYPES = ['field', 'problem', 'concept', 'method', 'paper', 'unknown'] as const
+const EXPANSION_PATHS = ['learn_concept', 'track_method_lineage', 'explore_research_area', 'review_related_papers', 'inspect_paper_evidence'] as const
 const PAPER_METHOD_RELATION_HINTS = ['foundation', 'parallel_variant', 'extends', 'improves_limitation', 'application_variant', 'unclear'] as const
 const METHOD_LINEAGE_NODE_ROLES = ['current_method', 'foundation_method', 'parallel_variant', 'improvement', 'application_variant', 'open_problem'] as const
 const METHOD_LINEAGE_RELATIONS = ['extends', 'contrasts_with', 'solves_limitation_of', 'shares_assumption_with', 'applies_to_new_context', 'evidence_insufficient'] as const
@@ -262,11 +264,32 @@ export function validateJobOutput(job: LLMJob, output: unknown): ReferencedPaper
 function validateExpansionIntent(output: unknown): ReferencedPaperValidationResult {
   const errors: string[] = []
   if (!isRecord(output)) return schemaErrors('classify_expansion_intent output must be an object')
-  if (!isOneOf(output.kind, EXPANSION_INTENT_KINDS)) errors.push('classify_expansion_intent.kind must be algorithm_method_lineage or generic_related_papers')
+
+  // Legacy output shape
+  if (output.kind !== undefined) {
+    if (!isOneOf(output.kind, EXPANSION_INTENT_KINDS)) errors.push('classify_expansion_intent.kind must be algorithm_method_lineage or generic_related_papers')
+    if (!isNumberInRange(output.confidence, 0, 1)) errors.push('classify_expansion_intent.confidence must be a number between 0 and 1')
+    if (!isNonEmptyString(output.queryFocus)) errors.push('classify_expansion_intent.queryFocus must be a non-empty string')
+    if (!isNonEmptyString(output.rationale)) errors.push('classify_expansion_intent.rationale must be a non-empty string')
+    if (output.fallbackReason !== undefined && output.fallbackReason !== null && typeof output.fallbackReason !== 'string') errors.push('classify_expansion_intent.fallbackReason must be a string when present')
+    return schemaErrors(...errors)
+  }
+
+  // New strategy classification shape
+  if (!isOneOf(output.primaryType, EXPANSION_PRIMARY_TYPES)) errors.push('classify_expansion_intent.primaryType must be a supported primary type')
+  if (!Array.isArray(output.facets) || !output.facets.every((facet: unknown) => typeof facet === 'string')) errors.push('classify_expansion_intent.facets must be a string array')
   if (!isNumberInRange(output.confidence, 0, 1)) errors.push('classify_expansion_intent.confidence must be a number between 0 and 1')
-  if (!isNonEmptyString(output.queryFocus)) errors.push('classify_expansion_intent.queryFocus must be a non-empty string')
   if (!isNonEmptyString(output.rationale)) errors.push('classify_expansion_intent.rationale must be a non-empty string')
-  if (output.fallbackReason !== undefined && output.fallbackReason !== null && typeof output.fallbackReason !== 'string') errors.push('classify_expansion_intent.fallbackReason must be a string when present')
+  if (!isOneOf(output.recommendedPath, EXPANSION_PATHS)) errors.push('classify_expansion_intent.recommendedPath must be a supported path')
+  if (!Array.isArray(output.alternativePaths) || !output.alternativePaths.every((path: unknown) => isOneOf(path, EXPANSION_PATHS))) errors.push('classify_expansion_intent.alternativePaths must be supported paths')
+  if (output.ambiguity !== undefined && output.ambiguity !== null) {
+    if (!isRecord(output.ambiguity)) {
+      errors.push('classify_expansion_intent.ambiguity must be an object when present')
+    } else {
+      if (!isOneOf(output.ambiguity.competingType, EXPANSION_PRIMARY_TYPES)) errors.push('classify_expansion_intent.ambiguity.competingType must be a supported primary type')
+      if (!isNonEmptyString(output.ambiguity.reason)) errors.push('classify_expansion_intent.ambiguity.reason must be a non-empty string')
+    }
+  }
   return schemaErrors(...errors)
 }
 

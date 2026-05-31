@@ -12,8 +12,14 @@ assert.doesNotMatch(prompt, /comparisonRows/i)
 assert.doesNotMatch(prompt, /userReflection/i)
 
 const classifyPrompt = systemPromptForJob('classify_expansion_intent')
-assert.match(classifyPrompt, /algorithm_method_lineage/i)
-assert.match(classifyPrompt, /generic_related_papers/i)
+assert.match(classifyPrompt, /primaryType/i)
+assert.match(classifyPrompt, /facets/i)
+assert.match(classifyPrompt, /recommendedPath/i)
+assert.match(classifyPrompt, /alternativePaths/i)
+assert.match(classifyPrompt, /learn_concept/i)
+assert.match(classifyPrompt, /track_method_lineage/i)
+assert.match(classifyPrompt, /explore_research_area/i)
+assert.match(classifyPrompt, /中文/)
 
 const digestPrompt = systemPromptForJob('digest_paper_method')
 assert.match(digestPrompt, /PaperMethodDigest/i)
@@ -249,6 +255,98 @@ assert.equal(
     }
   ).ok,
   false
+)
+
+// New strategy classification shape should validate
+assert.equal(
+  validateJobOutput(
+    makeJob({ type: 'classify_expansion_intent' }),
+    {
+      primaryType: 'concept',
+      facets: ['method_component'],
+      confidence: 0.88,
+      rationale: 'LoRA is a reusable concept with mathematical structure.',
+      recommendedPath: 'learn_concept',
+      alternativePaths: ['track_method_lineage', 'review_related_papers']
+    }
+  ).ok,
+  true
+)
+
+// Missing facets should fail
+assert.equal(
+  validateJobOutput(
+    makeJob({ type: 'classify_expansion_intent' }),
+    {
+      primaryType: 'concept',
+      confidence: 0.88,
+      rationale: 'Missing facets and other fields.',
+      recommendedPath: 'learn_concept'
+    }
+  ).ok,
+  false
+)
+
+// New shape with ambiguity field should validate
+assert.equal(
+  validateJobOutput(
+    makeJob({ type: 'classify_expansion_intent' }),
+    {
+      primaryType: 'method',
+      facets: ['training_strategy', 'paper_specific'],
+      confidence: 0.75,
+      rationale: 'Could also be a concept.',
+      recommendedPath: 'track_method_lineage',
+      alternativePaths: ['learn_concept'],
+      ambiguity: { competingType: 'concept', reason: 'The method has a reusable mathematical formulation.' }
+    }
+  ).ok,
+  true
+)
+
+// Bad recommendedPath should fail
+assert.equal(
+  validateJobOutput(
+    makeJob({ type: 'classify_expansion_intent' }),
+    {
+      primaryType: 'method',
+      facets: ['paper_specific'],
+      confidence: 0.6,
+      rationale: 'Test.',
+      recommendedPath: 'bad_path',
+      alternativePaths: ['track_method_lineage']
+    }
+  ).ok,
+  false
+)
+
+// Legacy output stays accepted
+assert.equal(
+  validateJobOutput(
+    makeJob({ type: 'classify_expansion_intent' }),
+    {
+      kind: 'algorithm_method_lineage',
+      confidence: 0.82,
+      queryFocus: 'Hypernetwork',
+      rationale: 'Legacy output remains accepted during migration.'
+    }
+  ).ok,
+  true
+)
+
+// Legacy output stays accepted (generic_related_papers)
+assert.equal(
+  validateJobOutput(
+    makeJob({ type: 'classify_expansion_intent' }),
+    {
+      kind: 'generic_related_papers',
+      confidence: 0.5,
+      queryFocus: 'meta-learning survey',
+      rationale: 'Broad field topic.',
+      fallbackReason: 'low confidence in method specificity'
+    }
+  ).ok,
+  true
 )
 
 console.log('orchestrator tests passed')
