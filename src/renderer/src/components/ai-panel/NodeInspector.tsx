@@ -21,33 +21,36 @@ function NodeInspector({ node }: { node: GraphNode }) {
   const { startExpansion } = useExpansion()
   const { openTab } = useWorkspace()
 
-  const requestExpansion = async () => {
-    setExpansionRequested(true)
-    try {
-      const result = await startExpansion(node.id)
-      if (!result) return
-      if (result.status === 'ready-from-cache') {
-        openTab({
-          id: result.sessionId,
-          type: 'expansion_graph',
-          title: `Expansion Graph: ${node.label}`,
-          nodeId: node.id,
-          expansionId: result.sessionId,
-          closable: true,
-          status: 'ready'
-        })
-        return
-      }
-
+  const openExpansionSession = (result: Awaited<ReturnType<typeof startExpansion>>) => {
+    if (!result) return
+    if (result.status === 'ready-from-cache') {
       openTab({
         id: result.sessionId,
-        type: 'node_expansion_loading',
-        title: `Expand: ${node.label}`,
+        type: 'expansion_graph',
+        title: `Expansion Graph: ${node.label}`,
         nodeId: node.id,
         expansionId: result.sessionId,
         closable: true,
-        status: 'loading'
+        status: 'ready'
       })
+      return
+    }
+
+    openTab({
+      id: result.sessionId,
+      type: 'node_expansion_loading',
+      title: `Expand: ${node.label}`,
+      nodeId: node.id,
+      expansionId: result.sessionId,
+      closable: true,
+      status: 'loading'
+    })
+  }
+
+  const requestExpansion = async (forceRefresh = false) => {
+    setExpansionRequested(true)
+    try {
+      openExpansionSession(await startExpansion(node.id, { forceRefresh }))
     } finally {
       setExpansionRequested(false)
     }
@@ -69,7 +72,8 @@ function NodeInspector({ node }: { node: GraphNode }) {
           <div className="ai-context-query-chips">
             {(node.searchQueries ?? []).slice(0, 4).map((query) => <span key={query}>{query}</span>)}
           </div>
-          <button className="stage-btn stage-btn--primary" onClick={requestExpansion} disabled={expansionRequested}>展开该方向</button>
+          <button className="stage-btn stage-btn--primary" onClick={() => requestExpansion(false)} disabled={expansionRequested}>展开该方向</button>
+          <button className="stage-btn stage-btn--secondary" onClick={() => requestExpansion(true)} disabled={expansionRequested}>重新检索分析</button>
           {expansionRequested && <p>正在打开展开任务...</p>}
         </div>
       )}

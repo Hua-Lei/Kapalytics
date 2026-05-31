@@ -10,6 +10,17 @@ let apiKey: string | null = null
 let semanticScholarApiKey: string | null = null
 let llmConfig: { proxyUrl: string | null } | null = null
 
+function logLlmOutput(provider: LlmProvider, response: LlmResponse): void {
+  console.info('[LLM output]', {
+    provider: provider.name,
+    model: provider.model,
+    finishReason: response.finishReason ?? 'unknown',
+    usage: response.usage,
+    contentLength: response.content.length
+  })
+  console.info('[LLM output content]\n' + response.content)
+}
+
 function getApiKeyPath(): string {
   return `${app.getPath('userData')}/api-key.txt`
 }
@@ -189,7 +200,9 @@ export async function callLlm(request: LlmRequest): Promise<LlmResponse> {
     }
 
     const data = await res.json()
-    return provider.parseResponse(data)
+    const parsed = provider.parseResponse(data)
+    logLlmOutput(provider, parsed)
+    return parsed
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error(`TIMEOUT:请求超时（${Math.round(timeoutMs / 1000)}s）。请稍后重试，或在设置中配置可用代理。`)

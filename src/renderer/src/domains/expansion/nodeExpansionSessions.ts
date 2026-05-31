@@ -108,6 +108,7 @@ export function updateSessionFromJobProgress(
 
   if (normalizedStep === 'done') {
     const record = isKg4NodeExpansionRecord(event.result) ? event.result : undefined
+    const hasExpansionNodes = Boolean(record?.expansionGraphNodes.length)
     const expansionGraph: Kg4ExpansionGraphLayer | undefined = record ? {
       anchorNodeId: session.nodeId,
       nodes: record.expansionGraphNodes,
@@ -116,12 +117,14 @@ export function updateSessionFromJobProgress(
 
     return {
       ...session,
-      status: record ? 'ready' : 'empty',
+      status: record && hasExpansionNodes ? 'ready' : 'empty',
       currentStepId: 'done',
       steps: steps.map((step) => step.id === 'done' ? { ...step, status: 'done' as const, detail: event.message } : step),
       expansionGraph,
       expansionRecord: record,
-      errorMessage: record ? undefined : '展开任务完成，但返回的 KG4 expansion record 无效或不可展示。',
+      errorMessage: record
+        ? record.missingDataReasons.join('；') || '展开任务完成，但没有生成可展示的 temporary nodes。'
+        : '展开任务完成，但返回的 KG4 expansion record 无效或不可展示。',
       updatedAt: now
     }
   }

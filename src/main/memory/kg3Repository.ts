@@ -47,6 +47,10 @@ function now(): string {
   return new Date().toISOString()
 }
 
+function logDb(event: string, details: Record<string, unknown>): void {
+  console.info(`[DB] ${event}`, details)
+}
+
 function normalizeLabel(label: string): string {
   return label.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, ' ').trim()
 }
@@ -190,6 +194,7 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async savePaper(record: PaperRecord): Promise<void> {
+    logDb('save_paper_file', { paperId: record.id, title: record.title })
     const snapshot = readFileStore(this.path)
     snapshot.papers = upsertById(snapshot.papers, { ...record, updatedAt: now() })
     writeFileStore(this.path, snapshot)
@@ -200,7 +205,9 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async listPapers(): Promise<PaperRecord[]> {
-    return readSnapshot(this.path).papers
+    const papers = readSnapshot(this.path).papers
+    logDb('list_papers_file', { count: papers.length })
+    return papers
   }
 
   async saveGraphForPaper(
@@ -209,6 +216,7 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
     edges: GraphEdge[],
     insight?: PaperInsight
   ): Promise<void> {
+    logDb('save_graph_file', { paperId, nodeCount: nodes.length, edgeCount: edges.length, hasInsight: Boolean(insight) })
     const snapshot = readFileStore(this.path)
     const timestamp = now()
 
@@ -270,6 +278,7 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async saveSearchResults(query: string, results: PaperSearchResult[]): Promise<void> {
+    logDb('save_search_results_file', { query, resultCount: results.length })
     const snapshot = readFileStore(this.path)
     const timestamp = now()
     const records: PaperSearchResultRecord[] = results.map((result) => ({
@@ -290,6 +299,14 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async saveKg4ExpansionRecord(record: Kg4NodeExpansionRecord): Promise<void> {
+    logDb('save_kg4_expansion_file', {
+      id: record.id,
+      paperId: record.paperId,
+      nodeId: record.nodeId,
+      retrievedPaperCount: record.retrievedPaperIds.length,
+      expansionNodeCount: record.expansionGraphNodes.length,
+      dataCompleteness: record.dataCompleteness
+    })
     if (!isKg4NodeExpansionRecord(record)) throw new Error('invalid_kg4_expansion_record')
     const store = readFileStore(this.path)
     store.kg4NodeExpansions = upsertById(store.kg4NodeExpansions ?? [], { ...record, updatedAt: now() })
@@ -297,14 +314,18 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async getKg4ExpansionRecord(paperId: string, nodeId: string): Promise<Kg4NodeExpansionRecord | null> {
+    logDb('get_kg4_expansion_file', { paperId, nodeId })
     const store = readFileStore(this.path)
     const records = (Array.isArray(store.kg4NodeExpansions) ? store.kg4NodeExpansions : [])
       .filter((item) => item && typeof item === 'object' && item.paperId === paperId && item.nodeId === nodeId)
       .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')))
-    return newestValidKg4ExpansionRecord(records)
+    const record = newestValidKg4ExpansionRecord(records)
+    logDb('get_kg4_expansion_file_result', { paperId, nodeId, found: Boolean(record) })
+    return record
   }
 
   async saveLLMJob(job: LLMJob): Promise<void> {
+    logDb('save_llm_job_file', { jobId: job.id, type: job.type, status: job.status, paperId: job.paperId, nodeId: job.nodeId })
     const snapshot = readFileStore(this.path)
     snapshot.llmJobs = upsertById(snapshot.llmJobs, job)
     writeFileStore(this.path, snapshot)
@@ -351,6 +372,7 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async savePaper(record: PaperRecord): Promise<void> {
+    logDb('save_paper_sqlite', { paperId: record.id, title: record.title })
     this.upsertJson('papers', { ...record, updatedAt: now() })
   }
 
@@ -359,7 +381,9 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async listPapers(): Promise<PaperRecord[]> {
-    return this.allJson<PaperRecord>('papers')
+    const papers = this.allJson<PaperRecord>('papers')
+    logDb('list_papers_sqlite', { count: papers.length })
+    return papers
   }
 
   async saveGraphForPaper(
@@ -368,6 +392,7 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
     edges: GraphEdge[],
     insight?: PaperInsight
   ): Promise<void> {
+    logDb('save_graph_sqlite', { paperId, nodeCount: nodes.length, edgeCount: edges.length, hasInsight: Boolean(insight) })
     const timestamp = now()
     const nodeRecords: GraphNodeRecord[] = nodes.map((node) => ({
       id: `${paperId}:${node.id}`,
@@ -426,6 +451,7 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async saveSearchResults(query: string, results: PaperSearchResult[]): Promise<void> {
+    logDb('save_search_results_sqlite', { query, resultCount: results.length })
     const timestamp = now()
     for (const result of results) {
       const record: PaperSearchResultRecord = {
@@ -444,11 +470,20 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
   }
 
   async saveKg4ExpansionRecord(record: Kg4NodeExpansionRecord): Promise<void> {
+    logDb('save_kg4_expansion_sqlite', {
+      id: record.id,
+      paperId: record.paperId,
+      nodeId: record.nodeId,
+      retrievedPaperCount: record.retrievedPaperIds.length,
+      expansionNodeCount: record.expansionGraphNodes.length,
+      dataCompleteness: record.dataCompleteness
+    })
     if (!isKg4NodeExpansionRecord(record)) throw new Error('invalid_kg4_expansion_record')
     this.upsertJson('kg4_node_expansions', { ...record, updatedAt: now() }, { paperId: record.paperId, nodeId: record.nodeId })
   }
 
   async getKg4ExpansionRecord(paperId: string, nodeId: string): Promise<Kg4NodeExpansionRecord | null> {
+    logDb('get_kg4_expansion_sqlite', { paperId, nodeId })
     const rows = this.db
       .prepare('SELECT json FROM kg4_node_expansions WHERE paper_id = ? AND node_id = ? ORDER BY updated_at DESC')
       .all(paperId, nodeId) as JsonRow[]
@@ -462,10 +497,13 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
       }
     }
 
-    return newestValidKg4ExpansionRecord(candidates)
+    const record = newestValidKg4ExpansionRecord(candidates)
+    logDb('get_kg4_expansion_sqlite_result', { paperId, nodeId, rowCount: rows.length, found: Boolean(record) })
+    return record
   }
 
   async saveLLMJob(job: LLMJob): Promise<void> {
+    logDb('save_llm_job_sqlite', { jobId: job.id, type: job.type, status: job.status, paperId: job.paperId, nodeId: job.nodeId })
     this.upsertJson('llm_jobs', job, { paperId: job.paperId, nodeId: job.nodeId, status: job.status, jobType: job.type, cacheKey: job.cacheKey })
   }
 

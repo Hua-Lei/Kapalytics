@@ -22,8 +22,8 @@ function formatRelationHints(relationHints: string[]) {
 }
 
 function ExpansionGraphView() {
-  const { activeTab, selectObject, updateTabStatus } = useWorkspace()
-  const { sessions, selectExpansionNode, clearExpansionGraph } = useExpansion()
+  const { activeTab, openTab, selectObject, updateTabStatus } = useWorkspace()
+  const { sessions, selectExpansionNode, clearExpansionGraph, startExpansion } = useExpansion()
   const { graph } = usePaper()
 
   const session = activeTab?.expansionId ? sessions[activeTab.expansionId] : undefined
@@ -45,6 +45,21 @@ function ExpansionGraphView() {
     if (!session) return
     selectExpansionNode(node, session.id)
     selectObject({ type: 'expansion_node', id: node.id, expansionId: session.id })
+  }
+
+  const handleRetryExpansion = async () => {
+    if (!session) return
+    const result = await startExpansion(session.nodeId, { forceRefresh: true })
+    if (!result) return
+    openTab({
+      id: result.sessionId,
+      type: 'node_expansion_loading',
+      title: `Expand: ${session.nodeLabel}`,
+      nodeId: session.nodeId,
+      expansionId: result.sessionId,
+      closable: true,
+      status: 'loading'
+    })
   }
 
   if (!session || !session.expansionGraph || !anchorNode) {
@@ -74,7 +89,10 @@ function ExpansionGraphView() {
           <h3>{session.nodeLabel}</h3>
           <p>{lineage?.summary ?? '浅色节点是 temporary expansion nodes。点击节点会更新右侧 AI Panel 细节，不会直接打开 compare workbench。'}</p>
         </div>
-        <button className="stage-btn stage-btn--secondary" onClick={handleClear}>清除 temporary graph</button>
+        <div className="ai-context-actions">
+          <button className="stage-btn stage-btn--secondary" onClick={handleRetryExpansion}>重新检索分析</button>
+          <button className="stage-btn stage-btn--secondary" onClick={handleClear}>清除 temporary graph</button>
+        </div>
       </section>
 
       <section className="expansion-graph-canvas">

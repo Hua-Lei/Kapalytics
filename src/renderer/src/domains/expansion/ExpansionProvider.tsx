@@ -31,12 +31,12 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
     paperIdRef.current = context.paperId
   }, [])
 
-  const startExpansion = useCallback(async (nodeId: string): Promise<StartExpansionUiResult | undefined> => {
+  const startExpansion = useCallback(async (nodeId: string, options: { forceRefresh?: boolean } = {}): Promise<StartExpansionUiResult | undefined> => {
     const node = graphRef.current.find((n) => n.id === nodeId)
     if (!node) return undefined
     const paperId = paperIdRef.current ?? undefined
 
-    if (paperId) {
+    if (paperId && !options.forceRefresh) {
       const record = await electronApi.kg4.getExpansionRecord({ paperId, nodeId: node.id })
       if (record) {
         const session = createReadySessionFromRecord(record, node)
@@ -68,6 +68,7 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
       nodeLabel: node.label,
       paperId,
       searchQueries: node.searchQueries ?? [],
+      forceRefresh: Boolean(options.forceRefresh),
       paperInsight: paperInsightRef.current
         ? {
             title: paperInsightRef.current.centralInsight,

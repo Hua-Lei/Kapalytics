@@ -397,6 +397,7 @@ export interface StartKg4ExpansionParams {
   nodeLabel: string
   paperId?: string
   searchQueries?: string[]
+  forceRefresh?: boolean
   paperInsight?: {
     title?: string
     problem?: string

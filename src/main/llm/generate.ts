@@ -21,6 +21,7 @@ export async function aiDiagnose(
 
   const messages = buildDiagnosisPrompt(stageId, stageName, taskDescription, userAnswer)
   const res = await callLlm({ messages, maxTokens: 1024, temperature: 0.3, jsonMode: true })
+  throwIfJsonOutputWasTruncated(res)
 
   const text = res.content.trim()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
@@ -201,12 +202,24 @@ ${ANALYSIS_JSON_SCHEMA_PROMPT}
 
 type ProgressFn = (msg: string) => void
 
+function throwIfJsonOutputWasTruncated(res: { finishReason?: string; content: string }): void {
+  if (res.finishReason !== 'length') return
+  console.error('[LLM JSON truncated before parse]\n' + res.content)
+  throw new Error('DeepSeek 输出因达到 max_tokens 被截断，JSON 不完整。请减少论文输入长度或提高输出 token 上限后重试。')
+}
+
 function extractJsonObject(text: string): unknown {
   if (!text.trim()) throw new Error('AI 返回了空内容，请重试')
   const cleaned = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim()
   const match = cleaned.match(/\{[\s\S]*\}/)
   if (!match) throw new Error(`无法解析 JSON: ${text.slice(0, 200)}`)
-  return JSON.parse(match[0])
+  try {
+    return JSON.parse(match[0])
+  } catch (err) {
+    console.error('[LLM JSON parse failed]', err)
+    console.error('[LLM JSON parse failed content]\n' + text)
+    throw err
+  }
 }
 
 async function repairJsonObject(invalidJson: string, parseError: string): Promise<unknown> {
@@ -231,12 +244,13 @@ async function repairJsonObject(invalidJson: string, parseError: string): Promis
 ${invalidJson}`
       }
     ],
-    maxTokens: 8192,
+    maxTokens: 16384,
     temperature: 0,
     timeoutMs: 180000,
     jsonMode: true
   })
 
+  throwIfJsonOutputWasTruncated(res)
   return extractJsonObject(res.content)
 }
 
@@ -468,7 +482,7 @@ ${paperExcerpt.slice(0, 8000)}
 ${rawOutput.slice(0, 20000)}`
       }
     ],
-    maxTokens: 8192,
+    maxTokens: 16384,
     temperature: 0,
     timeoutMs: 180000,
     jsonMode: true
@@ -516,11 +530,12 @@ ${compactText}
 请严格生成一个 JSON object，顶层必须是 {"insight":{...},"graph":{"nodes":[],"edges":[]},"tasks":{...}}。`
       }
     ],
-    maxTokens: 8192,
+    maxTokens: 16384,
     temperature: 0.1,
     timeoutMs: 180000,
     jsonMode: true
   })
+  throwIfJsonOutputWasTruncated(res)
   if (!res.content.trim()) {
     onProgress?.('DeepSeek JSON Output 返回空内容，正在重试...')
     res = await callLlm({
@@ -534,11 +549,12 @@ ${compactText}
 ${compactText}`
         }
       ],
-      maxTokens: 8192,
+      maxTokens: 16384,
       temperature: 0,
       timeoutMs: 180000,
       jsonMode: true
     })
+    throwIfJsonOutputWasTruncated(res)
   }
   onProgress?.('正在解析 AI 返回的图谱和任务...')
   const parsed = await parseJsonObjectWithRepair(res.content)
