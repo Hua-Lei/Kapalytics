@@ -273,6 +273,42 @@ export interface MethodLineageView {
   missingDataReasons: string[]
 }
 
+export interface ConceptFormulaEntry {
+  latex: string
+  explanation: string
+  variables: Array<{ symbol: string; meaning: string }>
+}
+
+export interface ConceptLearningView {
+  id: string
+  anchorNodeId: string
+  title: string
+  quickExplanation: {
+    intuition: string
+    problemSolved: string
+    coreMechanism: string
+    whenToUse: string
+  }
+  formalExplanation: {
+    definition: string
+    formulas: ConceptFormulaEntry[]
+    assumptions: string[]
+  }
+  misconceptions: Array<{
+    misconception: string
+    correction: string
+  }>
+  relationMap: Array<{
+    label: string
+    relation: 'prerequisite' | 'similar' | 'contrasts_with' | 'used_by' | 'variant'
+    explanation: string
+  }>
+  representativePaperIds: string[]
+  recentPaperIds: string[]
+  dataCompleteness: 'complete' | 'partial' | 'insufficient'
+  missingDataReasons: string[]
+}
+
 export interface Kg4NodeExpansionRecord {
   id: string
   paperId: string
@@ -288,6 +324,7 @@ export interface Kg4NodeExpansionRecord {
   relatedPaperRecommendations?: RelatedPaperRecommendation[]
   paperMethodDigests?: PaperMethodDigest[]
   methodLineageView?: MethodLineageView
+  conceptLearningView?: ConceptLearningView
   dataCompleteness: 'complete' | 'partial' | 'insufficient'
   missingDataReasons: string[]
   generatedByJobIds: string[]
@@ -450,6 +487,7 @@ export type Kg4LLMTaskType =
   | 'generate_remedial_lesson'
   | 'suggest_graph_fusion'
   | 'generate_optional_transfer_task'
+  | 'teach_concept'
 
 export type Kg4NodeLike = Pick<GraphNode, 'id' | 'type' | 'label' | 'description' | 'searchQueries'> & {
   insight?: string
@@ -585,6 +623,10 @@ const methodLineageRelations = [
   'applies_to_new_context',
   'evidence_insufficient'
 ] as const satisfies readonly MethodLineageRelation[]
+
+const conceptRelations = ['prerequisite', 'similar', 'contrasts_with', 'used_by', 'variant'] as const satisfies readonly ConceptLearningView['relationMap'][number]['relation'][]
+
+const conceptViewCompleteness = ['complete', 'partial', 'insufficient'] as const satisfies readonly ConceptLearningView['dataCompleteness'][]
 
 function isAlgorithmIdeaCard(value: unknown): value is AlgorithmIdeaCard {
   if (!isRecordObject(value)) return false
@@ -779,6 +821,31 @@ function isMethodLineageView(value: unknown): value is MethodLineageView {
   )
 }
 
+function isConceptLearningView(value: unknown): value is ConceptLearningView {
+  if (!isRecordObject(value)) return false
+  if (
+    typeof value.id !== 'string' || !value.id.trim() ||
+    typeof value.anchorNodeId !== 'string' || !value.anchorNodeId.trim() ||
+    typeof value.title !== 'string' || !value.title.trim()
+  ) return false
+  const qe = value.quickExplanation
+  if (!isRecordObject(qe)) return false
+  if (!['intuition', 'problemSolved', 'coreMechanism', 'whenToUse'].every((k) => typeof qe[k] === 'string' && Boolean(qe[k].trim()))) return false
+  const fe = value.formalExplanation
+  if (!isRecordObject(fe)) return false
+  if (typeof fe.definition !== 'string' || !fe.definition.trim()) return false
+  if (!Array.isArray(fe.formulas)) return false
+  if (!fe.formulas.every((f: unknown) => isRecordObject(f) && typeof f.latex === 'string' && Boolean(f.latex.trim()) && typeof f.explanation === 'string' && Boolean(f.explanation.trim()) && Array.isArray(f.variables) && f.variables.every((v: unknown) => isRecordObject(v) && typeof v.symbol === 'string' && typeof v.meaning === 'string'))) return false
+  if (!isStringArray(fe.assumptions)) return false
+  if (!Array.isArray(value.misconceptions) || !value.misconceptions.every((m: unknown) => isRecordObject(m) && typeof m.misconception === 'string' && Boolean(m.misconception.trim()) && typeof m.correction === 'string' && Boolean(m.correction.trim()))) return false
+  if (!Array.isArray(value.relationMap) || !value.relationMap.every((r: unknown) => isRecordObject(r) && typeof r.label === 'string' && Boolean(r.label.trim()) && isOneOf(r.relation, conceptRelations) && typeof r.explanation === 'string' && Boolean(r.explanation.trim()))) return false
+  if (!isStringArray(value.representativePaperIds)) return false
+  if (!isStringArray(value.recentPaperIds)) return false
+  if (!isOneOf(value.dataCompleteness, conceptViewCompleteness)) return false
+  if (!isStringArray(value.missingDataReasons)) return false
+  return true
+}
+
 export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpansionRecord {
   if (!value || typeof value !== 'object') return false
   const record = value as Partial<Kg4NodeExpansionRecord>
@@ -806,6 +873,7 @@ export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpans
     (record.paperMethodDigests === undefined ||
       (Array.isArray(record.paperMethodDigests) && record.paperMethodDigests.every(isPaperMethodDigest))) &&
     (record.methodLineageView === undefined || isMethodLineageView(record.methodLineageView)) &&
+    (record.conceptLearningView === undefined || isConceptLearningView(record.conceptLearningView)) &&
     (record.dataCompleteness === 'complete' || record.dataCompleteness === 'partial' || record.dataCompleteness === 'insufficient') &&
     isStringArray(record.missingDataReasons) &&
     isStringArray(record.generatedByJobIds) &&
