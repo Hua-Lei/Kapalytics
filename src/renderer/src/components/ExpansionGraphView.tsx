@@ -12,12 +12,25 @@ const TYPE_LABELS: Record<string, string> = {
   open_problem: 'open problem'
 }
 
+function truncateDescription(description: string, maxLength = 220) {
+  if (description.length <= maxLength) return description
+  return `${description.slice(0, maxLength - 1).trimEnd()}...`
+}
+
+function formatRelationHints(relationHints: string[]) {
+  return relationHints.join(' / ')
+}
+
 function ExpansionGraphView() {
   const { activeTab, selectObject, updateTabStatus } = useWorkspace()
   const { sessions, selectExpansionNode, clearExpansionGraph } = useExpansion()
   const { graph } = usePaper()
 
   const session = activeTab?.expansionId ? sessions[activeTab.expansionId] : undefined
+  const record = session?.expansionRecord
+  const lineage = record?.methodLineageView
+  const digests = record?.paperMethodDigests ?? []
+  const visibleDigests = digests.slice(0, 5)
   const anchorNode = session ? graph.nodes.find((n) => n.id === session.nodeId) : undefined
   const selectedExpansionNodeId = session?.selectedExpansionNodeId
 
@@ -59,7 +72,7 @@ function ExpansionGraphView() {
         <div>
           <span className="eyebrow">Expansion Graph View</span>
           <h3>{session.nodeLabel}</h3>
-          <p>浅色节点是 temporary expansion nodes。点击节点只更新右侧 AI Panel，不打开完整 Workbench。</p>
+          <p>{lineage?.summary ?? '浅色节点是 temporary expansion nodes。点击节点会更新右侧 AI Panel 细节，不会直接打开 compare workbench。'}</p>
         </div>
         <button className="stage-btn stage-btn--secondary" onClick={handleClear}>清除 temporary graph</button>
       </section>
@@ -78,6 +91,34 @@ function ExpansionGraphView() {
         />
       </section>
 
+      {lineage ? (
+        <section className="kg4-field-view">
+          <span className="eyebrow">Method Lineage</span>
+          <h4>{lineage.title}</h4>
+          <p>{lineage.summary}</p>
+          {lineage.readingOrder.length ? (
+            <div>
+              <strong>Reading Order</strong>
+              <div className="kg4-family-list">
+                {lineage.readingOrder.map((item) => (
+                  <span key={item}>{item}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {lineage.openQuestions.length ? (
+            <div>
+              <strong>Open Questions</strong>
+              <div className="kg4-family-list">
+                {lineage.openQuestions.map((question) => (
+                  <span key={question}>{question}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="expansion-node-list">
         {nodes.map((node) => (
           <button
@@ -88,7 +129,7 @@ function ExpansionGraphView() {
           >
             <span>{TYPE_LABELS[node.type] ?? node.type}</span>
             <strong>{node.label}</strong>
-            <p>{node.description}</p>
+            <p>{truncateDescription(node.description)}</p>
             <em>{node.sourcePaperIds.length} source paper{node.sourcePaperIds.length === 1 ? '' : 's'}</em>
           </button>
         ))}
@@ -108,6 +149,19 @@ function ExpansionGraphView() {
           )
         }) : <p>当前没有可展示的扩展边。</p>}
       </section>
+
+      {digests.length ? (
+        <section className="expansion-edge-list">
+          <span className="eyebrow">Evidence Papers</span>
+          {visibleDigests.map((digest) => (
+            <article key={digest.id}>
+              <strong>{digest.methodName || digest.paperTitle}</strong>
+              <span>{formatRelationHints(digest.relationHints)}</span>
+              <p>{truncateDescription(digest.evidenceSummary, 170)}</p>
+            </article>
+          ))}
+        </section>
+      ) : null}
     </div>
   )
 }

@@ -18,13 +18,17 @@ function ExpansionNodeInspector({ node, expansionId }: {
   const { openTab } = useWorkspace()
   const { sessions } = useExpansion()
   const session = sessions[expansionId]
+  const hasLineageView = Boolean(session?.expansionRecord?.methodLineageView)
+  const sourcePaperId = node.sourcePaperIds[0]
+  const detailTabType = node.type === 'related_paper' || (!hasLineageView && sourcePaperId) ? 'evidence_paper_detail' : 'lineage_node_detail'
+  const detailNodeId = detailTabType === 'evidence_paper_detail' ? (sourcePaperId ?? node.id) : node.id
 
-  const handleOpenExpandView = () => {
+  const handleOpenDetail = () => {
     openTab({
-      id: `expand_view_${expansionId}_${node.id}`,
-      type: 'expand_view',
-      title: 'Expand View',
-      nodeId: node.id,
+      id: `${detailTabType}_${expansionId}_${node.id}`,
+      type: detailTabType,
+      title: detailTabType === 'evidence_paper_detail' ? 'Evidence Paper Detail' : 'Lineage Node Detail',
+      nodeId: detailNodeId,
       anchorNodeId: session?.nodeId,
       expansionId,
       closable: true,
@@ -43,8 +47,8 @@ function ExpansionNodeInspector({ node, expansionId }: {
         <div><strong>Sources</strong><p>{node.sourcePaperIds.length ? node.sourcePaperIds.join(', ') : '该节点未关联 source paper。'}</p></div>
       </div>
       <div className="ai-context-actions">
-        <button className="stage-btn stage-btn--primary" onClick={handleOpenExpandView}>进入 Expand View</button>
-        <p>在中央 Workspace 查看完整 Algorithm Idea Cards、对比和 feedback。</p>
+        <button className="stage-btn stage-btn--primary" onClick={handleOpenDetail}>查看详情</button>
+        <p>先在中央 Workspace 查看节点或证据论文详情，再按需进入 Compare Workbench 做算法对比。</p>
       </div>
     </div>
   )

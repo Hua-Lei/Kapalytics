@@ -1,3 +1,5 @@
+export type LLMModel = 'deepseek-v4-flash' | 'deepseek-v4-pro' | 'deepseek-chat' | 'deepseek-reasoner'
+
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
@@ -9,6 +11,7 @@ export interface LlmRequest {
   temperature?: number
   timeoutMs?: number
   jsonMode?: boolean
+  model?: LLMModel
 }
 
 export interface LlmResponse {

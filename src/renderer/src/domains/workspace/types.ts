@@ -6,6 +6,8 @@ export type WorkspaceTabType =
   | 'stage_learning'
   | 'node_expansion_loading'
   | 'expansion_graph'
+  | 'lineage_node_detail'
+  | 'evidence_paper_detail'
   | 'expand_view'
   | 'field_memory'
 

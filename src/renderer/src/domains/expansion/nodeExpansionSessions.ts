@@ -30,9 +30,11 @@ export interface NodeExpansionSession {
 }
 
 export const EXPANSION_STEPS: NodeExpansionStep[] = [
-  { id: 'job_created', label: '创建检索任务', status: 'pending', detail: '正在准备检索任务...' },
+  { id: 'job_created', label: '创建展开任务', status: 'pending', detail: '正在准备展开任务...' },
+  { id: 'classifying', label: '判断展开意图', status: 'pending', detail: '识别当前节点是否适合方法谱系展开...' },
   { id: 'retrieving', label: '检索相关论文', status: 'pending', detail: '检索本地和外部论文源...' },
-  { id: 'analyzing', label: '分析算法思想', status: 'pending', detail: 'LLM 抽取和对比算法思想...' },
+  { id: 'digesting', label: '消化论文方法', status: 'pending', detail: '从候选论文中提炼问题、机制和改进线索...' },
+  { id: 'synthesizing', label: '汇总方法谱系', status: 'pending', detail: '整理方法节点、关系和阅读顺序...' },
   { id: 'generating', label: '生成扩展图谱', status: 'pending', detail: '构建临时扩展节点和边...' },
   { id: 'persisting', label: '保存展开结果', status: 'pending', detail: '写入本地数据库...' },
   { id: 'done', label: '完成', status: 'pending', detail: '展开结果已就绪' }
@@ -65,12 +67,22 @@ export function updateSessionFromJobProgress(
   event: ExpansionProgressEvent
 ): NodeExpansionSession {
   const now = new Date().toISOString()
-  const stepOrder = ['job_created', 'retrieving', 'analyzing', 'generating', 'persisting', 'done'] as const
+  const normalizedStep = event.step === 'analyzing' ? 'digesting' : event.step
+  const stepOrder = [
+    'job_created',
+    'classifying',
+    'retrieving',
+    'digesting',
+    'synthesizing',
+    'generating',
+    'persisting',
+    'done'
+  ] as const
 
   if (event.step === 'failed') {
     const fallbackStepId =
       session.steps.find((step) => step.status === 'running')?.id ??
-      session.currentStepId ??
+      (session.currentStepId === 'analyzing' ? 'digesting' : session.currentStepId) ??
       [...session.steps].reverse().find((step) => step.status !== 'done')?.id
     const errorMessage = event.error || event.message
 
@@ -84,7 +96,7 @@ export function updateSessionFromJobProgress(
     }
   }
 
-  const currentIndex = stepOrder.indexOf(event.step as typeof stepOrder[number])
+  const currentIndex = stepOrder.indexOf(normalizedStep as typeof stepOrder[number])
   const steps = session.steps.map((step) => {
     const stepIndex = stepOrder.indexOf(step.id as typeof stepOrder[number])
     if (stepIndex < currentIndex) return { ...step, status: 'done' as const }
@@ -94,7 +106,7 @@ export function updateSessionFromJobProgress(
     return step
   })
 
-  if (event.step === 'done') {
+  if (normalizedStep === 'done') {
     const record = isKg4NodeExpansionRecord(event.result) ? event.result : undefined
     const expansionGraph: Kg4ExpansionGraphLayer | undefined = record ? {
       anchorNodeId: session.nodeId,
@@ -116,7 +128,7 @@ export function updateSessionFromJobProgress(
 
   return {
     ...session,
-    currentStepId: event.step,
+    currentStepId: normalizedStep,
     steps,
     updatedAt: now
   }

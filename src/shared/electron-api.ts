@@ -13,7 +13,17 @@ import type {
 export interface ExpansionProgressEvent {
   sessionId: string
   jobId: string
-  step: 'job_created' | 'retrieving' | 'analyzing' | 'generating' | 'persisting' | 'done' | 'failed'
+  step:
+    | 'job_created'
+    | 'classifying'
+    | 'retrieving'
+    | 'analyzing'
+    | 'digesting'
+    | 'synthesizing'
+    | 'generating'
+    | 'persisting'
+    | 'done'
+    | 'failed'
   message: string
   result?: unknown
   error?: string

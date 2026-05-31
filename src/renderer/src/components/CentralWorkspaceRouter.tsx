@@ -3,9 +3,11 @@ import LearningPath from './LearningPath'
 import StageDetail from './StageDetail'
 import ExpansionLoadingView from './ExpansionLoadingView'
 import ExpansionGraphView from './ExpansionGraphView'
+import EvidencePaperDetailView from './EvidencePaperDetailView'
 import ExpandView from './ExpandView'
 import FieldMemoryView from './FieldMemoryView'
 import ArgumentChainView from './ArgumentChainView'
+import LineageNodeDetailView from './LineageNodeDetailView'
 import MethodMechanismView from './MethodMechanismView'
 import PdfReaderWorkspace from './PdfReaderWorkspace'
 import { useWorkspace } from '../domains/workspace/useWorkspace'
@@ -106,11 +108,13 @@ function CentralWorkspaceRouter() {
         {type === 'expansion_graph' && (
           <ExpansionGraphView />
         )}
+        {type === 'lineage_node_detail' && <LineageNodeDetailView />}
+        {type === 'evidence_paper_detail' && <EvidencePaperDetailView />}
         {type === 'expand_view' && (
           <ExpandView />
         )}
         {type === 'field_memory' && <FieldMemoryView />}
-        {!['pdf_reader', 'paper_graph', 'argument_chain', 'method_mechanism', 'stage_learning', 'node_expansion_loading', 'expansion_graph', 'expand_view', 'field_memory'].includes(type) && (
+        {!['pdf_reader', 'paper_graph', 'argument_chain', 'method_mechanism', 'stage_learning', 'node_expansion_loading', 'expansion_graph', 'lineage_node_detail', 'evidence_paper_detail', 'expand_view', 'field_memory'].includes(type) && (
           <div className="workspace-placeholder-view">
             <span className="eyebrow">Coming Next</span>
             <h3>{activeTab?.title}</h3>

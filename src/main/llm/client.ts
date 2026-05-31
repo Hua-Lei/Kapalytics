@@ -116,7 +116,7 @@ export async function callLlm(request: LlmRequest): Promise<LlmResponse> {
   }
 
   const provider = currentProvider
-  const body = provider.buildBody(request, provider.model)
+  const body = provider.buildBody(request, request.model ?? provider.model)
   const controller = new AbortController()
   const timeoutMs = request.timeoutMs ?? 90000
   const timeout = setTimeout(() => controller.abort(), timeoutMs)

@@ -20,10 +20,19 @@ import { paperMemoryRepository } from './memory/kg3Repository'
 import { fusePaperGraph } from './memory/graphFusion'
 import { searchPapers } from './retrieval/paperSearch'
 import { llmTaskOrchestrator } from './llm/orchestrator'
-import { buildExpansionRecord, candidatePaperId } from './kg4/expansionRecord'
+import { candidatePaperId } from './kg4/expansionRecord'
+import { buildExpansionRetrievalPlan } from './kg4/expansionQuery'
+import { assembleLineageExpansionRecord } from './kg4/lineageRecord'
 import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
 import type { LLMJob, PaperRecord } from '../shared/kg3'
-import type { Kg4ExpansionRecordQuery, Kg4NodeExpansionRecord, StartKg4ExpansionParams } from '../shared/kg4'
+import type {
+  ExpansionIntent,
+  Kg4ExpansionRecordQuery,
+  Kg4NodeExpansionRecord,
+  MethodLineageView,
+  PaperMethodDigest,
+  StartKg4ExpansionParams
+} from '../shared/kg4'
 import { isKg4NodeExpansionRecord } from '../shared/kg4'
 
 // Linux GPU fallback — must run before app ready
@@ -44,6 +53,160 @@ function now(): string {
 
 function stableId(prefix: string, value: string): string {
   return `${prefix}_${createHash('sha1').update(value).digest('hex').slice(0, 16)}`
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  const workerCount = Math.min(Math.max(1, limit), items.length)
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex
+      nextIndex += 1
+      results[currentIndex] = await worker(items[currentIndex])
+    }
+  }))
+
+  return results
+}
+
+function normalizeExpansionIntent(value: unknown): ExpansionIntent {
+  const fallback: ExpansionIntent = {
+    kind: 'generic_related_papers',
+    confidence: 0.3,
+    queryFocus: 'related papers',
+    rationale: '未能稳定分类展开意图，回退为通用相关论文检索。'
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback
+
+  const record = value as Record<string, unknown>
+  const confidence = typeof record.confidence === 'number' && Number.isFinite(record.confidence) ? record.confidence : fallback.confidence
+  const fallbackReason = typeof record.fallbackReason === 'string' && record.fallbackReason.trim() ? record.fallbackReason.trim() : undefined
+  const lowConfidenceLineage = record.kind === 'algorithm_method_lineage' && confidence < 0.6
+  return {
+    kind: record.kind === 'algorithm_method_lineage' && !lowConfidenceLineage ? 'algorithm_method_lineage' : 'generic_related_papers',
+    confidence,
+    queryFocus: typeof record.queryFocus === 'string' && record.queryFocus.trim() ? record.queryFocus.trim() : fallback.queryFocus,
+    rationale: typeof record.rationale === 'string' && record.rationale.trim() ? record.rationale.trim() : fallback.rationale,
+    fallbackReason: fallbackReason ?? (lowConfidenceLineage ? '分类置信度低，降级为相关论文展开。' : undefined)
+  }
+}
+
+function normalizePaperMethodDigest(
+  value: unknown,
+  fallback: { id: string; paperTitle: string }
+): PaperMethodDigest | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const paperId = typeof record.paperId === 'string' && record.paperId.trim() ? record.paperId.trim() : fallback.id
+  const problemSetting = typeof record.problemSetting === 'string' && record.problemSetting.trim() ? record.problemSetting.trim() : ''
+  const coreMechanism = typeof record.coreMechanism === 'string' && record.coreMechanism.trim() ? record.coreMechanism.trim() : ''
+  const evidenceSummary = typeof record.evidenceSummary === 'string' && record.evidenceSummary.trim() ? record.evidenceSummary.trim() : ''
+  if (!paperId || !problemSetting || !coreMechanism || !evidenceSummary) return null
+
+  const allowedRelationHints: PaperMethodDigest['relationHints'][number][] = [
+    'foundation',
+    'parallel_variant',
+    'extends',
+    'improves_limitation',
+    'application_variant',
+    'unclear'
+  ]
+  const relationHints = Array.isArray(record.relationHints)
+    ? record.relationHints.filter(
+      (hint): hint is PaperMethodDigest['relationHints'][number] => typeof hint === 'string' && allowedRelationHints.includes(hint as PaperMethodDigest['relationHints'][number])
+    )
+    : []
+
+  return {
+    id: typeof record.id === 'string' && record.id.trim() ? record.id.trim() : stableId('digest', paperId),
+    paperId,
+    paperTitle: typeof record.paperTitle === 'string' && record.paperTitle.trim() ? record.paperTitle.trim() : fallback.paperTitle,
+    methodName: typeof record.methodName === 'string' && record.methodName.trim() ? record.methodName.trim() : undefined,
+    problemSetting,
+    coreMechanism,
+    claimedImprovement: typeof record.claimedImprovement === 'string' && record.claimedImprovement.trim() ? record.claimedImprovement.trim() : undefined,
+    limitation: typeof record.limitation === 'string' && record.limitation.trim() ? record.limitation.trim() : undefined,
+    relationHints: relationHints.length ? relationHints : ['unclear'],
+    evidenceSummary,
+    confidence: typeof record.confidence === 'number' && Number.isFinite(record.confidence) ? record.confidence : 0.4,
+    insufficientInformation:
+      typeof record.insufficientInformation === 'string' && record.insufficientInformation.trim()
+        ? record.insufficientInformation.trim()
+        : undefined
+  }
+}
+
+function normalizeMethodLineageView(value: unknown): MethodLineageView | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const hasString = (key: string): boolean => typeof record[key] === 'string' && Boolean(record[key].trim())
+  const hasArray = (key: string): boolean => Array.isArray(record[key])
+  const dataCompleteness = record.dataCompleteness
+  const allowedNodeRoles = new Set<MethodLineageView['nodes'][number]['role']>([
+    'current_method',
+    'foundation_method',
+    'parallel_variant',
+    'improvement',
+    'application_variant',
+    'open_problem'
+  ])
+  const allowedEdgeRelations = new Set<MethodLineageView['edges'][number]['relation']>([
+    'extends',
+    'contrasts_with',
+    'solves_limitation_of',
+    'shares_assumption_with',
+    'applies_to_new_context',
+    'evidence_insufficient'
+  ])
+  const isStringArray = (input: unknown): input is string[] => Array.isArray(input) && input.every((item) => typeof item === 'string')
+  const isValidNode = (input: unknown): boolean => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return false
+    const node = input as Record<string, unknown>
+    return (
+      typeof node.id === 'string' &&
+      Boolean(node.id.trim()) &&
+      typeof node.label === 'string' &&
+      Boolean(node.label.trim()) &&
+      typeof node.summary === 'string' &&
+      Boolean(node.summary.trim()) &&
+      typeof node.role === 'string' &&
+      allowedNodeRoles.has(node.role as MethodLineageView['nodes'][number]['role']) &&
+      isStringArray(node.representativePaperIds) &&
+      isStringArray(node.digestIds)
+    )
+  }
+  const isValidEdge = (input: unknown): boolean => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return false
+    const edge = input as Record<string, unknown>
+    return (
+      typeof edge.id === 'string' &&
+      Boolean(edge.id.trim()) &&
+      typeof edge.sourceId === 'string' &&
+      Boolean(edge.sourceId.trim()) &&
+      typeof edge.targetId === 'string' &&
+      Boolean(edge.targetId.trim()) &&
+      typeof edge.explanation === 'string' &&
+      Boolean(edge.explanation.trim()) &&
+      typeof edge.relation === 'string' &&
+      allowedEdgeRelations.has(edge.relation as MethodLineageView['edges'][number]['relation']) &&
+      isStringArray(edge.evidencePaperIds) &&
+      typeof edge.confidence === 'number' &&
+      Number.isFinite(edge.confidence)
+    )
+  }
+
+  if (!hasString('id') || !hasString('anchorNodeId') || !hasString('title') || !hasString('summary')) return undefined
+  if (!hasArray('nodes') || !hasArray('edges') || !hasArray('openQuestions') || !hasArray('readingOrder')) return undefined
+  if (!hasArray('missingDataReasons')) return undefined
+  if (dataCompleteness !== 'complete' && dataCompleteness !== 'partial' && dataCompleteness !== 'insufficient') return undefined
+  if (!isStringArray(record.openQuestions) || !isStringArray(record.readingOrder) || !isStringArray(record.missingDataReasons)) return undefined
+  const nodes = record.nodes as unknown[]
+  const edges = record.edges as unknown[]
+  if (!nodes.every(isValidNode) || !edges.every(isValidEdge)) return undefined
+
+  return record as unknown as MethodLineageView
 }
 
 function createPaperRecord(paperId: string, title: string, fileUrl?: string, filePath?: string): PaperRecord {
@@ -327,7 +490,6 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('kg4:start-expansion', async (_e, params: StartKg4ExpansionParams) => {
     const sessionId = params.sessionId ?? `expansion_${params.nodeId}_${Date.now()}`
-    const searchQuery = [params.nodeLabel, ...(params.searchQueries ?? [])].filter(Boolean).join(' ')
 
     const runExpansion = async (): Promise<void> => {
       let jobId = ''
@@ -342,54 +504,233 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
         mainWindow.webContents.send('expansion:progress', {
           sessionId,
           jobId,
-          step: 'retrieving',
-          message: '正在检索相关论文...'
+          step: 'classifying',
+          message: '正在判断展开意图...'
         })
 
-        const { candidates, providerStatus } = await searchPapers({
-          query: searchQuery || params.nodeLabel,
-          nodeId: params.nodeId,
-          paperId: params.paperId,
-          searchQueries: params.searchQueries,
-          maxResults: 8,
-          requireAbstract: true
-        })
-        const relatedPaperIds = candidates.map(candidatePaperId)
-
-        const job = await llmTaskOrchestrator.createJob({
-          type: 'expand_node_retrieve_context',
+        const classifyJob = await llmTaskOrchestrator.createJob({
+          type: 'classify_expansion_intent',
           input: {
             currentNode: {
               id: params.nodeId,
               label: params.nodeLabel,
               searchQueries: params.searchQueries ?? []
             },
-            currentPaper: params.paperId
-              ? { id: params.paperId, insight: params.paperInsight }
-              : undefined,
-            currentPaperInsight: params.paperInsight,
-            retrievedPapers: candidates,
-            providerStatus
+            currentPaperInsight: params.paperInsight
           },
           nodeId: params.nodeId,
           paperId: params.paperId,
-          relatedPaperIds,
-          sessionId
+          sessionId,
+          model: 'deepseek-v4-flash',
+          maxTokens: 1200,
+          temperature: 0.1
         })
-        jobId = job.id
+        jobId = classifyJob.id
+
+        let classifyResult = await llmTaskOrchestrator.runJob(classifyJob.id)
+        if (classifyResult.status === 'queued' || classifyResult.status === 'running') {
+          classifyResult = await waitForJobTerminalState(classifyJob.id)
+        }
+        const expansionIntent = normalizeExpansionIntent(
+          classifyResult.status === 'succeeded' || classifyResult.status === 'cache_hit' ? classifyResult.resultJson : undefined
+        )
+        const retrievalPlan = buildExpansionRetrievalPlan({
+          intent: expansionIntent,
+          node: {
+            id: params.nodeId,
+            label: params.nodeLabel,
+            searchQueries: params.searchQueries ?? []
+          },
+          paperInsight: params.paperInsight
+        })
 
         mainWindow.webContents.send('expansion:progress', {
           sessionId,
           jobId,
-          step: 'analyzing',
-          message: '正在分析算法思想...'
+          step: 'retrieving',
+          message: '正在检索相关论文...'
         })
 
-        let result = await llmTaskOrchestrator.runJob(job.id)
-        if (result.status === 'queued' || result.status === 'running') result = await waitForJobTerminalState(job.id)
-        if (result.status !== 'succeeded' && result.status !== 'cache_hit') {
-          throw new Error(result.errorMessage || '展开任务失败')
+        const { candidates, providerStatus } = await searchPapers({
+          query: retrievalPlan.primaryQuery,
+          nodeId: params.nodeId,
+          paperId: params.paperId,
+          searchQueries: retrievalPlan.searchQueries,
+          maxResults: retrievalPlan.maxResults,
+          requireAbstract: retrievalPlan.requireAbstract
+        })
+        const relatedPaperIds = candidates.map(candidatePaperId)
+        console.info('[KG4 expansion] retrieval plan', {
+          sessionId,
+          nodeId: params.nodeId,
+          intent: expansionIntent.kind,
+          retrievalGoal: retrievalPlan.retrievalGoal,
+          query: retrievalPlan.primaryQuery,
+          candidateCount: candidates.length,
+          providerStatus
+        })
+
+        if (expansionIntent.kind === 'generic_related_papers' || candidates.length < 2) {
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'generating',
+            message: '正在生成扩展图谱...'
+          })
+
+          const record = assembleLineageExpansionRecord({
+            paperId: params.paperId ?? 'current-paper',
+            nodeId: params.nodeId,
+            jobIds: [classifyJob.id],
+            intent: expansionIntent,
+            retrievedPapers: candidates,
+            paperMethodDigests: [],
+            methodLineageView: undefined
+          })
+          if (candidates.length < 2) record.missingDataReasons = ['可用论文不足，未生成方法谱系。']
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'persisting',
+            message: '正在保存展开结果...'
+          })
+          await paperMemoryRepository.saveKg4ExpansionRecord(record)
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'done',
+            message: '展开完成',
+            result: record
+          })
+          return
         }
+
+        mainWindow.webContents.send('expansion:progress', {
+          sessionId,
+          jobId,
+          step: 'digesting',
+          message: '正在提炼候选论文的方法摘要...'
+        })
+
+        const digestJobs = await mapWithConcurrency(
+          candidates,
+          3,
+          async (candidate) => {
+            const paperId = candidatePaperId(candidate)
+            const digestJob = await llmTaskOrchestrator.createJob({
+              type: 'digest_paper_method',
+              input: {
+                currentNode: {
+                  id: params.nodeId,
+                  label: params.nodeLabel,
+                  searchQueries: params.searchQueries ?? []
+                },
+                currentPaperInsight: params.paperInsight,
+                retrievedPaper: candidate
+              },
+              nodeId: params.nodeId,
+              paperId: params.paperId,
+              relatedPaperIds: [paperId],
+              sessionId,
+              model: 'deepseek-v4-flash',
+              maxTokens: 1800,
+              temperature: 0.1
+            })
+
+            let digestResult = await llmTaskOrchestrator.runJob(digestJob.id)
+            if (digestResult.status === 'queued' || digestResult.status === 'running') {
+              digestResult = await waitForJobTerminalState(digestJob.id)
+            }
+
+            return {
+              jobId: digestJob.id,
+              digest:
+                digestResult.status === 'succeeded' || digestResult.status === 'cache_hit'
+                  ? normalizePaperMethodDigest(digestResult.resultJson, { id: paperId, paperTitle: candidate.title })
+                  : null
+            }
+          }
+        )
+        const paperMethodDigests = digestJobs
+          .map((item) => item.digest)
+          .filter((digest): digest is PaperMethodDigest => digest !== null)
+        const digestJobIds = digestJobs.map((item) => item.jobId)
+
+        if (paperMethodDigests.length < 2) {
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'generating',
+            message: '正在生成可读的方法摘要结果...'
+          })
+
+          const record = assembleLineageExpansionRecord({
+            paperId: params.paperId ?? 'current-paper',
+            nodeId: params.nodeId,
+            jobIds: [classifyJob.id, ...digestJobIds],
+            intent: expansionIntent,
+            retrievedPapers: candidates,
+            paperMethodDigests,
+            methodLineageView: undefined
+          })
+          record.missingDataReasons = ['可用方法摘要少于 2 个，未生成方法谱系。']
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'persisting',
+            message: '正在保存展开结果...'
+          })
+          await paperMemoryRepository.saveKg4ExpansionRecord(record)
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'done',
+            message: '展开完成',
+            result: record
+          })
+          return
+        }
+
+        mainWindow.webContents.send('expansion:progress', {
+          sessionId,
+          jobId,
+          step: 'synthesizing',
+          message: '正在综合方法谱系...'
+        })
+
+        const lineageJob = await llmTaskOrchestrator.createJob({
+          type: 'synthesize_method_lineage',
+          input: {
+            currentNode: {
+              id: params.nodeId,
+              label: params.nodeLabel,
+              searchQueries: params.searchQueries ?? []
+            },
+            currentPaperInsight: params.paperInsight,
+            retrievedPapers: candidates,
+            paperMethodDigests
+          },
+          nodeId: params.nodeId,
+          paperId: params.paperId,
+          relatedPaperIds,
+          sessionId,
+          model: 'deepseek-v4-pro',
+          maxTokens: 6000,
+          temperature: 0.1
+        })
+        jobId = lineageJob.id
+
+        let lineageResult = await llmTaskOrchestrator.runJob(lineageJob.id)
+        if (lineageResult.status === 'queued' || lineageResult.status === 'running') {
+          lineageResult = await waitForJobTerminalState(lineageJob.id)
+        }
+        const methodLineageView = normalizeMethodLineageView(
+          lineageResult.status === 'succeeded' || lineageResult.status === 'cache_hit' ? lineageResult.resultJson : undefined
+        )
 
         mainWindow.webContents.send('expansion:progress', {
           sessionId,
@@ -398,13 +739,18 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           message: '正在生成扩展图谱...'
         })
 
-        const record = buildExpansionRecord({
+        const record = assembleLineageExpansionRecord({
           paperId: params.paperId ?? 'current-paper',
           nodeId: params.nodeId,
-          jobId,
+          jobIds: [classifyJob.id, ...digestJobIds, lineageJob.id],
+          intent: expansionIntent,
           retrievedPapers: candidates,
-          llmOutput: result.resultJson
+          paperMethodDigests,
+          methodLineageView
         })
+        if (!methodLineageView) {
+          record.missingDataReasons = ['方法谱系汇总失败，展示论文方法摘要。']
+        }
 
         mainWindow.webContents.send('expansion:progress', {
           sessionId,

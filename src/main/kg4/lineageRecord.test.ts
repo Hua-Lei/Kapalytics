@@ -1,0 +1,167 @@
+import assert from 'node:assert/strict'
+import type { DedupedPaperCandidate } from '../../shared/kg3'
+import type { ExpansionIntent, MethodLineageView, PaperMethodDigest } from '../../shared/kg4'
+import { buildExpansionRetrievalPlan } from './expansionQuery'
+import { assembleLineageExpansionRecord, toShortDisplayText } from './lineageRecord'
+
+function candidate(id: string, title: string, abstract: string): DedupedPaperCandidate {
+  return {
+    canonicalId: id,
+    mergedFrom: [],
+    title,
+    authors: [],
+    sources: ['openalex'],
+    externalIds: [],
+    bestUrl: `https://example.test/${id}`,
+    abstract,
+    score: 1
+  }
+}
+
+const longAbstract = 'This is a very long abstract. '.repeat(80)
+const intent: ExpansionIntent = {
+  kind: 'algorithm_method_lineage',
+  confidence: 0.91,
+  queryFocus: 'policy optimization methods for sparse reward reinforcement learning',
+  rationale: 'The node describes a concrete algorithmic method.'
+}
+
+const digestA: PaperMethodDigest = {
+  id: 'digest_a',
+  paperId: 'paper-a',
+  paperTitle: 'Foundation RL Method',
+  methodName: 'Foundation RL',
+  problemSetting: 'Sparse reward policy learning.',
+  coreMechanism: 'Uses value-guided exploration to stabilize policy updates.',
+  claimedImprovement: 'Improves sample efficiency.',
+  limitation: 'Requires careful reward shaping.',
+  relationHints: ['foundation'],
+  evidenceSummary: 'This paper supplies a foundation method for the current node.',
+  confidence: 0.84
+}
+
+const digestB: PaperMethodDigest = {
+  id: 'digest_b',
+  paperId: 'paper-b',
+  paperTitle: 'Variant RL Method',
+  methodName: 'Variant RL',
+  problemSetting: 'Sparse reward policy learning.',
+  coreMechanism: 'Adds curriculum-guided replay to the foundation method.',
+  claimedImprovement: 'Handles harder exploration cases.',
+  limitation: 'Adds replay memory overhead.',
+  relationHints: ['extends', 'parallel_variant'],
+  evidenceSummary: 'This paper provides a variant that extends the foundation method.',
+  confidence: 0.79
+}
+
+const lineage: MethodLineageView = {
+  id: 'lineage_n1',
+  anchorNodeId: 'n1',
+  title: 'Sparse Reward RL Method Lineage',
+  summary: 'Methods evolve from value-guided exploration to curriculum replay variants.',
+  nodes: [
+    {
+      id: 'lineage_foundation',
+      label: 'Foundation RL',
+      role: 'foundation_method',
+      summary: 'A foundation method for stabilizing sparse reward policy learning.',
+      representativePaperIds: ['paper-a'],
+      digestIds: ['digest_a']
+    },
+    {
+      id: 'lineage_variant',
+      label: 'Curriculum Replay Variant',
+      role: 'parallel_variant',
+      summary: 'A variant that adds curriculum replay to improve exploration.',
+      representativePaperIds: ['paper-b'],
+      digestIds: ['digest_b']
+    }
+  ],
+  edges: [
+    {
+      id: 'edge_1',
+      sourceId: 'lineage_foundation',
+      targetId: 'lineage_variant',
+      relation: 'extends',
+      explanation: 'The variant extends the foundation method with curriculum replay.',
+      evidencePaperIds: ['paper-a', 'paper-b'],
+      confidence: 0.76
+    }
+  ],
+  openQuestions: ['Whether curriculum replay improves transfer remains unclear.'],
+  readingOrder: ['paper-a', 'paper-b'],
+  dataCompleteness: 'partial',
+  missingDataReasons: []
+}
+
+const retrievalPlan = buildExpansionRetrievalPlan({
+  intent,
+  node: { id: 'n1', label: 'Sparse Reward RL', searchQueries: ['policy optimization'] },
+  paperInsight: { problem: 'sparse reward reinforcement learning', method: 'deep reinforcement learning' }
+})
+
+assert.equal(retrievalPlan.retrievalGoal, 'same_problem_methods')
+assert.match(retrievalPlan.primaryQuery, /same problem alternative approach/i)
+assert.match(retrievalPlan.primaryQuery, /sparse reward/i)
+
+const short = toShortDisplayText(longAbstract, 120)
+assert.ok(short.length <= 121)
+assert.ok(short.endsWith('…'))
+
+const record = assembleLineageExpansionRecord({
+  paperId: 'paper-main',
+  nodeId: 'n1',
+  jobIds: ['job-lineage'],
+  intent,
+  retrievedPapers: [candidate('paper-a', 'Foundation RL Method', longAbstract), candidate('paper-b', 'Variant RL Method', longAbstract)],
+  paperMethodDigests: [digestA, digestB],
+  methodLineageView: lineage
+})
+
+assert.equal(record.methodLineageView?.nodes.length, 2)
+assert.equal(record.paperMethodDigests?.length, 2)
+assert.equal(record.expansionGraphNodes.length, 2)
+assert.equal(record.expansionGraphNodes[0].type, 'algorithm_idea')
+assert.equal(record.expansionGraphNodes[0].description, lineage.nodes[0].summary)
+assert.doesNotMatch(record.expansionGraphNodes.map((node) => node.description).join('\n'), /This is a very long abstract.*This is a very long abstract/)
+assert.equal(record.expansionGraphEdges.length, 1)
+assert.equal(record.dataCompleteness, 'partial')
+
+const fallback = assembleLineageExpansionRecord({
+  paperId: 'paper-main',
+  nodeId: 'n1',
+  jobIds: ['job-fallback'],
+  intent: {
+    kind: 'generic_related_papers',
+    confidence: 0.3,
+    queryFocus: 'related papers',
+    rationale: 'Low confidence',
+    fallbackReason: '分类置信度低，降级为相关论文展开。'
+  },
+  retrievedPapers: [candidate('paper-a', 'Foundation RL Method', longAbstract)],
+  paperMethodDigests: []
+})
+
+assert.equal(fallback.methodLineageView, undefined)
+assert.equal(fallback.expansionGraphNodes[0].type, 'related_paper')
+assert.ok(fallback.expansionGraphNodes[0].description.length <= 180)
+assert.notEqual(fallback.expansionGraphNodes[0].description, longAbstract)
+assert.doesNotMatch(fallback.expansionGraphNodes[0].description, /This is a very long abstract/)
+assert.equal(fallback.expansionIntent?.fallbackReason, '分类置信度低，降级为相关论文展开。')
+
+const digestCollisionFallback = assembleLineageExpansionRecord({
+  paperId: 'paper-main',
+  nodeId: 'n1',
+  jobIds: ['job-digest-fallback'],
+  intent,
+  retrievedPapers: [],
+  paperMethodDigests: [
+    { ...digestA, id: 'digest:a', paperId: 'paper-a' },
+    { ...digestB, id: 'digest_a', paperId: 'paper-b' }
+  ]
+})
+
+assert.equal(digestCollisionFallback.expansionGraphNodes.length, 2)
+assert.notEqual(digestCollisionFallback.expansionGraphNodes[0].id, digestCollisionFallback.expansionGraphNodes[1].id)
+
+console.log('lineageRecord tests passed')

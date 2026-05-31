@@ -123,6 +123,93 @@ export interface FieldCognitionView {
   insufficientInformation?: string
 }
 
+export interface ExpansionIntent {
+  kind: 'algorithm_method_lineage' | 'generic_related_papers'
+  confidence: number
+  queryFocus: string
+  rationale: string
+  fallbackReason?: string
+}
+
+export interface ExpansionRetrievalPlan {
+  primaryQuery: string
+  searchQueries: string[]
+  retrievalGoal: 'same_problem_methods' | 'generic_related_papers'
+  maxResults: number
+  requireAbstract: boolean
+}
+
+export type PaperMethodRelationHint =
+  | 'foundation'
+  | 'parallel_variant'
+  | 'extends'
+  | 'improves_limitation'
+  | 'application_variant'
+  | 'unclear'
+
+export interface PaperMethodDigest {
+  id: string
+  paperId: string
+  paperTitle: string
+  methodName?: string
+  problemSetting: string
+  coreMechanism: string
+  claimedImprovement?: string
+  limitation?: string
+  relationHints: PaperMethodRelationHint[]
+  evidenceSummary: string
+  confidence: number
+  insufficientInformation?: string
+}
+
+export type MethodLineageNodeRole =
+  | 'current_method'
+  | 'foundation_method'
+  | 'parallel_variant'
+  | 'improvement'
+  | 'application_variant'
+  | 'open_problem'
+
+export interface MethodLineageNode {
+  id: string
+  label: string
+  role: MethodLineageNodeRole
+  summary: string
+  representativePaperIds: string[]
+  digestIds: string[]
+}
+
+export type MethodLineageRelation =
+  | 'extends'
+  | 'contrasts_with'
+  | 'solves_limitation_of'
+  | 'shares_assumption_with'
+  | 'applies_to_new_context'
+  | 'evidence_insufficient'
+
+export interface MethodLineageEdge {
+  id: string
+  sourceId: string
+  targetId: string
+  relation: MethodLineageRelation
+  explanation: string
+  evidencePaperIds: string[]
+  confidence: number
+}
+
+export interface MethodLineageView {
+  id: string
+  anchorNodeId: string
+  title: string
+  summary: string
+  nodes: MethodLineageNode[]
+  edges: MethodLineageEdge[]
+  openQuestions: string[]
+  readingOrder: string[]
+  dataCompleteness: 'complete' | 'partial' | 'insufficient'
+  missingDataReasons: string[]
+}
+
 export interface Kg4NodeExpansionRecord {
   id: string
   paperId: string
@@ -132,6 +219,9 @@ export interface Kg4NodeExpansionRecord {
   expansionGraphNodes: ExpansionGraphNode[]
   expansionGraphEdges: ExpansionGraphEdge[]
   fieldCognitionView?: FieldCognitionView
+  expansionIntent?: ExpansionIntent
+  paperMethodDigests?: PaperMethodDigest[]
+  methodLineageView?: MethodLineageView
   dataCompleteness: 'complete' | 'partial' | 'insufficient'
   missingDataReasons: string[]
   generatedByJobIds: string[]
@@ -283,6 +373,9 @@ export interface Kg4WorkbenchState {
 
 export type Kg4LLMTaskType =
   | 'expand_node_retrieve_context'
+  | 'classify_expansion_intent'
+  | 'digest_paper_method'
+  | 'synthesize_method_lineage'
   | 'extract_algorithm_ideas'
   | 'build_field_cognition_map'
   | 'generate_expansion_graph'
@@ -373,6 +466,35 @@ const expansionEdgeRelations = [
 
 const expansionNodeVisualStyles = ['faded', 'highlighted', 'normal'] as const satisfies readonly NonNullable<ExpansionGraphNode['visualStyle']>[]
 
+const expansionIntentKinds = ['algorithm_method_lineage', 'generic_related_papers'] as const satisfies readonly ExpansionIntent['kind'][]
+
+const paperMethodRelationHints = [
+  'foundation',
+  'parallel_variant',
+  'extends',
+  'improves_limitation',
+  'application_variant',
+  'unclear'
+] as const satisfies readonly PaperMethodRelationHint[]
+
+const methodLineageNodeRoles = [
+  'current_method',
+  'foundation_method',
+  'parallel_variant',
+  'improvement',
+  'application_variant',
+  'open_problem'
+] as const satisfies readonly MethodLineageNodeRole[]
+
+const methodLineageRelations = [
+  'extends',
+  'contrasts_with',
+  'solves_limitation_of',
+  'shares_assumption_with',
+  'applies_to_new_context',
+  'evidence_insufficient'
+] as const satisfies readonly MethodLineageRelation[]
+
 function isAlgorithmIdeaCard(value: unknown): value is AlgorithmIdeaCard {
   if (!isRecordObject(value)) return false
   const evidenceSource = value.evidenceSource
@@ -446,6 +568,69 @@ function isFieldCognitionView(value: unknown): value is FieldCognitionView {
   )
 }
 
+function isNumberInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+}
+
+function isExpansionIntent(value: unknown): value is ExpansionIntent {
+  return (
+    isRecordObject(value) &&
+    isOneOf(value.kind, expansionIntentKinds) &&
+    isNumberInRange(value.confidence, 0, 1) &&
+    hasStringProperties(value, ['queryFocus', 'rationale']) &&
+    isOptionalString(value.fallbackReason)
+  )
+}
+
+function isPaperMethodDigest(value: unknown): value is PaperMethodDigest {
+  return (
+    isRecordObject(value) &&
+    hasStringProperties(value, ['id', 'paperId', 'paperTitle', 'problemSetting', 'coreMechanism', 'evidenceSummary']) &&
+    isOptionalString(value.methodName) &&
+    isOptionalString(value.claimedImprovement) &&
+    isOptionalString(value.limitation) &&
+    isOptionalString(value.insufficientInformation) &&
+    Array.isArray(value.relationHints) &&
+    value.relationHints.every((hint) => isOneOf(hint, paperMethodRelationHints)) &&
+    isNumberInRange(value.confidence, 0, 1)
+  )
+}
+
+function isMethodLineageNode(value: unknown): value is MethodLineageNode {
+  return (
+    isRecordObject(value) &&
+    hasStringProperties(value, ['id', 'label', 'summary']) &&
+    isOneOf(value.role, methodLineageNodeRoles) &&
+    isStringArray(value.representativePaperIds) &&
+    isStringArray(value.digestIds)
+  )
+}
+
+function isMethodLineageEdge(value: unknown): value is MethodLineageEdge {
+  return (
+    isRecordObject(value) &&
+    hasStringProperties(value, ['id', 'sourceId', 'targetId', 'explanation']) &&
+    isOneOf(value.relation, methodLineageRelations) &&
+    isStringArray(value.evidencePaperIds) &&
+    isNumberInRange(value.confidence, 0, 1)
+  )
+}
+
+function isMethodLineageView(value: unknown): value is MethodLineageView {
+  return (
+    isRecordObject(value) &&
+    hasStringProperties(value, ['id', 'anchorNodeId', 'title', 'summary']) &&
+    Array.isArray(value.nodes) &&
+    value.nodes.every(isMethodLineageNode) &&
+    Array.isArray(value.edges) &&
+    value.edges.every(isMethodLineageEdge) &&
+    isStringArray(value.openQuestions) &&
+    isStringArray(value.readingOrder) &&
+    (value.dataCompleteness === 'complete' || value.dataCompleteness === 'partial' || value.dataCompleteness === 'insufficient') &&
+    isStringArray(value.missingDataReasons)
+  )
+}
+
 export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpansionRecord {
   if (!value || typeof value !== 'object') return false
   const record = value as Partial<Kg4NodeExpansionRecord>
@@ -461,6 +646,10 @@ export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpans
     Array.isArray(record.expansionGraphEdges) &&
     record.expansionGraphEdges.every(isExpansionGraphEdge) &&
     (record.fieldCognitionView === undefined || isFieldCognitionView(record.fieldCognitionView)) &&
+    (record.expansionIntent === undefined || isExpansionIntent(record.expansionIntent)) &&
+    (record.paperMethodDigests === undefined ||
+      (Array.isArray(record.paperMethodDigests) && record.paperMethodDigests.every(isPaperMethodDigest))) &&
+    (record.methodLineageView === undefined || isMethodLineageView(record.methodLineageView)) &&
     (record.dataCompleteness === 'complete' || record.dataCompleteness === 'partial' || record.dataCompleteness === 'insufficient') &&
     isStringArray(record.missingDataReasons) &&
     isStringArray(record.generatedByJobIds) &&

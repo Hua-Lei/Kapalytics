@@ -3,8 +3,14 @@ import type { LLMJob, LLMJobType, ReferencedPaperValidationResult } from '../../
 import { callLlm } from './client'
 import { paperMemoryRepository } from '../memory/kg3Repository'
 import { isKg4JobType, systemPromptForJob } from './jobPrompts'
+import type { LLMModel } from './types'
 
-const PROMPT_VERSION = 'kg3-2026-05-29'
+const PROMPT_VERSION = 'kg4-lineage-2026-05-31'
+const EXPANSION_INTENT_KINDS = ['algorithm_method_lineage', 'generic_related_papers'] as const
+const PAPER_METHOD_RELATION_HINTS = ['foundation', 'parallel_variant', 'extends', 'improves_limitation', 'application_variant', 'unclear'] as const
+const METHOD_LINEAGE_NODE_ROLES = ['current_method', 'foundation_method', 'parallel_variant', 'improvement', 'application_variant', 'open_problem'] as const
+const METHOD_LINEAGE_RELATIONS = ['extends', 'contrasts_with', 'solves_limitation_of', 'shares_assumption_with', 'applies_to_new_context', 'evidence_insufficient'] as const
+const METHOD_LINEAGE_COMPLETENESS = ['complete', 'partial', 'insufficient'] as const
 
 function now(): string {
   return new Date().toISOString()
@@ -36,9 +42,11 @@ export class LLMTaskOrchestrator {
     jsonMode?: boolean
     maxTokens?: number
     temperature?: number
+    model?: LLMModel
   }): Promise<LLMJob> {
     const inputHash = hashInput(params.input)
-    const cacheKey = [params.type, PROMPT_VERSION, 'deepseek-chat', inputHash, params.nodeId, params.paperId, ...(params.relatedPaperIds ?? [])]
+    const model = params.model ?? 'deepseek-v4-pro'
+    const cacheKey = [params.type, PROMPT_VERSION, model, inputHash, params.nodeId, params.paperId, ...(params.relatedPaperIds ?? [])]
       .filter(Boolean)
       .join(':')
     const snapshot = await paperMemoryRepository.getSnapshot()
@@ -63,7 +71,7 @@ export class LLMTaskOrchestrator {
       relatedPaperIds: params.relatedPaperIds ?? [],
       inputJson: params.input,
       promptVersion: PROMPT_VERSION,
-      model: 'deepseek-chat',
+      model,
       jsonMode: params.jsonMode ?? true,
       maxTokens: params.maxTokens ?? 4096,
       temperature: params.temperature ?? 0.1,
@@ -95,7 +103,10 @@ export class LLMTaskOrchestrator {
     try {
       const result = await executeJob(running)
       const validation = validateJobOutput(running, result)
-      if (!validation.ok) throw new Error(`hallucinated_paper:${validation.errors.join('; ')}`)
+      if (!validation.ok) {
+        const errorCode = validation.hallucinatedIds.length || validation.hallucinatedTitles.length ? 'hallucinated_paper' : 'schema_validation_failed'
+        throw new Error(`${errorCode}:${validation.errors.join('; ')}`)
+      }
       running = { ...running, status: 'validating', progressStep: 'validating_schema', progressMessage: '正在校验 JSON 输出和引用论文来源...' }
       await paperMemoryRepository.saveLLMJob(running)
       return this.markSucceeded(running, result)
@@ -172,6 +183,7 @@ async function executeJob(job: LLMJob): Promise<unknown> {
     maxTokens: job.maxTokens,
     temperature: job.temperature,
     jsonMode: job.jsonMode,
+    model: job.model,
     timeoutMs: 120000
   })
   return parseJsonObject(res.content)
@@ -211,10 +223,189 @@ export function validateReferencedPapers(output: unknown, allowedPaperIds: strin
 }
 
 export function validateJobOutput(job: LLMJob, output: unknown): ReferencedPaperValidationResult {
+  if (job.type === 'classify_expansion_intent') {
+    return validateExpansionIntent(output)
+  }
+  if (job.type === 'digest_paper_method') {
+    return mergeValidationResults(
+      validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
+      validatePaperMethodDigest(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])], expectedRetrievedPaperTitle(job.inputJson))
+    )
+  }
+  if (job.type === 'synthesize_method_lineage') {
+    return mergeValidationResults(
+      validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
+      validateMethodLineageView(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])], allowedDigestIds(job.inputJson))
+    )
+  }
   if (['expand_node', 'compare_papers', 'generate_transfer_task', 'diagnose_answer'].includes(job.type) || isKg4JobType(job.type)) {
     return validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])])
   }
   return { ok: true, hallucinatedIds: [], hallucinatedTitles: [], errors: [] }
+}
+
+function validateExpansionIntent(output: unknown): ReferencedPaperValidationResult {
+  const errors: string[] = []
+  if (!isRecord(output)) return schemaErrors('classify_expansion_intent output must be an object')
+  if (!isOneOf(output.kind, EXPANSION_INTENT_KINDS)) errors.push('classify_expansion_intent.kind must be algorithm_method_lineage or generic_related_papers')
+  if (!isNumberInRange(output.confidence, 0, 1)) errors.push('classify_expansion_intent.confidence must be a number between 0 and 1')
+  if (!isNonEmptyString(output.queryFocus)) errors.push('classify_expansion_intent.queryFocus must be a non-empty string')
+  if (!isNonEmptyString(output.rationale)) errors.push('classify_expansion_intent.rationale must be a non-empty string')
+  if (output.fallbackReason !== undefined && typeof output.fallbackReason !== 'string') errors.push('classify_expansion_intent.fallbackReason must be a string when present')
+  return schemaErrors(...errors)
+}
+
+function validatePaperMethodDigest(output: unknown, allowedPaperIds: string[], expectedTitle?: string): ReferencedPaperValidationResult {
+  const errors: string[] = []
+  if (!isRecord(output)) return schemaErrors('digest_paper_method output must be an object')
+  if (!isNonEmptyString(output.id)) errors.push('digest_paper_method.id must be a non-empty string')
+  if (!isNonEmptyString(output.paperId)) {
+    errors.push('digest_paper_method.paperId must be a non-empty string')
+  } else if (!allowedPaperIds.includes(output.paperId)) {
+    errors.push(`digest_paper_method.paperId must reference a supplied paper: ${output.paperId}`)
+  }
+  if (!isNonEmptyString(output.paperTitle)) {
+    errors.push('digest_paper_method.paperTitle must be a non-empty string')
+  } else if (expectedTitle && output.paperTitle !== expectedTitle) {
+    errors.push(`digest_paper_method.paperTitle must match supplied retrievedPaper.title: ${expectedTitle}`)
+  }
+  if (!isNonEmptyString(output.problemSetting)) errors.push('digest_paper_method.problemSetting must be a non-empty string')
+  if (!isNonEmptyString(output.coreMechanism)) errors.push('digest_paper_method.coreMechanism must be a non-empty string')
+  if (!isNonEmptyString(output.evidenceSummary)) errors.push('digest_paper_method.evidenceSummary must be a non-empty string')
+  if (output.methodName !== undefined && typeof output.methodName !== 'string') errors.push('digest_paper_method.methodName must be a string when present')
+  if (output.claimedImprovement !== undefined && typeof output.claimedImprovement !== 'string') errors.push('digest_paper_method.claimedImprovement must be a string when present')
+  if (output.limitation !== undefined && typeof output.limitation !== 'string') errors.push('digest_paper_method.limitation must be a string when present')
+  if (output.insufficientInformation !== undefined && typeof output.insufficientInformation !== 'string') errors.push('digest_paper_method.insufficientInformation must be a string when present')
+  if (!Array.isArray(output.relationHints) || !output.relationHints.every((hint) => isOneOf(hint, PAPER_METHOD_RELATION_HINTS))) {
+    errors.push('digest_paper_method.relationHints must be an array of allowed hints')
+  }
+  if (!isNumberInRange(output.confidence, 0, 1)) errors.push('digest_paper_method.confidence must be a number between 0 and 1')
+  return schemaErrors(...errors)
+}
+
+function validateMethodLineageView(output: unknown, allowedPaperIds: string[], allowedDigestIdsSet: Set<string>): ReferencedPaperValidationResult {
+  const errors: string[] = []
+  if (!isRecord(output)) return schemaErrors('synthesize_method_lineage output must be an object')
+  if (!isNonEmptyString(output.id)) errors.push('synthesize_method_lineage.id must be a non-empty string')
+  if (!isNonEmptyString(output.anchorNodeId)) errors.push('synthesize_method_lineage.anchorNodeId must be a non-empty string')
+  if (!isNonEmptyString(output.title)) errors.push('synthesize_method_lineage.title must be a non-empty string')
+  if (!isNonEmptyString(output.summary)) errors.push('synthesize_method_lineage.summary must be a non-empty string')
+  const nodeIds = new Set<string>()
+  if (!Array.isArray(output.nodes)) {
+    errors.push('synthesize_method_lineage.nodes must be an array')
+  } else {
+    output.nodes.forEach((node, index) => validateMethodLineageNode(node, index, allowedPaperIds, allowedDigestIdsSet, nodeIds, errors))
+  }
+  if (!Array.isArray(output.edges)) {
+    errors.push('synthesize_method_lineage.edges must be an array')
+  } else {
+    output.edges.forEach((edge, index) => validateMethodLineageEdge(edge, index, allowedPaperIds, nodeIds, errors))
+  }
+  if (!isStringArray(output.openQuestions)) errors.push('synthesize_method_lineage.openQuestions must be a string array')
+  if (!isStringArray(output.readingOrder)) {
+    errors.push('synthesize_method_lineage.readingOrder must be a string array')
+  } else if (output.readingOrder.some((paperId) => !allowedPaperIds.includes(paperId))) {
+    errors.push('synthesize_method_lineage.readingOrder must only reference supplied papers')
+  }
+  if (!isOneOf(output.dataCompleteness, METHOD_LINEAGE_COMPLETENESS)) errors.push('synthesize_method_lineage.dataCompleteness must be complete, partial, or insufficient')
+  if (!isStringArray(output.missingDataReasons)) errors.push('synthesize_method_lineage.missingDataReasons must be a string array')
+  return schemaErrors(...errors)
+}
+
+function validateMethodLineageNode(node: unknown, index: number, allowedPaperIds: string[], allowedDigestIdsSet: Set<string>, nodeIds: Set<string>, errors: string[]): void {
+  if (!isRecord(node)) {
+    errors.push(`synthesize_method_lineage.nodes[${index}] must be an object`)
+    return
+  }
+  if (!isNonEmptyString(node.id)) {
+    errors.push(`synthesize_method_lineage.nodes[${index}].id must be a non-empty string`)
+  } else {
+    nodeIds.add(node.id)
+  }
+  if (!isNonEmptyString(node.label)) errors.push(`synthesize_method_lineage.nodes[${index}].label must be a non-empty string`)
+  if (!isOneOf(node.role, METHOD_LINEAGE_NODE_ROLES)) errors.push(`synthesize_method_lineage.nodes[${index}].role must be an allowed role`)
+  if (!isNonEmptyString(node.summary)) errors.push(`synthesize_method_lineage.nodes[${index}].summary must be a non-empty string`)
+  if (!isStringArray(node.representativePaperIds)) {
+    errors.push(`synthesize_method_lineage.nodes[${index}].representativePaperIds must be a string array`)
+  } else if (node.representativePaperIds.some((paperId) => !allowedPaperIds.includes(paperId))) {
+    errors.push(`synthesize_method_lineage.nodes[${index}].representativePaperIds must only reference supplied papers`)
+  }
+  if (!isStringArray(node.digestIds)) {
+    errors.push(`synthesize_method_lineage.nodes[${index}].digestIds must be a string array`)
+  } else if (node.digestIds.some((digestId) => !allowedDigestIdsSet.has(digestId))) {
+    errors.push(`synthesize_method_lineage.nodes[${index}].digestIds must only reference supplied paperMethodDigests`)
+  }
+}
+
+function validateMethodLineageEdge(edge: unknown, index: number, allowedPaperIds: string[], nodeIds: Set<string>, errors: string[]): void {
+  if (!isRecord(edge)) {
+    errors.push(`synthesize_method_lineage.edges[${index}] must be an object`)
+    return
+  }
+  if (!isNonEmptyString(edge.id)) errors.push(`synthesize_method_lineage.edges[${index}].id must be a non-empty string`)
+  if (!isNonEmptyString(edge.sourceId)) {
+    errors.push(`synthesize_method_lineage.edges[${index}].sourceId must be a non-empty string`)
+  } else if (!nodeIds.has(edge.sourceId)) {
+    errors.push(`synthesize_method_lineage.edges[${index}].sourceId must reference an output node`)
+  }
+  if (!isNonEmptyString(edge.targetId)) {
+    errors.push(`synthesize_method_lineage.edges[${index}].targetId must be a non-empty string`)
+  } else if (!nodeIds.has(edge.targetId)) {
+    errors.push(`synthesize_method_lineage.edges[${index}].targetId must reference an output node`)
+  }
+  if (!isOneOf(edge.relation, METHOD_LINEAGE_RELATIONS)) errors.push(`synthesize_method_lineage.edges[${index}].relation must be an allowed relation`)
+  if (!isNonEmptyString(edge.explanation)) errors.push(`synthesize_method_lineage.edges[${index}].explanation must be a non-empty string`)
+  if (!isStringArray(edge.evidencePaperIds)) {
+    errors.push(`synthesize_method_lineage.edges[${index}].evidencePaperIds must be a string array`)
+  } else if (edge.evidencePaperIds.some((paperId) => !allowedPaperIds.includes(paperId))) {
+    errors.push(`synthesize_method_lineage.edges[${index}].evidencePaperIds must only reference supplied papers`)
+  }
+  if (!isNumberInRange(edge.confidence, 0, 1)) errors.push(`synthesize_method_lineage.edges[${index}].confidence must be a number between 0 and 1`)
+}
+
+function expectedRetrievedPaperTitle(input: unknown): string | undefined {
+  if (!isRecord(input) || !isRecord(input.retrievedPaper)) return undefined
+  return typeof input.retrievedPaper.title === 'string' && input.retrievedPaper.title.trim() ? input.retrievedPaper.title : undefined
+}
+
+function allowedDigestIds(input: unknown): Set<string> {
+  if (!isRecord(input) || !Array.isArray(input.paperMethodDigests)) return new Set<string>()
+  return new Set(
+    input.paperMethodDigests
+      .map((digest) => (isRecord(digest) && typeof digest.id === 'string' ? digest.id : undefined))
+      .filter((id): id is string => Boolean(id))
+  )
+}
+
+function mergeValidationResults(...results: ReferencedPaperValidationResult[]): ReferencedPaperValidationResult {
+  const hallucinatedIds = [...new Set(results.flatMap((result) => result.hallucinatedIds))]
+  const hallucinatedTitles = [...new Set(results.flatMap((result) => result.hallucinatedTitles))]
+  const errors = results.flatMap((result) => result.errors)
+  return { ok: errors.length === 0, hallucinatedIds, hallucinatedTitles, errors }
+}
+
+function schemaErrors(...errors: string[]): ReferencedPaperValidationResult {
+  return { ok: errors.length === 0, hallucinatedIds: [], hallucinatedTitles: [], errors }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isOneOf<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
+  return typeof value === 'string' && allowed.includes(value as T[number])
+}
+
+function isNumberInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
 function progressForJob(type: LLMJobType): string {
@@ -246,6 +437,7 @@ function inferErrorCode(message: string): LLMJob['errorCode'] {
   if (/timeout|超时/i.test(message)) return 'timeout'
   if (/empty/i.test(message)) return 'empty_output'
   if (/json/i.test(message)) return 'invalid_json'
+  if (/schema_validation_failed/i.test(message)) return 'schema_validation_failed'
   if (/hallucinated/i.test(message)) return 'hallucinated_paper'
   if (/insufficient/i.test(message)) return 'insufficient_retrieval_data'
   return 'unknown'
