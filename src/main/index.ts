@@ -29,6 +29,7 @@ import { classificationToLegacyIntent, normalizeExpansionClassification } from '
 import { buildRelatedPaperRecommendations, annotatePaperQuality } from './kg4/paperQuality'
 import { assembleLineageExpansionRecord } from './kg4/lineageRecord'
 import { normalizeConceptLearningView } from './kg4/conceptTeaching'
+import { normalizeResearchAreaView } from './kg4/researchArea'
 import { KG4_EXPANSION_TOKEN_BUDGETS } from './kg4/tokenBudgets'
 import { compactRetrievedPapersForLineage } from './kg4/llmInput'
 import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
@@ -682,6 +683,83 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             jobId,
             step: 'persisting',
             message: '正在保存概念教学结果...'
+          })
+          await paperMemoryRepository.saveKg4ExpansionRecord(record)
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'done',
+            message: '展开完成',
+            result: record
+          })
+          return
+        }
+
+        if (expansionClassification.recommendedPath === 'explore_research_area' && candidates.length >= 1) {
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'research_area',
+            message: '正在生成研究领域分析...'
+          })
+
+          const raJob = await llmTaskOrchestrator.createJob({
+            type: 'map_research_area',
+            input: {
+              currentNode: {
+                id: params.nodeId,
+                label: params.nodeLabel,
+                searchQueries: params.searchQueries ?? []
+              },
+              currentPaperInsight: params.paperInsight,
+              retrievedPapers: candidates.map((c) => ({
+                id: candidatePaperId(c),
+                title: c.title,
+                year: c.year,
+                abstract: c.abstract?.replace(/\s+/g, ' ').trim().slice(0, 300)
+              })).slice(0, 6),
+              qualitySignals: qualitySignals.slice(0, 8)
+            },
+            nodeId: params.nodeId,
+            paperId: params.paperId,
+            relatedPaperIds,
+            sessionId,
+            model: 'deepseek-v4-pro',
+            maxTokens: 8000,
+            temperature: 0.1
+          })
+          jobId = raJob.id
+
+          let raResult = await llmTaskOrchestrator.runJob(raJob.id)
+          if (raResult.status === 'queued' || raResult.status === 'running') {
+            raResult = await waitForJobTerminalState(raJob.id)
+          }
+          const researchAreaView = normalizeResearchAreaView(
+            raResult.status === 'succeeded' || raResult.status === 'cache_hit' ? raResult.resultJson : undefined,
+            { anchorNodeId: params.nodeId }
+          )
+
+          const record = assembleLineageExpansionRecord({
+            paperId: params.paperId ?? 'current-paper',
+            nodeId: params.nodeId,
+            jobIds: [classifyJob.id, raJob.id],
+            intent: expansionIntent,
+            classification: expansionClassification,
+            retrievedPapers: candidates,
+            qualitySignals,
+            relatedPaperRecommendations,
+            researchAreaView
+          })
+          if (!researchAreaView) {
+            record.missingDataReasons = ['研究领域分析生成失败或输出不完整。']
+          }
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'persisting',
+            message: '正在保存研究领域分析结果...'
           })
           await paperMemoryRepository.saveKg4ExpansionRecord(record)
 

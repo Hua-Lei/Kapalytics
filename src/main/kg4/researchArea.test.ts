@@ -27,6 +27,6 @@ assert.equal(result.methodFamilies[0].label, 'RLHF')
 assert.equal(result.recommendedReading[0].role, 'foundation')
 
 assert.equal(normalizeResearchAreaView(null, { anchorNodeId: 'n-llm' }), undefined)
-assert.equal(normalizeResearchAreaView({ ...validOutput, title: '' }, { anchorNodeId: 'n-llm' }), undefined)
+assert.equal(normalizeResearchAreaView({ ...(validOutput as Record<string, unknown>), title: '' }, { anchorNodeId: 'n-llm' }), undefined)
 
 console.log('researchArea tests passed')
