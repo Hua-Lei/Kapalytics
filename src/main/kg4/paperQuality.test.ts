@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import type { DedupedPaperCandidate, PaperSearchResult } from '../../shared/kg3'
+import type { EnrichedMetadata } from '../retrieval/metadataEnricher'
 import { isKg4NodeExpansionRecord } from '../../shared/kg4'
 import { annotatePaperQuality, buildRelatedPaperRecommendations } from './paperQuality'
 
@@ -100,5 +101,26 @@ const recommendations = buildRelatedPaperRecommendations([topVenue, recentArxiv]
 assert.equal(recommendations[0].paperId, 'paper-top')
 assert.match(recommendations[0].whyRecommended, /Top venue|高引用|代表性/)
 assert.ok(recommendations[0].qualitySignal)
+
+// Enriched metadata tests
+const enrichedMeta = new Map<string, EnrichedMetadata>([
+  ['paper-influential', {
+    paperId: 'influential-id',
+    influentialCitationCount: 50,
+    isOpenAccess: true,
+    publicationVenue: 'Advances in Neural Information Processing Systems'
+  }]
+])
+
+const influentialCandidate = candidate('paper-influential', 'An influential paper', [result({ venue: 'arXiv', year: 2023, citedByCount: 30, semanticScholarPaperId: 'influential-id' })])
+const enrichedSignals = annotatePaperQuality([influentialCandidate], { nowYear: 2026, enrichedMetadata: enrichedMeta })
+const enrichedSignal = enrichedSignals[0]
+
+assert.ok(enrichedSignal.badges.includes('top_venue'), 'S2 publicationVenue should lift venue tier')
+assert.ok(enrichedSignal.badges.includes('open_access'), 'S2 isOpenAccess should add open_access badge')
+assert.ok((enrichedSignal.qualityScore ?? 0) > 0.7, 'Quality should include S2 influential boost')
+
+const noS2Signal = annotatePaperQuality([influentialCandidate], { nowYear: 2026 })
+assert.ok((enrichedSignal.qualityScore ?? 0) > (noS2Signal[0].qualityScore ?? 0), 'Enriched quality should be higher than without S2 metadata')
 
 console.log('paperQuality tests passed')

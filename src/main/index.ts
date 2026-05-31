@@ -27,6 +27,7 @@ import { candidatePaperId } from './kg4/expansionRecord'
 import { buildStrategyRetrievalPlan } from './kg4/expansionQuery'
 import { classificationToLegacyIntent, normalizeExpansionClassification } from './kg4/expansionClassification'
 import { buildRelatedPaperRecommendations, annotatePaperQuality } from './kg4/paperQuality'
+import { enrichCandidatesWithSemanticScholar } from './retrieval/metadataEnricher'
 import { assembleLineageExpansionRecord } from './kg4/lineageRecord'
 import { normalizeConceptLearningView } from './kg4/conceptTeaching'
 import { normalizeResearchAreaView } from './kg4/researchArea'
@@ -606,7 +607,12 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           requireAbstract: retrievalPlan.requireAbstract
         })
         const relatedPaperIds = candidates.map(candidatePaperId)
-        const qualitySignals = annotatePaperQuality(candidates)
+        const s2Candidates = candidates.map((c) => ({
+          canonicalId: candidatePaperId(c),
+          semanticScholarId: c.mergedFrom.find((m) => m.semanticScholarPaperId)?.semanticScholarPaperId
+        }))
+        const enrichedMetadata = await enrichCandidatesWithSemanticScholar(s2Candidates)
+        const qualitySignals = annotatePaperQuality(candidates, { enrichedMetadata })
         const relatedPaperRecommendations = buildRelatedPaperRecommendations(candidates, qualitySignals)
         logBackend('kg4_expansion_retrieval_result', {
           sessionId,

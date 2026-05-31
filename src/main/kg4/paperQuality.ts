@@ -1,5 +1,6 @@
 import type { DedupedPaperCandidate, PaperSearchResult } from '../../shared/kg3'
 import type { PaperBadge, PaperQualitySignal, RelatedPaperRecommendation } from '../../shared/kg4'
+import type { EnrichedMetadata } from '../retrieval/metadataEnricher'
 
 const TOP_VENUES = new Set([
   'NEURIPS',
@@ -67,10 +68,10 @@ const TOP_VENUE_ALIASES: Array<[string, string]> = [
 
 export function annotatePaperQuality(
   candidates: DedupedPaperCandidate[],
-  options: { nowYear?: number } = {}
+  options: { nowYear?: number; enrichedMetadata?: Map<string, EnrichedMetadata> } = {}
 ): PaperQualitySignal[] {
   const nowYear = options.nowYear ?? new Date().getFullYear()
-  return candidates.map((candidate) => annotateCandidate(candidate, nowYear))
+  return candidates.map((candidate) => annotateCandidate(candidate, nowYear, options.enrichedMetadata))
 }
 
 export function buildRelatedPaperRecommendations(
@@ -106,16 +107,46 @@ export function buildRelatedPaperRecommendations(
     .map((item) => item.recommendation)
 }
 
-function annotateCandidate(candidate: DedupedPaperCandidate, nowYear: number): PaperQualitySignal {
+function syntheticResult(venue: string): PaperSearchResult {
+  return {
+    id: 's2-enriched',
+    provider: 'semantic_scholar',
+    source: 'semantic_scholar',
+    externalId: 's2-enriched',
+    url: '',
+    title: '',
+    authors: [],
+    venue,
+    topicTags: [],
+    raw: {},
+    fetchedAt: new Date().toISOString()
+  }
+}
+
+function enrichVenueTier(results: PaperSearchResult[], publicationVenue?: string): 'top' | 'strong' | undefined {
+  const tier = bestVenueTier(results)
+  if (tier) return tier
+  if (!publicationVenue) return undefined
+  return bestVenueTier([syntheticResult(publicationVenue)])
+}
+
+function enrichHasKnownVenue(results: PaperSearchResult[], publicationVenue?: string): boolean {
+  if (hasKnownVenue(results)) return true
+  if (!publicationVenue) return false
+  return hasKnownVenue([syntheticResult(publicationVenue)])
+}
+
+function annotateCandidate(candidate: DedupedPaperCandidate, nowYear: number, enrichedMetadata?: Map<string, EnrichedMetadata>): PaperQualitySignal {
   const badges: PaperBadge[] = []
   const reasons: string[] = []
   const warnings: string[] = []
+  const s2Meta = enrichedMetadata?.get(candidate.canonicalId)
   const citations = citationCount(candidate.mergedFrom) ?? 0
   const year = validYear(candidate.year) ?? newestYear(candidate.mergedFrom)
   const age = year === undefined ? undefined : nowYear - year
   const recent = age !== undefined && age >= 0 && age <= 2
-  const venueTier = bestVenueTier(candidate.mergedFrom)
-  const unknownVenue = !hasKnownVenue(candidate.mergedFrom)
+  const venueTier = enrichVenueTier(candidate.mergedFrom, s2Meta?.publicationVenue)
+  const unknownVenue = !enrichHasKnownVenue(candidate.mergedFrom, s2Meta?.publicationVenue)
   const text = searchableText(candidate)
 
   if (venueTier === 'top') {
@@ -171,9 +202,16 @@ function annotateCandidate(candidate: DedupedPaperCandidate, nowYear: number): P
     warnings.push('Recent low-citation paper needs manual quality review')
   }
 
+  if (s2Meta?.isOpenAccess) {
+    badges.push('open_access')
+    reasons.push('Open access confirmed by Semantic Scholar')
+  }
+
+  const s2InfluentialBoost = (s2Meta?.influentialCitationCount ?? 0) > 0 ? 0.1 : 0
+
   return {
     paperId: candidate.canonicalId,
-    qualityScore: clamp(qualityScore({ citations, recent, venueTier, unknownVenue, needsReview: badges.includes('needs_review'), survey: badges.includes('survey'), openAccess: badges.includes('open_access') })),
+    qualityScore: clamp(qualityScore({ citations, recent, venueTier, unknownVenue, needsReview: badges.includes('needs_review'), survey: badges.includes('survey'), openAccess: badges.includes('open_access'), s2InfluentialBoost })),
     trendScore: clamp(trendScore({ citations, recent, age, unknownVenue })),
     badges: unique(badges),
     reasons: unique(reasons),
@@ -189,6 +227,7 @@ function qualityScore(input: {
   needsReview: boolean
   survey: boolean
   openAccess: boolean
+  s2InfluentialBoost?: number
 }): number {
   let score = 0.25
   if (input.venueTier === 'top') score += 0.35
@@ -199,6 +238,7 @@ function qualityScore(input: {
   if (input.recent) score += 0.03
   if (input.unknownVenue) score -= 0.12
   if (input.needsReview) score -= 0.14
+  if (input.s2InfluentialBoost) score += input.s2InfluentialBoost
   return score
 }
 
