@@ -24,7 +24,9 @@ import { searchPapers } from './retrieval/paperSearch'
 import { toRetrievalConnectionTestResult } from './retrieval/retrievalTest'
 import { llmTaskOrchestrator } from './llm/orchestrator'
 import { candidatePaperId } from './kg4/expansionRecord'
-import { buildExpansionRetrievalPlan } from './kg4/expansionQuery'
+import { buildStrategyRetrievalPlan } from './kg4/expansionQuery'
+import { classificationToLegacyIntent, normalizeExpansionClassification } from './kg4/expansionClassification'
+import { buildRelatedPaperRecommendations, annotatePaperQuality } from './kg4/paperQuality'
 import { assembleLineageExpansionRecord } from './kg4/lineageRecord'
 import { KG4_EXPANSION_TOKEN_BUDGETS } from './kg4/tokenBudgets'
 import { compactRetrievedPapersForLineage } from './kg4/llmInput'
@@ -594,17 +596,18 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
         if (classifyResult.status === 'queued' || classifyResult.status === 'running') {
           classifyResult = await waitForJobTerminalState(classifyJob.id)
         }
-        const expansionIntent = normalizeExpansionIntent(
-          classifyResult.status === 'succeeded' || classifyResult.status === 'cache_hit' ? classifyResult.resultJson : undefined
+        const expansionClassification = normalizeExpansionClassification(
+          classifyResult.status === 'succeeded' || classifyResult.status === 'cache_hit' ? classifyResult.resultJson : undefined,
+          { nodeLabel: params.nodeLabel }
         )
-        const retrievalPlan = buildExpansionRetrievalPlan({
-          intent: expansionIntent,
+        const expansionIntent = classificationToLegacyIntent(expansionClassification, params.nodeLabel)
+        const retrievalPlan = buildStrategyRetrievalPlan({
+          classification: expansionClassification,
           node: {
             id: params.nodeId,
             label: params.nodeLabel,
             searchQueries: params.searchQueries ?? []
-          },
-          paperInsight: params.paperInsight
+          }
         })
 
         mainWindow.webContents.send('expansion:progress', {
@@ -623,6 +626,8 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           requireAbstract: retrievalPlan.requireAbstract
         })
         const relatedPaperIds = candidates.map(candidatePaperId)
+        const qualitySignals = annotatePaperQuality(candidates)
+        const relatedPaperRecommendations = buildRelatedPaperRecommendations(candidates, qualitySignals)
         logBackend('kg4_expansion_retrieval_result', {
           sessionId,
           nodeId: params.nodeId,
@@ -649,7 +654,10 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             intent: expansionIntent,
             retrievedPapers: candidates,
             paperMethodDigests: [],
-            methodLineageView: undefined
+            methodLineageView: undefined,
+            classification: expansionClassification,
+            qualitySignals,
+            relatedPaperRecommendations,
           })
           if (candidates.length < 2) record.missingDataReasons = ['可用论文不足，未生成方法谱系。']
           logBackend('kg4_expansion_record_built', {
@@ -751,7 +759,10 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             intent: expansionIntent,
             retrievedPapers: candidates,
             paperMethodDigests,
-            methodLineageView: undefined
+            methodLineageView: undefined,
+            classification: expansionClassification,
+            qualitySignals,
+            relatedPaperRecommendations,
           })
           record.missingDataReasons = ['可用方法摘要少于 2 个，未生成方法谱系。']
           logBackend('kg4_expansion_record_built', {
@@ -841,7 +852,10 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           intent: expansionIntent,
           retrievedPapers: candidates,
           paperMethodDigests,
-          methodLineageView
+          methodLineageView,
+          classification: expansionClassification,
+          qualitySignals,
+          relatedPaperRecommendations,
         })
         if (!methodLineageView) {
           record.missingDataReasons = ['方法谱系汇总失败，展示论文方法摘要。']
