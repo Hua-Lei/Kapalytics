@@ -8,7 +8,7 @@ import type {
   PaperSearchResult
 } from '../../shared/kg3'
 import { paperMemoryRepository } from '../memory/kg3Repository'
-import { getLlmConfig } from '../llm/client'
+import { getLlmConfig, getSemanticScholarApiKey } from '../llm/client'
 import { TokenBucketRateLimiter } from './rateLimiter'
 
 type FetchInitWithDispatcher = RequestInit & { dispatcher?: ProxyAgent }
@@ -215,7 +215,7 @@ class SemanticScholarProvider implements PaperSearchProvider {
     const url = `https://api.semanticscholar.org/graph/v1/paper/search?${params.toString()}`
     logRetrieval('provider_request', { provider: this.id, url, query: query.query })
     const init = retrievalFetchInit(paperSearchConfig.semanticScholarTimeoutMs)
-    const apiKey = process.env.SEMANTIC_SCHOLAR_API_KEY?.trim()
+    const apiKey = getSemanticScholarApiKey() ?? process.env.SEMANTIC_SCHOLAR_API_KEY?.trim()
     if (apiKey) init.headers = { ...(init.headers as Record<string, string> | undefined), 'x-api-key': apiKey }
     const res = await fetch(url, init)
     logRetrieval('provider_response', { provider: this.id, status: res.status, ok: res.ok })

@@ -7,10 +7,15 @@ import { deepseekProvider } from './providers/deepseek'
 
 let currentProvider: LlmProvider = deepseekProvider
 let apiKey: string | null = null
+let semanticScholarApiKey: string | null = null
 let llmConfig: { proxyUrl: string | null } | null = null
 
 function getApiKeyPath(): string {
   return `${app.getPath('userData')}/api-key.txt`
+}
+
+function getSemanticScholarApiKeyPath(): string {
+  return `${app.getPath('userData')}/semantic-scholar-api-key.txt`
 }
 
 function getLlmConfigPath(): string {
@@ -50,8 +55,25 @@ function readPersistedApiKey(): string | null {
   }
 }
 
+function readPersistedSemanticScholarApiKey(): string | null {
+  try {
+    const path = getSemanticScholarApiKeyPath()
+    if (!existsSync(path)) return null
+    const key = readFileSync(path, 'utf-8').trim()
+    return key.length > 0 ? key : null
+  } catch {
+    return null
+  }
+}
+
 function persistApiKey(key: string): void {
   const path = getApiKeyPath()
+  if (!existsSync(dirname(path))) return
+  writeFileSync(path, key, { encoding: 'utf-8', mode: 0o600 })
+}
+
+function persistSemanticScholarApiKey(key: string): void {
+  const path = getSemanticScholarApiKeyPath()
   if (!existsSync(dirname(path))) return
   writeFileSync(path, key, { encoding: 'utf-8', mode: 0o600 })
 }
@@ -59,6 +81,15 @@ function persistApiKey(key: string): void {
 function removePersistedApiKey(): void {
   try {
     const path = getApiKeyPath()
+    if (existsSync(path)) unlinkSync(path)
+  } catch {
+    // Clearing in-memory key is still enough for the current session.
+  }
+}
+
+function removePersistedSemanticScholarApiKey(): void {
+  try {
+    const path = getSemanticScholarApiKeyPath()
     if (existsSync(path)) unlinkSync(path)
   } catch {
     // Clearing in-memory key is still enough for the current session.
@@ -88,8 +119,28 @@ export function hasApiKey(): boolean {
   return apiKey !== null && apiKey.length > 0
 }
 
-export function getLlmConfig(): { proxyUrl: string | null } {
-  return { ...getLoadedLlmConfig() }
+export function setSemanticScholarApiKey(key: string): void {
+  semanticScholarApiKey = key
+  persistSemanticScholarApiKey(key)
+}
+
+export function clearSemanticScholarApiKey(): void {
+  semanticScholarApiKey = null
+  removePersistedSemanticScholarApiKey()
+}
+
+export function hasSemanticScholarApiKey(): boolean {
+  if (!semanticScholarApiKey) semanticScholarApiKey = readPersistedSemanticScholarApiKey()
+  return semanticScholarApiKey !== null && semanticScholarApiKey.length > 0
+}
+
+export function getSemanticScholarApiKey(): string | null {
+  if (!semanticScholarApiKey) semanticScholarApiKey = readPersistedSemanticScholarApiKey()
+  return semanticScholarApiKey
+}
+
+export function getLlmConfig(): { proxyUrl: string | null; semanticScholarApiKeyConfigured: boolean } {
+  return { ...getLoadedLlmConfig(), semanticScholarApiKeyConfigured: hasSemanticScholarApiKey() }
 }
 
 export function setProxyUrl(proxyUrl: string | null): void {

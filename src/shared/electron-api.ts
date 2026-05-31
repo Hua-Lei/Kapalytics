@@ -38,10 +38,20 @@ export interface DiagnosisResult {
 
 export interface LlmConfig {
   proxyUrl: string | null
+  semanticScholarApiKeyConfigured: boolean
 }
 
 export interface LlmConnectionTestResult {
   ok: boolean
+  message: string
+}
+
+export interface RetrievalConnectionTestResult {
+  ok: boolean
+  query: string
+  candidateCount: number
+  providerStatus: Array<{ provider: string; status: 'success' | 'empty' | 'error'; message: string }>
+  samplePapers: Array<{ title: string; sources: string[]; year?: number }>
   message: string
 }
 
@@ -54,6 +64,8 @@ export interface ElectronApi {
   llm: {
     setApiKey: (key: string) => Promise<void>
     clearApiKey: () => Promise<void>
+    setSemanticScholarApiKey: (key: string) => Promise<void>
+    clearSemanticScholarApiKey: () => Promise<void>
     hasApiKey: () => Promise<boolean>
     getConfig: () => Promise<LlmConfig>
     getProviders: () => Promise<{ name: string; id: string }[]>
@@ -71,6 +83,9 @@ export interface ElectronApi {
   storage: {
     save: (data: unknown) => Promise<{ ok: boolean; error?: string }>
     load: () => Promise<unknown>
+  }
+  retrieval: {
+    testSearch: (query: string) => Promise<RetrievalConnectionTestResult>
   }
   kg3: {
     getMemorySnapshot: () => Promise<Kg3MemorySnapshot>

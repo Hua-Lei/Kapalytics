@@ -12,13 +12,16 @@ import {
   getAvailableProviders,
   getLlmConfig,
   setProvider,
-  setProxyUrl
+  setProxyUrl,
+  setSemanticScholarApiKey,
+  clearSemanticScholarApiKey
 } from './llm/client'
 import { deepseekProvider } from './llm/providers/deepseek'
 import { extractPdfContent } from './paper/extractPdfContent'
 import { paperMemoryRepository } from './memory/kg3Repository'
 import { fusePaperGraph } from './memory/graphFusion'
 import { searchPapers } from './retrieval/paperSearch'
+import { toRetrievalConnectionTestResult } from './retrieval/retrievalTest'
 import { llmTaskOrchestrator } from './llm/orchestrator'
 import { candidatePaperId } from './kg4/expansionRecord'
 import { buildExpansionRetrievalPlan } from './kg4/expansionQuery'
@@ -364,6 +367,14 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     setProxyUrl(proxyUrl)
   })
 
+  ipcMain.handle('llm:set-semantic-scholar-api-key', (_e, key: string) => {
+    setSemanticScholarApiKey(key.trim())
+  })
+
+  ipcMain.handle('llm:clear-semantic-scholar-api-key', () => {
+    clearSemanticScholarApiKey()
+  })
+
   ipcMain.handle('llm:test-connection', async () => {
     try {
       if (!hasApiKey()) return { ok: false, message: '请先配置 DeepSeek API Key' }
@@ -425,6 +436,17 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('kg3:search-papers', async (_e, query) => {
     const { candidates, providerStatus } = await searchPapers(query)
     return { retrievedPapers: candidates, mergedNodes: [], mergeCandidates: [], providerStatus }
+  })
+
+  ipcMain.handle('retrieval:test-search', async (_e, rawQuery: unknown) => {
+    const query = typeof rawQuery === 'string' && rawQuery.trim() ? rawQuery.trim() : 'hypernetwork meta-learning'
+    const { candidates, providerStatus } = await searchPapers({
+      query,
+      searchQueries: [query],
+      maxResults: 5,
+      requireAbstract: true
+    })
+    return toRetrievalConnectionTestResult({ query, candidates, providerStatus })
   })
 
   ipcMain.handle('kg3:save-current-graph', async (_e, payload: { paperId: string; title: string; fileUrl?: string; filePath?: string; data: unknown }) => {

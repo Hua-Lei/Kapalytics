@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   llm: {
     setApiKey: (key: string): Promise<void> => ipcRenderer.invoke('llm:set-api-key', key),
     clearApiKey: (): Promise<void> => ipcRenderer.invoke('llm:clear-api-key'),
+    setSemanticScholarApiKey: (key: string): Promise<void> => ipcRenderer.invoke('llm:set-semantic-scholar-api-key', key),
+    clearSemanticScholarApiKey: (): Promise<void> => ipcRenderer.invoke('llm:clear-semantic-scholar-api-key'),
     hasApiKey: (): Promise<boolean> => ipcRenderer.invoke('llm:has-api-key'),
     getConfig: () => ipcRenderer.invoke('llm:get-config'),
     getProviders: (): Promise<{ name: string; id: string }[]> =>
@@ -48,6 +50,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     save: (data: unknown): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('storage:save', data),
     load: (): Promise<unknown> => ipcRenderer.invoke('storage:load')
+  },
+
+  retrieval: {
+    testSearch: (query: string) => ipcRenderer.invoke('retrieval:test-search', query)
   },
 
   kg3: {

@@ -48,6 +48,7 @@ function App() {
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(initialWorkspaceState)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
+  const [semanticScholarApiKeyConfigured, setSemanticScholarApiKeyConfigured] = useState(false)
   const [proxyUrl, setProxyUrl] = useState('')
   const [fontScale, setFontScale] = useState(1)
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT)
@@ -57,7 +58,10 @@ function App() {
   // Check API key status on mount
   useEffect(() => {
     electronApi.hasKey().then(setHasApiConfigured).catch(() => {})
-    electronApi.getLlmConfig().then((config) => setProxyUrl(config.proxyUrl ?? '')).catch(() => {})
+    electronApi.getLlmConfig().then((config) => {
+      setProxyUrl(config.proxyUrl ?? '')
+      setSemanticScholarApiKeyConfigured(config.semanticScholarApiKeyConfigured)
+    }).catch(() => {})
   }, [])
 
   const setStagesRef = useRef<((tasks: Record<string, string>) => void) | null>(null)
@@ -172,6 +176,7 @@ function App() {
                   <SettingsModal
                     open={settingsOpen}
                     hasApiConfigured={hasApiConfigured}
+                    semanticScholarApiKeyConfigured={semanticScholarApiKeyConfigured}
                     initialProxyUrl={proxyUrl}
                     onClose={() => setSettingsOpen(false)}
                     onSaveKey={async (key) => {
@@ -182,11 +187,20 @@ function App() {
                       await electronApi.clearKey()
                       setHasApiConfigured(false)
                     }}
+                    onSaveSemanticScholarKey={async (key) => {
+                      await electronApi.setSemanticScholarApiKey(key)
+                      setSemanticScholarApiKeyConfigured(true)
+                    }}
+                    onClearSemanticScholarKey={async () => {
+                      await electronApi.clearSemanticScholarApiKey()
+                      setSemanticScholarApiKeyConfigured(false)
+                    }}
                     onSaveProxyUrl={async (nextProxyUrl) => {
                       await electronApi.setProxyUrl(nextProxyUrl)
                       setProxyUrl(nextProxyUrl ?? '')
                     }}
                     onTestConnection={handleTestConnection}
+                    onTestRetrieval={electronApi.testRetrieval}
                   />
                 </div>
               </MemoryProvider>
