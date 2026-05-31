@@ -73,8 +73,38 @@ assert.equal(borderlineLegacyLineage.primaryType, 'unknown')
 assert.equal(borderlineLegacyLineage.recommendedPath, 'review_related_papers')
 assert.equal(borderlineLegacyLineage.ambiguity?.competingType, 'method')
 
+const explicitUnknown = normalizeExpansionClassification({
+  primaryType: 'unknown',
+  facets: [],
+  confidence: 0.82,
+  rationale: 'The classifier could not identify a stable node type.',
+  recommendedPath: 'learn_concept',
+  alternativePaths: ['track_method_lineage']
+}, { nodeLabel: 'Mystery Node' })
+
+assert.equal(explicitUnknown.primaryType, 'unknown')
+assert.equal(explicitUnknown.recommendedPath, 'review_related_papers')
+
+const filteredAlternatives = normalizeExpansionClassification({
+  primaryType: 'concept',
+  facets: [],
+  confidence: 0.88,
+  rationale: 'The node is a reusable concept.',
+  recommendedPath: 'learn_concept',
+  alternativePaths: ['learn_concept', 'track_method_lineage', 'track_method_lineage']
+}, { nodeLabel: 'Adapter Layer' })
+
+assert.equal(filteredAlternatives.recommendedPath, 'learn_concept')
+assert.deepEqual(filteredAlternatives.alternativePaths, ['track_method_lineage'])
+
 const malformed = normalizeExpansionClassification(null, { nodeLabel: 'Unknown Thing' })
 assert.equal(malformed.primaryType, 'unknown')
 assert.equal(malformed.recommendedPath, 'review_related_papers')
+assert.deepEqual(malformed.alternativePaths, ['learn_concept', 'track_method_lineage', 'explore_research_area'])
+
+const malformedLegacyIntent = classificationToLegacyIntent(malformed, 'Unknown Thing')
+assert.equal(malformedLegacyIntent.kind, 'generic_related_papers')
+assert.equal(malformedLegacyIntent.queryFocus, 'related papers')
+assert.equal(malformedLegacyIntent.fallbackReason, 'Classification is unknown; using related papers.')
 
 console.log('expansionClassification tests passed')

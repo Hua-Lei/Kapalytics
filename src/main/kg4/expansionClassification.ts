@@ -45,7 +45,9 @@ export function normalizeExpansionClassification(
   }
 
   const primaryType = suggestedPrimaryType ?? 'unknown'
-  const recommendedPath = readExpansionPath(value.recommendedPath) ?? defaultRecommendedPath(primaryType)
+  const recommendedPath = primaryType === 'unknown'
+    ? 'review_related_papers'
+    : readExpansionPath(value.recommendedPath) ?? defaultRecommendedPath(primaryType)
 
   return {
     primaryType,
@@ -75,12 +77,18 @@ export function classificationToLegacyIntent(
     }
   }
 
-  return {
+  const intent: ExpansionIntent = {
     kind: 'generic_related_papers',
     confidence: classification.confidence,
-    queryFocus: nodeLabel,
+    queryFocus: 'related papers',
     rationale: classification.rationale
   }
+
+  if (classification.primaryType === 'unknown') {
+    intent.fallbackReason = classification.ambiguity?.reason ?? 'Classification is unknown; using related papers.'
+  }
+
+  return intent
 }
 
 function normalizeLegacyIntent(value: ClassificationInput, nodeLabel: string): ExpansionNodeClassification {
@@ -141,7 +149,7 @@ function normalizeAlternativePaths(value: unknown, primaryType: ExpansionPrimary
   const paths = Array.isArray(value)
     ? value.filter((path): path is ExpansionPath => readExpansionPath(path) !== undefined)
     : []
-  const uniquePaths = [...new Set(paths)]
+  const uniquePaths = [...new Set(paths)].filter((path) => path !== recommendedPath)
   return uniquePaths.length ? uniquePaths : defaultAlternativePaths(primaryType).filter((path) => path !== recommendedPath)
 }
 
@@ -165,7 +173,7 @@ function defaultAlternativePaths(primaryType: ExpansionPrimaryType): ExpansionPa
   if (primaryType === 'method') return ['review_related_papers', 'inspect_paper_evidence']
   if (primaryType === 'field' || primaryType === 'problem') return ['review_related_papers', 'learn_concept']
   if (primaryType === 'paper') return ['review_related_papers']
-  return []
+  return ['learn_concept', 'track_method_lineage', 'explore_research_area']
 }
 
 function readPrimaryType(value: unknown): ExpansionPrimaryType | undefined {
