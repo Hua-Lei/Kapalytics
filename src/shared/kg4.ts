@@ -309,6 +309,36 @@ export interface ConceptLearningView {
   missingDataReasons: string[]
 }
 
+export interface MethodFamilyEntry {
+  label: string
+  summary: string
+  representativePaperIds: string[]
+}
+
+export interface RecentHotDirection {
+  label: string
+  summary: string
+  paperIds: string[]
+  confidence: number
+}
+
+export interface RecommendedReadingEntry {
+  paperId: string
+  reason: string
+  role: 'survey' | 'foundation' | 'recent_hot' | 'representative' | 'needs_review'
+}
+
+export interface ResearchAreaView {
+  id: string
+  anchorNodeId: string
+  title: string
+  overview: string
+  keyProblems: string[]
+  methodFamilies: MethodFamilyEntry[]
+  recentHotDirections: RecentHotDirection[]
+  recommendedReading: RecommendedReadingEntry[]
+}
+
 export interface Kg4NodeExpansionRecord {
   id: string
   paperId: string
@@ -325,6 +355,7 @@ export interface Kg4NodeExpansionRecord {
   paperMethodDigests?: PaperMethodDigest[]
   methodLineageView?: MethodLineageView
   conceptLearningView?: ConceptLearningView
+  researchAreaView?: ResearchAreaView
   dataCompleteness: 'complete' | 'partial' | 'insufficient'
   missingDataReasons: string[]
   generatedByJobIds: string[]
@@ -860,6 +891,48 @@ function isConceptLearningView(value: unknown): value is ConceptLearningView {
   return true
 }
 
+const readingRoles = ['survey', 'foundation', 'recent_hot', 'representative', 'needs_review'] as const satisfies readonly RecommendedReadingEntry['role'][]
+
+function isMethodFamilyEntry(value: unknown): value is MethodFamilyEntry {
+  if (!isRecordObject(value)) return false
+  if (typeof value.label !== 'string' || !value.label.trim()) return false
+  if (typeof value.summary !== 'string' || !value.summary.trim()) return false
+  if (!isStringArray(value.representativePaperIds)) return false
+  return true
+}
+
+function isRecentHotDirection(value: unknown): value is RecentHotDirection {
+  if (!isRecordObject(value)) return false
+  if (typeof value.label !== 'string' || !value.label.trim()) return false
+  if (typeof value.summary !== 'string' || !value.summary.trim()) return false
+  if (!isStringArray(value.paperIds)) return false
+  if (typeof value.confidence !== 'number' || value.confidence < 0 || value.confidence > 1) return false
+  return true
+}
+
+function isRecommendedReadingEntry(value: unknown): value is RecommendedReadingEntry {
+  if (!isRecordObject(value)) return false
+  if (typeof value.paperId !== 'string' || !value.paperId.trim()) return false
+  if (typeof value.reason !== 'string' || !value.reason.trim()) return false
+  if (!isOneOf(value.role, readingRoles)) return false
+  return true
+}
+
+function isResearchAreaView(value: unknown): value is ResearchAreaView {
+  if (!isRecordObject(value)) return false
+  if (
+    typeof value.id !== 'string' || !value.id.trim() ||
+    typeof value.anchorNodeId !== 'string' || !value.anchorNodeId.trim() ||
+    typeof value.title !== 'string' || !value.title.trim() ||
+    typeof value.overview !== 'string' || !value.overview.trim()
+  ) return false
+  if (!isStringArray(value.keyProblems)) return false
+  if (!Array.isArray(value.methodFamilies) || !value.methodFamilies.every(isMethodFamilyEntry)) return false
+  if (!Array.isArray(value.recentHotDirections) || !value.recentHotDirections.every(isRecentHotDirection)) return false
+  if (!Array.isArray(value.recommendedReading) || !value.recommendedReading.every(isRecommendedReadingEntry)) return false
+  return true
+}
+
 export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpansionRecord {
   if (!value || typeof value !== 'object') return false
   const record = value as Partial<Kg4NodeExpansionRecord>
@@ -888,6 +961,7 @@ export function isKg4NodeExpansionRecord(value: unknown): value is Kg4NodeExpans
       (Array.isArray(record.paperMethodDigests) && record.paperMethodDigests.every(isPaperMethodDigest))) &&
     (record.methodLineageView === undefined || isMethodLineageView(record.methodLineageView)) &&
     (record.conceptLearningView === undefined || isConceptLearningView(record.conceptLearningView)) &&
+    (record.researchAreaView === undefined || isResearchAreaView(record.researchAreaView)) &&
     (record.dataCompleteness === 'complete' || record.dataCompleteness === 'partial' || record.dataCompleteness === 'insufficient') &&
     isStringArray(record.missingDataReasons) &&
     isStringArray(record.generatedByJobIds) &&
