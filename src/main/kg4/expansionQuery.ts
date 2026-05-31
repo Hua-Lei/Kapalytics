@@ -6,17 +6,12 @@ export function buildExpansionRetrievalPlan(params: {
   node: { id: string; label: string; searchQueries?: string[] }
   paperInsight?: unknown
 }): ExpansionRetrievalPlan {
-  const insight = isRecord(params.paperInsight) ? params.paperInsight : {}
-  const problem = readString(insight, 'problem')
-  const method = readString(insight, 'method')
   const searchQueries = params.node.searchQueries?.filter((query) => query.trim()).map((query) => query.trim()) ?? []
 
   if (params.intent.kind === 'algorithm_method_lineage') {
     const parts = [
       params.node.label,
       params.intent.queryFocus,
-      problem,
-      method,
       ...searchQueries,
       'algorithm method same problem alternative approach foundation variant improvement'
     ].filter(Boolean)

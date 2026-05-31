@@ -104,6 +104,28 @@ assert.equal(retrievalPlan.retrievalGoal, 'same_problem_methods')
 assert.match(retrievalPlan.primaryQuery, /same problem alternative approach/i)
 assert.match(retrievalPlan.primaryQuery, /sparse reward/i)
 
+const noisyRetrievalPlan = buildExpansionRetrievalPlan({
+  intent: {
+    kind: 'algorithm_method_lineage',
+    confidence: 0.95,
+    queryFocus: 'Hypernetwork algorithm/method',
+    rationale: 'Hypernetwork is a concrete algorithm/method.'
+  },
+  node: {
+    id: 'n5',
+    label: 'Hypernetwork',
+    searchQueries: ['hypernetwork meta-learning', 'Ha et al. 2016 hypernetwork', 'weight generating networks']
+  },
+  paperInsight: {
+    problem: '传统上下文蒸馏需要为每个提示单独进行昂贵的训练，导致高延迟和内存消耗，不适合频繁变化的上下文。',
+    method: '使用 Perceiver 架构的超网络 H_phi 将上下文 token 激活映射为低秩 LoRA 矩阵；通过分块机制实现长上下文的高秩组合。'
+  }
+})
+
+assert.match(noisyRetrievalPlan.primaryQuery, /hypernetwork meta-learning/i)
+assert.doesNotMatch(noisyRetrievalPlan.primaryQuery, /传统上下文蒸馏/)
+assert.doesNotMatch(noisyRetrievalPlan.primaryQuery, /Perceiver 架构的超网络/)
+
 const short = toShortDisplayText(longAbstract, 120)
 assert.ok(short.length <= 121)
 assert.ok(short.endsWith('…'))
