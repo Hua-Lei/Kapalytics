@@ -1,11 +1,13 @@
 import type { ConceptLearningView as ConceptLearningViewType } from '../../../shared/kg4'
+import MathText from './MathText'
 
 interface Props {
   concept: ConceptLearningViewType
   nodeLabel: string
+  onSelectPaper?: (paperId: string) => void
 }
 
-export function ConceptLearningView({ concept }: Props) {
+export function ConceptLearningView({ concept, onSelectPaper }: Props) {
   return (
     <section className="concept-learning-view">
       <span className="eyebrow">Concept Teaching</span>
@@ -16,19 +18,19 @@ export function ConceptLearningView({ concept }: Props) {
           <h4>Quick Understanding</h4>
           <div className="concept-card__block">
             <strong>直觉 / Intuition</strong>
-            <p>{concept.quickExplanation.intuition}</p>
+            <p><MathText text={concept.quickExplanation.intuition} /></p>
           </div>
           <div className="concept-card__block">
             <strong>解决什么问题</strong>
-            <p>{concept.quickExplanation.problemSolved}</p>
+            <p><MathText text={concept.quickExplanation.problemSolved} /></p>
           </div>
           <div className="concept-card__block">
             <strong>核心机制</strong>
-            <p>{concept.quickExplanation.coreMechanism}</p>
+            <p><MathText text={concept.quickExplanation.coreMechanism} /></p>
           </div>
           <div className="concept-card__block">
             <strong>适用场景</strong>
-            <p>{concept.quickExplanation.whenToUse}</p>
+            <p><MathText text={concept.quickExplanation.whenToUse} /></p>
           </div>
         </article>
 
@@ -37,20 +39,20 @@ export function ConceptLearningView({ concept }: Props) {
           {concept.formalExplanation.definition ? (
             <div className="concept-card__block">
               <strong>定义</strong>
-              <p>{concept.formalExplanation.definition}</p>
+              <p><MathText text={concept.formalExplanation.definition} /></p>
             </div>
           ) : null}
           {concept.formalExplanation.formulas.map((formula, idx) => (
             <div className="concept-card__block concept-card__formula" key={idx}>
-              <code>{formula.latex}</code>
-              <p>{formula.explanation}</p>
+              <MathText text={formula.latex} displayMode />
+              <p><MathText text={formula.explanation} /></p>
               {formula.variables.length ? (
                 <table className="concept-card__variables">
                   <tbody>
                     {formula.variables.map((v) => (
                       <tr key={v.symbol}>
-                        <td><code>{v.symbol}</code></td>
-                        <td>{v.meaning}</td>
+                        <td><MathText text={v.symbol} /></td>
+                        <td><MathText text={v.meaning} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -62,7 +64,7 @@ export function ConceptLearningView({ concept }: Props) {
             <div className="concept-card__block">
               <strong>假设条件</strong>
               <ul>
-                {concept.formalExplanation.assumptions.map((a, idx) => <li key={idx}>{a}</li>)}
+                {concept.formalExplanation.assumptions.map((a, idx) => <li key={idx}><MathText text={a} /></li>)}
               </ul>
             </div>
           ) : null}
@@ -74,7 +76,7 @@ export function ConceptLearningView({ concept }: Props) {
             {concept.misconceptions.map((m, idx) => (
               <div className="concept-card__block concept-card__misconception" key={idx}>
                 <strong>{m.misconception}</strong>
-                <p>{m.correction}</p>
+                <p><MathText text={m.correction} /></p>
               </div>
             ))}
           </article>
@@ -87,7 +89,7 @@ export function ConceptLearningView({ concept }: Props) {
               <div className="concept-card__block" key={idx}>
                 <span className="concept-card__relation-tag">{r.relation}</span>
                 <strong>{r.label}</strong>
-                <p>{r.explanation}</p>
+                <p><MathText text={r.explanation} /></p>
               </div>
             ))}
           </article>
@@ -98,13 +100,35 @@ export function ConceptLearningView({ concept }: Props) {
           {concept.representativePaperIds && concept.representativePaperIds.length ? (
             <div className="concept-card__block">
               <strong>代表论文</strong>
-              <p>{concept.representativePaperIds.length} 篇</p>
+              <div className="concept-card__paper-list">
+                {concept.representativePaperIds.map((paperId) => (
+                  <button
+                    key={paperId}
+                    className="concept-card__paper-link"
+                    type="button"
+                    onClick={() => onSelectPaper?.(paperId)}
+                  >
+                    {paperId}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
           {concept.recentPaperIds && concept.recentPaperIds.length ? (
             <div className="concept-card__block">
               <strong>近期相关论文</strong>
-              <p>{concept.recentPaperIds.length} 篇</p>
+              <div className="concept-card__paper-list">
+                {concept.recentPaperIds.map((paperId) => (
+                  <button
+                    key={paperId}
+                    className="concept-card__paper-link"
+                    type="button"
+                    onClick={() => onSelectPaper?.(paperId)}
+                  >
+                    {paperId}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
         </article>

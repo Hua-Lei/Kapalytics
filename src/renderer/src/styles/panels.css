@@ -1123,3 +1123,27 @@
   margin-bottom: 4px;
   line-height: 1.5;
 }
+
+.concept-card__paper-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.concept-card__paper-link {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #3b82f6;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 4px 10px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.concept-card__paper-link:hover {
+  background: #e0f2fe;
+  border-color: #93c5fd;
+}
