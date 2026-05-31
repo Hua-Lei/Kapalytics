@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import type { DedupedPaperCandidate } from '../../shared/kg3'
-import type { ConceptLearningView, ExpansionIntent, ExpansionNodeClassification, MethodLineageView, PaperMethodDigest, PaperQualitySignal } from '../../shared/kg4'
+import type { ConceptLearningView, ExpansionIntent, ExpansionNodeClassification, MethodLineageView, PaperMethodDigest, PaperQualitySignal, ResearchAreaView } from '../../shared/kg4'
 import { buildExpansionRetrievalPlan, buildStrategyRetrievalPlan } from './expansionQuery'
 import { assembleLineageExpansionRecord, toShortDisplayText } from './lineageRecord'
 
@@ -277,5 +277,9 @@ const conceptRecord = assembleLineageExpansionRecord({
 
 assert.equal(conceptRecord.conceptLearningView?.title, 'Testing Concept')
 assert.deepEqual(conceptRecord.conceptLearningView?.representativePaperIds, ['paper-a'])
+
+const raView: ResearchAreaView = { id: 'ra-n1', anchorNodeId: 'n1', title: 'Test Area', overview: 'Overview text', keyProblems: ['P1'], methodFamilies: [], recentHotDirections: [], recommendedReading: [] }
+const raRecord = assembleLineageExpansionRecord({ paperId: 'paper-main', nodeId: 'n1', jobIds: ['job-ra'], intent, retrievedPapers: [], researchAreaView: raView })
+assert.equal(raRecord.researchAreaView?.title, 'Test Area')
 
 console.log('lineageRecord tests passed')

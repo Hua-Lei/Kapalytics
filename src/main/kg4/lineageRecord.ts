@@ -12,6 +12,7 @@ import type {
   PaperMethodDigest,
   PaperQualitySignal,
   RelatedPaperRecommendation,
+  ResearchAreaView,
   ExpansionIntent
 } from '../../shared/kg4'
 import { isKg4NodeExpansionRecord } from '../../shared/kg4'
@@ -117,6 +118,7 @@ export function assembleLineageExpansionRecord(params: {
   paperMethodDigests?: PaperMethodDigest[]
   methodLineageView?: MethodLineageView
   conceptLearningView?: ConceptLearningView
+  researchAreaView?: ResearchAreaView
   classification?: ExpansionNodeClassification
   qualitySignals?: PaperQualitySignal[]
   relatedPaperRecommendations?: RelatedPaperRecommendation[]
@@ -147,6 +149,7 @@ export function assembleLineageExpansionRecord(params: {
     paperMethodDigests: digests.length ? digests : undefined,
     methodLineageView: params.methodLineageView,
     conceptLearningView: params.conceptLearningView,
+    researchAreaView: params.researchAreaView,
     dataCompleteness,
     missingDataReasons,
     generatedByJobIds: params.jobIds,
