@@ -3,7 +3,7 @@ import type { ExpansionProgressEvent } from '../../../../shared/electron-api'
 import type { GraphNode } from '../../../../shared/paper'
 
 export type NodeExpansionStatus = 'loading' | 'ready' | 'failed' | 'empty'
-export type NodeExpansionStepStatus = 'pending' | 'running' | 'done' | 'failed'
+export type NodeExpansionStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
 
 export interface NodeExpansionStep {
   id: string
@@ -33,6 +33,8 @@ export const EXPANSION_STEPS: NodeExpansionStep[] = [
   { id: 'job_created', label: '创建展开任务', status: 'pending', detail: '正在准备展开任务...' },
   { id: 'classifying', label: '判断展开意图', status: 'pending', detail: '识别当前节点是否适合方法谱系展开...' },
   { id: 'retrieving', label: '检索相关论文', status: 'pending', detail: '检索本地和外部论文源...' },
+  { id: 'teaching', label: '生成概念教学', status: 'pending', detail: '构建概念解释、公式和常见误区...' },
+  { id: 'research_area', label: '生成研究方向图', status: 'pending', detail: '整理关键问题、方法族和热点方向...' },
   { id: 'digesting', label: '消化论文方法', status: 'pending', detail: '从候选论文中提炼问题、机制和改进线索...' },
   { id: 'synthesizing', label: '汇总方法谱系', status: 'pending', detail: '整理方法节点、关系和阅读顺序...' },
   { id: 'generating', label: '生成扩展图谱', status: 'pending', detail: '构建临时扩展节点和边...' },
@@ -72,6 +74,8 @@ export function updateSessionFromJobProgress(
     'job_created',
     'classifying',
     'retrieving',
+    'teaching',
+    'research_area',
     'digesting',
     'synthesizing',
     'generating',
@@ -99,7 +103,12 @@ export function updateSessionFromJobProgress(
   const currentIndex = stepOrder.indexOf(normalizedStep as typeof stepOrder[number])
   const steps = session.steps.map((step) => {
     const stepIndex = stepOrder.indexOf(step.id as typeof stepOrder[number])
-    if (stepIndex < currentIndex) return { ...step, status: 'done' as const }
+    if (stepIndex < currentIndex) {
+      const skipped =
+        step.status === 'pending' &&
+        (step.id === 'teaching' || step.id === 'research_area' || step.id === 'digesting' || step.id === 'synthesizing')
+      return { ...step, status: skipped ? 'skipped' as const : 'done' as const }
+    }
     if (stepIndex === currentIndex) {
       return { ...step, status: 'running' as const, detail: event.message }
     }

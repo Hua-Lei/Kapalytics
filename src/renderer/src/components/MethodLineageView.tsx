@@ -14,7 +14,7 @@ export function MethodLineageView({ lineage }: { lineage: MethodLineageViewType 
   return (
     <section className="method-lineage-view expansion-reading-note">
       <section className="method-lineage-section method-lineage-section--summary">
-        <span className="eyebrow">Method Lineage</span>
+        <span className="eyebrow">谱系/演进图</span>
         <h3>{lineage.title}</h3>
         <p><MathText text={lineage.summary} /></p>
       </section>

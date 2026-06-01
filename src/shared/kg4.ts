@@ -531,6 +531,8 @@ export interface StartKg4ExpansionParams {
   sessionId?: string
   nodeId: string
   nodeLabel: string
+  nodeType?: NodeType
+  expansionType?: GraphNode['expansionType']
   paperId?: string
   searchQueries?: string[]
   forceRefresh?: boolean

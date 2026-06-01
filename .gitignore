@@ -1,9 +1,45 @@
+# Dependencies
 node_modules/
-out/
-.superpowers/
-.opencode/
-design-previews/
-*.log
-log/
 
+# Build output
+out/
+dist/
+dist-electron/
+release/
+build/
+
+# Logs
+*.log
+logs/
+log/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and local overrides
+.env
+.env.*
+!.env.example
+*.local
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# AI agent local config
+.agents/
+.claude/
+.codex/
+.continue/
+.cursor/
+.opencode/
+.superpowers/
+.windsurf/
+.roo/
+
+# Local worktrees and previews
 .worktrees/
+design-previews/

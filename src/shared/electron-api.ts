@@ -19,6 +19,8 @@ export interface ExpansionProgressEvent {
     | 'retrieving'
     | 'analyzing'
     | 'digesting'
+    | 'teaching'
+    | 'research_area'
     | 'synthesizing'
     | 'generating'
     | 'persisting'

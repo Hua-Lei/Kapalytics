@@ -527,6 +527,8 @@
 .expansion-step--running .expansion-step__dot { background: var(--color-warning); box-shadow: 0 0 0 4px rgba(154, 107, 32, 0.12); }
 .expansion-step--done .expansion-step__dot { background: var(--color-success); }
 .expansion-step--failed .expansion-step__dot { background: var(--color-danger); }
+.expansion-step--skipped { opacity: 0.62; }
+.expansion-step--skipped .expansion-step__dot { background: var(--color-border-strong); }
 
 .expansion-loading-progress-note {
   padding: 14px;

@@ -208,6 +208,22 @@ function normalizeMethodLineageView(value: unknown): MethodLineageView | undefin
   return record as unknown as MethodLineageView
 }
 
+function currentExpansionNodeInput(params: StartKg4ExpansionParams): {
+  id: string
+  label: string
+  type?: StartKg4ExpansionParams['nodeType']
+  expansionType?: StartKg4ExpansionParams['expansionType']
+  searchQueries: string[]
+} {
+  return {
+    id: params.nodeId,
+    label: params.nodeLabel,
+    type: params.nodeType,
+    expansionType: params.expansionType,
+    searchQueries: params.searchQueries ?? []
+  }
+}
+
 function createPaperRecord(paperId: string, title: string, fileUrl?: string, filePath?: string): PaperRecord {
   const timestamp = now()
   return {
@@ -541,6 +557,8 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
       paperId: params.paperId,
       nodeId: params.nodeId,
       nodeLabel: params.nodeLabel,
+      nodeType: params.nodeType,
+      expansionType: params.expansionType,
       searchQueries: params.searchQueries,
       forceRefresh: Boolean(params.forceRefresh)
     })
@@ -565,11 +583,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
         const classifyJob = await llmTaskOrchestrator.createJob({
           type: 'classify_expansion_intent',
           input: {
-            currentNode: {
-              id: params.nodeId,
-              label: params.nodeLabel,
-              searchQueries: params.searchQueries ?? []
-            },
+            currentNode: currentExpansionNodeInput(params),
             currentPaperInsight: params.paperInsight
           },
           nodeId: params.nodeId,
@@ -587,7 +601,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
         }
         const expansionClassification = normalizeExpansionClassification(
           classifyResult.status === 'succeeded' || classifyResult.status === 'cache_hit' ? classifyResult.resultJson : undefined,
-          { nodeLabel: params.nodeLabel }
+          { nodeLabel: params.nodeLabel, nodeType: params.nodeType, expansionType: params.expansionType }
         )
         const expansionIntent = classificationToLegacyIntent(expansionClassification, params.nodeLabel)
         const retrievalPlan = buildStrategyRetrievalPlan({
@@ -645,9 +659,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             type: 'teach_concept',
             input: {
               currentNode: {
-                id: params.nodeId,
-                label: params.nodeLabel,
-                searchQueries: params.searchQueries ?? []
+                ...currentExpansionNodeInput(params)
               },
               currentPaperInsight: params.paperInsight,
               retrievedPapers: candidates.map((c) => ({
@@ -722,9 +734,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             type: 'map_research_area',
             input: {
               currentNode: {
-                id: params.nodeId,
-                label: params.nodeLabel,
-                searchQueries: params.searchQueries ?? []
+                ...currentExpansionNodeInput(params)
               },
               currentPaperInsight: params.paperInsight,
               retrievedPapers: candidates.map((c) => ({
@@ -857,9 +867,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
               type: 'digest_paper_method',
               input: {
                 currentNode: {
-                  id: params.nodeId,
-                  label: params.nodeLabel,
-                  searchQueries: params.searchQueries ?? []
+                  ...currentExpansionNodeInput(params)
                 },
                 currentPaperInsight: params.paperInsight,
                 retrievedPaper: candidate
@@ -958,9 +966,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           input: {
             requestNonce: params.forceRefresh ? Date.now() : undefined,
             currentNode: {
-              id: params.nodeId,
-              label: params.nodeLabel,
-              searchQueries: params.searchQueries ?? []
+              ...currentExpansionNodeInput(params)
             },
             currentPaperInsight: params.paperInsight,
             retrievedPapers: compactRetrievedPapersForLineage(candidates),

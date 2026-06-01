@@ -18,7 +18,7 @@ export function buildExpansionLoadingTelemetry(session: NodeExpansionSession, no
 } {
   return {
     currentStep: session.steps.find((step) => step.id === session.currentStepId) ?? session.steps.find((step) => step.status === 'running'),
-    completedStepCount: session.steps.filter((step) => step.status === 'done').length,
+    completedStepCount: session.steps.filter((step) => step.status === 'done' || step.status === 'skipped').length,
     candidateCount: session.expansionRecord?.retrievedPaperIds.length ?? 0,
     digestCount: session.expansionRecord?.paperMethodDigests?.length ?? 0,
     expansionNodeCount: session.expansionRecord?.expansionGraphNodes.length ?? 0,

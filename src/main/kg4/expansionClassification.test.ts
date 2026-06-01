@@ -134,4 +134,32 @@ assert.equal(malformedLegacyIntent.kind, 'generic_related_papers')
 assert.equal(malformedLegacyIntent.queryFocus, 'related papers')
 assert.equal(malformedLegacyIntent.fallbackReason, 'Classification is unknown; using related papers.')
 
+const methodEvolutionHint = normalizeExpansionClassification(null, {
+  nodeLabel: 'Hypernetwork Adapter',
+  nodeType: 'method',
+  expansionType: 'method_evolution'
+})
+
+assert.equal(methodEvolutionHint.primaryType, 'method')
+assert.equal(methodEvolutionHint.recommendedPath, 'track_method_lineage')
+assert.equal(classificationToLegacyIntent(methodEvolutionHint, 'Hypernetwork Adapter').kind, 'algorithm_method_lineage')
+assert.ok(methodEvolutionHint.alternativePaths.includes('review_related_papers'))
+
+const lowConfidenceMethodWithExpansionHint = normalizeExpansionClassification({
+  primaryType: 'method',
+  facets: [],
+  confidence: 0.34,
+  rationale: 'Weak model-side signal.',
+  recommendedPath: 'review_related_papers',
+  alternativePaths: []
+}, {
+  nodeLabel: 'Hypernetwork Adapter',
+  nodeType: 'method',
+  expansionType: 'method_evolution'
+})
+
+assert.equal(lowConfidenceMethodWithExpansionHint.primaryType, 'method')
+assert.equal(lowConfidenceMethodWithExpansionHint.recommendedPath, 'track_method_lineage')
+assert.equal(classificationToLegacyIntent(lowConfidenceMethodWithExpansionHint, 'Hypernetwork Adapter').kind, 'algorithm_method_lineage')
+
 console.log('expansionClassification tests passed')

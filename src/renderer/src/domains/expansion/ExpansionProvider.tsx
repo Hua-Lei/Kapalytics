@@ -66,6 +66,8 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
       sessionId,
       nodeId: node.id,
       nodeLabel: node.label,
+      nodeType: node.type,
+      expansionType: node.expansionType,
       paperId,
       searchQueries: node.searchQueries ?? [],
       forceRefresh: Boolean(options.forceRefresh),
