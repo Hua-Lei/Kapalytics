@@ -30,12 +30,14 @@ assert.match(digestPrompt, /confidence.*0.*1/i)
 assert.match(digestPrompt, /relationHints.*array/i)
 
 const lineagePrompt = systemPromptForJob('synthesize_method_lineage')
-assert.match(lineagePrompt, /MethodLineageView/i)
-assert.match(lineagePrompt, /evidencePaperIds/i)
-assert.match(lineagePrompt, /anchorNodeId/i)
-assert.match(lineagePrompt, /role.*current_method/i)
-assert.match(lineagePrompt, /Do not output.*methodName/i)
-assert.match(lineagePrompt, /At most 6 nodes/i)
+assert.match(lineagePrompt, /PDF-grounded method lineage/i)
+assert.match(lineagePrompt, /methodLineageContext/i)
+assert.match(lineagePrompt, /paperSource\.extractedText/i)
+assert.match(lineagePrompt, /problemSetup/i)
+assert.match(lineagePrompt, /anchorPosition/i)
+assert.match(lineagePrompt, /current_pdf/i)
+assert.match(lineagePrompt, /model_knowledge/i)
+assert.match(lineagePrompt, /future_retrieval_needed/i)
 
 assert.equal(timeoutMsForJob('synthesize_method_lineage'), 240000)
 assert.equal(timeoutMsForJob('digest_paper_method'), 120000)
@@ -445,5 +447,94 @@ assert.equal(validateJobOutput(mapaJob, validMapa).ok, true)
 
 const badMapa = { ...validMapa, overview: '' }
 assert.equal(validateJobOutput(mapaJob, badMapa).ok, false)
+
+const pdfGroundedLineageOutput = {
+  id: 'lineage-pdf',
+  anchorNodeId: 'node-a',
+  title: 'PDF grounded lineage',
+  summary: 'A lineage grounded in the current paper.',
+  problemSetup: {
+    beginnerExplanation: 'The paper studies how to adapt a model efficiently.',
+    whyThisProblemMatters: 'Efficient adaptation reduces training cost.',
+    pdfEvidence: [{
+      sourceType: 'current_pdf',
+      pageNumber: 2,
+      sectionTitle: 'Introduction',
+      excerpt: 'We study efficient adaptation for large models.',
+      claimSupported: 'The paper problem is efficient adaptation.'
+    }]
+  },
+  conceptBridge: [{
+    concept: 'Adapter',
+    explanation: 'A small trainable module added to a frozen model.',
+    whyNeededForThisLineage: 'Adapters are the baseline family being improved.',
+    pdfEvidence: []
+  }],
+  anchorPosition: {
+    summary: 'The current paper is an improvement stage.',
+    whatTheCurrentPaperChanges: 'It generates adapter parameters dynamically.',
+    whatItInherits: ['Frozen backbone adaptation'],
+    whatItDoesNotSolve: ['Full retrieval-backed literature coverage'],
+    pdfEvidence: [{
+      sourceType: 'current_pdf',
+      pageNumber: 4,
+      sectionTitle: 'Method',
+      excerpt: 'Our method generates adaptation weights conditioned on context.',
+      claimSupported: 'The paper changes how adapter weights are produced.'
+    }]
+  },
+  methodComparisons: [{
+    methodA: 'Static adapters',
+    methodB: 'Context-conditioned adapters',
+    keyDifference: 'Static adapters learn fixed parameters; the current method generates them from context.',
+    whyItMatters: 'This changes how adaptation responds to inputs.',
+    evidence: [{ sourceType: 'model_knowledge', note: 'General adapter background.', confidence: 0.65 }]
+  }],
+  confidenceAndEvidence: {
+    groundedInCurrentPdf: ['Problem statement', 'Current method mechanism'],
+    fromModelKnowledge: ['Background adapter lineage'],
+    needsFutureRetrieval: ['Representative predecessor papers']
+  },
+  nodes: [{
+    id: 'stage-current',
+    label: 'Context-conditioned adapter generation',
+    role: 'current_method',
+    summary: 'The current paper generates adapter weights dynamically.',
+    representativePaperIds: ['paper-main'],
+    digestIds: [],
+    evidence: [{
+      sourceType: 'current_pdf',
+      pageNumber: 4,
+      excerpt: 'Our method generates adaptation weights conditioned on context.',
+      claimSupported: 'Current method mechanism.'
+    }]
+  }],
+  edges: [],
+  openQuestions: ['Which predecessor papers should be retrieved next?'],
+  readingOrder: [],
+  dataCompleteness: 'partial',
+  missingDataReasons: ['External retrieval evidence is reserved for a later phase.']
+}
+
+assert.equal(
+  validateJobOutput(
+    makeJob({
+      type: 'synthesize_method_lineage',
+      paperId: 'paper-main',
+      relatedPaperIds: [],
+      inputJson: {
+        methodLineageContext: {
+          paperSource: {
+            pdfUrl: 'file:///paper.pdf',
+            extractedText: '[Page 1]\ntext',
+            pages: [{ pageNumber: 1, text: 'text' }]
+          }
+        }
+      }
+    }),
+    pdfGroundedLineageOutput
+  ).ok,
+  true
+)
 
 console.log('map_research_area tests passed')

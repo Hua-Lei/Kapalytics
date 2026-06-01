@@ -984,6 +984,43 @@
   padding-left: 22px;
 }
 
+.method-lineage-evidence-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.method-lineage-evidence-card {
+  border-left: 3px solid #f59e0b;
+  background: #fff7ed;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.method-lineage-evidence-card--soft {
+  border-left-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.method-lineage-evidence-card span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.method-lineage-evidence-card blockquote {
+  margin: 0 0 6px;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.method-lineage-evidence-card p {
+  margin: 0;
+}
+
 .expansion-paper-card p {
   margin: 4px 0 0;
   color: #475569;

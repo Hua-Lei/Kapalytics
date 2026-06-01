@@ -60,16 +60,24 @@ export function systemPromptForJob(type: LLMJobType): string {
   }
   if (type === 'synthesize_method_lineage') {
     return [
-      'You are a KG4 method lineage synthesizer. Return strict JSON only.',
-      'Input contains currentNode, currentPaperInsight, compact retrievedPapers, and paperMethodDigests.',
-      'Return exactly one MethodLineageView JSON object with fields: id, anchorNodeId, title, summary, nodes, edges, openQuestions, readingOrder, dataCompleteness, missingDataReasons.',
-      'Each node must have only: id, label, role, summary, representativePaperIds, digestIds. role must be one of current_method, foundation_method, parallel_variant, improvement, application_variant, open_problem.',
-      'Each edge must have only: id, sourceId, targetId, relation, explanation, evidencePaperIds, confidence. relation must be one of extends, contrasts_with, solves_limitation_of, shares_assumption_with, applies_to_new_context, evidence_insufficient.',
-      'Do not output fields such as methodName, description, source, target, relationType, evidenceSummary, or confidence on nodes.',
-      'At most 6 nodes, at most 8 edges, at most 4 openQuestions, and at most 6 readingOrder items.',
-      'Every representativePaperIds, digestIds, and evidencePaperIds item must come from the supplied inputs.',
-      'Mark uncertain relationships as evidence_insufficient instead of inventing evidence.',
-      'All explanatory text fields must be Chinese (中文).'
+      'You are a KG4 PDF-grounded method lineage synthesizer. Return strict JSON only.',
+      'Input contains methodLineageContext with anchor, paperSource, paperInsight, localGraphNeighborhood, evidenceSlots, and readerIntent.',
+      'paperSource.extractedText is the primary source for the current paper. Use it directly; do not ask for an intermediate summary.',
+      'Return one MethodLineageView JSON object with existing fields id, anchorNodeId, title, summary, nodes, edges, openQuestions, readingOrder, dataCompleteness, missingDataReasons.',
+      'Also return problemSetup, conceptBridge, anchorPosition, methodComparisons, and confidenceAndEvidence.',
+      'problemSetup must explain the research problem for a beginner and include pdfEvidence excerpts from current_pdf.',
+      'anchorPosition must explain where the current paper sits in the lineage and include pdfEvidence excerpts from current_pdf.',
+      'methodComparisons must compare concrete methods and every comparison must include evidence items.',
+      'Evidence sourceType must be current_pdf, model_knowledge, or future_retrieval_needed.',
+      'Use current_pdf only when an excerpt comes from paperSource pages. Include pageNumber when the page is known.',
+      'Use model_knowledge for general field background that is not directly stated in the PDF.',
+      'Use future_retrieval_needed when a claim would require external paper retrieval.',
+      'Nodes keep fields id, label, role, summary, representativePaperIds, digestIds, and optional evidence.',
+      'Edges keep fields id, sourceId, targetId, relation, explanation, evidencePaperIds, confidence, and optional evidence.',
+      'role must be current_method, foundation_method, parallel_variant, improvement, application_variant, or open_problem.',
+      'relation must be extends, contrasts_with, solves_limitation_of, shares_assumption_with, applies_to_new_context, or evidence_insufficient.',
+      'representativePaperIds, digestIds, evidencePaperIds, and readingOrder may be empty arrays when no retrieved papers or digests are supplied.',
+      'All explanatory text fields must be Chinese. Keep PDF excerpts short and faithful.'
     ].join(' ')
   }
   if (type === 'teach_concept') {

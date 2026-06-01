@@ -264,7 +264,12 @@ export function validateJobOutput(job: LLMJob, output: unknown): ReferencedPaper
   if (job.type === 'synthesize_method_lineage') {
     return mergeValidationResults(
       validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
-      validateMethodLineageView(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])], allowedDigestIds(job.inputJson))
+      validateMethodLineageView(
+        output,
+        [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])],
+        allowedDigestIds(job.inputJson),
+        { requirePdfGrounding: hasPdfGroundingInput(job.inputJson) }
+      )
     )
   }
   if (['expand_node', 'compare_papers', 'generate_transfer_task', 'diagnose_answer'].includes(job.type) || isKg4JobType(job.type)) {
@@ -345,7 +350,54 @@ function normalizeConfidence(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-function validateMethodLineageView(output: unknown, allowedPaperIds: string[], allowedDigestIdsSet: Set<string>): ReferencedPaperValidationResult {
+function hasPdfGroundingInput(input: unknown): boolean {
+  return isRecord(input) && isRecord(input.methodLineageContext) && isRecord(input.methodLineageContext.paperSource)
+}
+
+function validatePdfEvidenceRef(value: unknown, path: string, errors: string[]): void {
+  if (!isRecord(value)) {
+    errors.push(`${path} must be an object`)
+    return
+  }
+  if (value.sourceType !== 'current_pdf') errors.push(`${path}.sourceType must be current_pdf`)
+  if (!isNonEmptyString(value.excerpt)) errors.push(`${path}.excerpt must be a non-empty string`)
+  if (!isNonEmptyString(value.claimSupported)) errors.push(`${path}.claimSupported must be a non-empty string`)
+  if (value.pageNumber !== undefined && (!(typeof value.pageNumber === 'number') || !Number.isInteger(value.pageNumber) || value.pageNumber <= 0)) {
+    errors.push(`${path}.pageNumber must be a positive integer when present`)
+  }
+  if (value.sectionTitle !== undefined && typeof value.sectionTitle !== 'string') errors.push(`${path}.sectionTitle must be a string when present`)
+}
+
+function validateEvidenceRef(value: unknown, path: string, errors: string[]): void {
+  if (!isRecord(value)) {
+    errors.push(`${path} must be an object`)
+    return
+  }
+  if (value.sourceType === 'current_pdf') {
+    validatePdfEvidenceRef(value, path, errors)
+    return
+  }
+  if (value.sourceType === 'model_knowledge') {
+    if (!isNonEmptyString(value.note)) errors.push(`${path}.note must be a non-empty string`)
+    if (!isNumberInRange(value.confidence, 0, 1)) errors.push(`${path}.confidence must be a number between 0 and 1`)
+    return
+  }
+  if (value.sourceType === 'future_retrieval_needed') {
+    if (!isNonEmptyString(value.reason)) errors.push(`${path}.reason must be a non-empty string`)
+    return
+  }
+  errors.push(`${path}.sourceType must be current_pdf, model_knowledge, or future_retrieval_needed`)
+}
+
+function validateEvidenceArray(value: unknown, path: string, errors: string[]): void {
+  if (!Array.isArray(value)) {
+    errors.push(`${path} must be an array`)
+    return
+  }
+  value.forEach((item, index) => validateEvidenceRef(item, `${path}[${index}]`, errors))
+}
+
+function validateMethodLineageView(output: unknown, allowedPaperIds: string[], allowedDigestIdsSet: Set<string>, options: { requirePdfGrounding?: boolean } = {}): ReferencedPaperValidationResult {
   const errors: string[] = []
   if (!isRecord(output)) return schemaErrors('synthesize_method_lineage output must be an object')
   if (!isNonEmptyString(output.id)) errors.push('synthesize_method_lineage.id must be a non-empty string')
@@ -371,6 +423,47 @@ function validateMethodLineageView(output: unknown, allowedPaperIds: string[], a
   }
   if (!isOneOf(output.dataCompleteness, METHOD_LINEAGE_COMPLETENESS)) errors.push('synthesize_method_lineage.dataCompleteness must be complete, partial, or insufficient')
   if (!isStringArray(output.missingDataReasons)) errors.push('synthesize_method_lineage.missingDataReasons must be a string array')
+
+  if (options.requirePdfGrounding) {
+    const problemSetup = isRecord(output) ? output.problemSetup : undefined
+    if (!isRecord(problemSetup)) {
+      errors.push('synthesize_method_lineage.problemSetup must be an object for PDF-grounded lineage')
+    } else {
+      if (!isNonEmptyString(problemSetup.beginnerExplanation)) errors.push('synthesize_method_lineage.problemSetup.beginnerExplanation must be a non-empty string')
+      if (!isNonEmptyString(problemSetup.whyThisProblemMatters)) errors.push('synthesize_method_lineage.problemSetup.whyThisProblemMatters must be a non-empty string')
+      if (!Array.isArray(problemSetup.pdfEvidence) || !problemSetup.pdfEvidence.length) errors.push('synthesize_method_lineage.problemSetup.pdfEvidence must contain at least one PDF evidence item')
+      ;(Array.isArray(problemSetup.pdfEvidence) ? problemSetup.pdfEvidence : []).forEach((item, index) => validatePdfEvidenceRef(item, `synthesize_method_lineage.problemSetup.pdfEvidence[${index}]`, errors))
+    }
+
+    const anchorPosition = isRecord(output) ? output.anchorPosition : undefined
+    if (!isRecord(anchorPosition)) {
+      errors.push('synthesize_method_lineage.anchorPosition must be an object for PDF-grounded lineage')
+    } else {
+      if (!isNonEmptyString(anchorPosition.summary)) errors.push('synthesize_method_lineage.anchorPosition.summary must be a non-empty string')
+      if (!isNonEmptyString(anchorPosition.whatTheCurrentPaperChanges)) errors.push('synthesize_method_lineage.anchorPosition.whatTheCurrentPaperChanges must be a non-empty string')
+      if (!isStringArray(anchorPosition.whatItInherits)) errors.push('synthesize_method_lineage.anchorPosition.whatItInherits must be a string array')
+      if (!isStringArray(anchorPosition.whatItDoesNotSolve)) errors.push('synthesize_method_lineage.anchorPosition.whatItDoesNotSolve must be a string array')
+      if (!Array.isArray(anchorPosition.pdfEvidence) || !anchorPosition.pdfEvidence.length) errors.push('synthesize_method_lineage.anchorPosition.pdfEvidence must contain at least one PDF evidence item')
+      ;(Array.isArray(anchorPosition.pdfEvidence) ? anchorPosition.pdfEvidence : []).forEach((item, index) => validatePdfEvidenceRef(item, `synthesize_method_lineage.anchorPosition.pdfEvidence[${index}]`, errors))
+    }
+  }
+
+  const methodComparisons = isRecord(output) ? output.methodComparisons : undefined
+  if (methodComparisons !== undefined) {
+    if (!Array.isArray(methodComparisons)) errors.push('synthesize_method_lineage.methodComparisons must be an array')
+    ;(Array.isArray(methodComparisons) ? methodComparisons : []).forEach((comparison, index) => {
+      if (!isRecord(comparison)) {
+        errors.push(`synthesize_method_lineage.methodComparisons[${index}] must be an object`)
+        return
+      }
+      if (!isNonEmptyString(comparison.methodA)) errors.push(`synthesize_method_lineage.methodComparisons[${index}].methodA must be a non-empty string`)
+      if (!isNonEmptyString(comparison.methodB)) errors.push(`synthesize_method_lineage.methodComparisons[${index}].methodB must be a non-empty string`)
+      if (!isNonEmptyString(comparison.keyDifference)) errors.push(`synthesize_method_lineage.methodComparisons[${index}].keyDifference must be a non-empty string`)
+      if (!isNonEmptyString(comparison.whyItMatters)) errors.push(`synthesize_method_lineage.methodComparisons[${index}].whyItMatters must be a non-empty string`)
+      validateEvidenceArray(comparison.evidence, `synthesize_method_lineage.methodComparisons[${index}].evidence`, errors)
+    })
+  }
+
   return schemaErrors(...errors)
 }
 
@@ -397,6 +490,7 @@ function validateMethodLineageNode(node: unknown, index: number, allowedPaperIds
   } else if (node.digestIds.some((digestId) => !allowedDigestIdsSet.has(digestId))) {
     errors.push(`synthesize_method_lineage.nodes[${index}].digestIds must only reference supplied paperMethodDigests`)
   }
+  if (node.evidence !== undefined) validateEvidenceArray(node.evidence, `synthesize_method_lineage.nodes[${index}].evidence`, errors)
 }
 
 function validateMethodLineageEdge(edge: unknown, index: number, allowedPaperIds: string[], nodeIds: Set<string>, errors: string[]): void {
@@ -423,6 +517,7 @@ function validateMethodLineageEdge(edge: unknown, index: number, allowedPaperIds
     errors.push(`synthesize_method_lineage.edges[${index}].evidencePaperIds must only reference supplied papers`)
   }
   if (!isNumberInRange(edge.confidence, 0, 1)) errors.push(`synthesize_method_lineage.edges[${index}].confidence must be a number between 0 and 1`)
+  if (edge.evidence !== undefined) validateEvidenceArray(edge.evidence, `synthesize_method_lineage.edges[${index}].evidence`, errors)
 }
 
 function validateResearchArea(output: unknown): ReferencedPaperValidationResult {

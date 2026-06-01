@@ -33,10 +33,12 @@ import { normalizeConceptLearningView } from './kg4/conceptTeaching'
 import { normalizeResearchAreaView } from './kg4/researchArea'
 import { KG4_EXPANSION_TOKEN_BUDGETS } from './kg4/tokenBudgets'
 import { compactRetrievedPapersForLineage } from './kg4/llmInput'
+import { buildMethodLineageContext, buildPaperSourceContext } from './kg4/paperSourceContext'
 import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
 import type { LLMJob, PaperRecord } from '../shared/kg3'
 import type {
   ExpansionIntent,
+  ExpansionNodeClassification,
   Kg4ExpansionRecordQuery,
   Kg4NodeExpansionRecord,
   MethodLineageView,
@@ -222,6 +224,10 @@ function currentExpansionNodeInput(params: StartKg4ExpansionParams): {
     expansionType: params.expansionType,
     searchQueries: params.searchQueries ?? []
   }
+}
+
+function shouldUsePdfGroundedLineage(classification: ExpansionNodeClassification | undefined, legacyIntent: ExpansionIntent): boolean {
+  return classification?.recommendedPath === 'track_method_lineage' || legacyIntent.kind === 'algorithm_method_lineage'
 }
 
 function createPaperRecord(paperId: string, title: string, fileUrl?: string, filePath?: string): PaperRecord {
@@ -604,6 +610,93 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           { nodeLabel: params.nodeLabel, nodeType: params.nodeType, expansionType: params.expansionType }
         )
         const expansionIntent = classificationToLegacyIntent(expansionClassification, params.nodeLabel)
+
+        if (shouldUsePdfGroundedLineage(expansionClassification, expansionIntent) && params.pdfUrl) {
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'synthesizing',
+            message: '正在基于 PDF 原文生成方法谱系...'
+          })
+
+          const extractedPaper = await extractPdfContent(params.pdfUrl)
+          const paperSource = buildPaperSourceContext(params.pdfUrl, extractedPaper)
+          const methodLineageContext = buildMethodLineageContext({
+            anchor: {
+              nodeId: params.nodeId,
+              label: params.nodeLabel,
+              type: params.nodeType,
+              expansionType: params.expansionType,
+              classificationRationale: expansionClassification?.rationale ?? expansionIntent.rationale
+            },
+            paperSource,
+            paperInsight: params.paperInsight,
+            graphNeighborhood: params.graphNeighborhood
+          })
+
+          const lineageJob = await llmTaskOrchestrator.createJob({
+            type: 'synthesize_method_lineage',
+            input: {
+              requestNonce: params.forceRefresh ? Date.now() : undefined,
+              methodLineageContext
+            },
+            nodeId: params.nodeId,
+            paperId: params.paperId,
+            relatedPaperIds: [],
+            sessionId,
+            model: 'deepseek-v4-pro',
+            maxTokens: KG4_EXPANSION_TOKEN_BUDGETS.synthesizeMethodLineage,
+            temperature: 0.1
+          })
+          jobId = lineageJob.id
+
+          let lineageResult = await llmTaskOrchestrator.runJob(lineageJob.id)
+          if (lineageResult.status === 'queued' || lineageResult.status === 'running') {
+            lineageResult = await waitForJobTerminalState(lineageJob.id)
+          }
+          const methodLineageView = normalizeMethodLineageView(
+            lineageResult.status === 'succeeded' || lineageResult.status === 'cache_hit' ? lineageResult.resultJson : undefined
+          )
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'generating',
+            message: '正在生成谱系/演进图...'
+          })
+
+          const record = assembleLineageExpansionRecord({
+            paperId: params.paperId ?? 'current-paper',
+            nodeId: params.nodeId,
+            jobIds: [classifyJob.id, lineageJob.id],
+            intent: expansionIntent,
+            retrievedPapers: [],
+            paperMethodDigests: [],
+            methodLineageView,
+            classification: expansionClassification
+          })
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'persisting',
+            message: '正在保存展开结果...'
+          })
+          await paperMemoryRepository.saveKg4ExpansionRecord(record)
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'done',
+            message: '展开完成',
+            result: record
+          })
+          return
+        }
+
+        if (shouldUsePdfGroundedLineage(expansionClassification, expansionIntent) && !params.pdfUrl) {
+          logBackend('kg4_pdf_grounded_lineage_missing_pdf', { sessionId, nodeId: params.nodeId, paperId: params.paperId })
+        }
+
         const retrievalPlan = buildStrategyRetrievalPlan({
           classification: expansionClassification,
           node: {

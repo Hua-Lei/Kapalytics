@@ -16,7 +16,13 @@ export interface ExpansionActions {
   selectExpansionNode: (node: ExpansionGraphNode, expansionId: string) => void
   clearExpansionGraph: (sessionId: string) => void
   setSessions: React.Dispatch<React.SetStateAction<Record<string, NodeExpansionSession>>>
-  setPaperContext: (context: { graphNodes: GraphNode[]; paperInsight: PaperInsight | null; paperId: string | null }) => void
+  setPaperContext: (context: {
+    graphNodes: GraphNode[]
+    graphEdges: Array<{ id: string; sourceId: string; targetId: string; label?: string; directed: boolean }>
+    paperInsight: PaperInsight | null
+    paperId: string | null
+    pdfUrl: string | null
+  }) => void
 }
 
 export type ExpansionContextValue = ExpansionState & ExpansionActions

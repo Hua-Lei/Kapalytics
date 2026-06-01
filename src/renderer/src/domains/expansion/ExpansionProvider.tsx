@@ -8,11 +8,40 @@ import { electronApi } from '../../modules/ipc/electronApi'
 
 export const ExpansionContext = createContext<ExpansionContextValue | null>(null)
 
+function buildLocalGraphNeighborhood(
+  nodeId: string,
+  nodes: GraphNode[],
+  edges: Array<{ sourceId: string; targetId: string; label?: string }>
+) {
+  const connectedNodeIds = new Set<string>([nodeId])
+  edges.forEach((edge) => {
+    if (edge.sourceId === nodeId) connectedNodeIds.add(edge.targetId)
+    if (edge.targetId === nodeId) connectedNodeIds.add(edge.sourceId)
+  })
+  return {
+    nodes: nodes
+      .filter((node) => connectedNodeIds.has(node.id))
+      .slice(0, 12)
+      .map((node) => ({
+        id: node.id,
+        label: node.label,
+        type: node.type,
+        description: node.description
+      })),
+    edges: edges
+      .filter((edge) => connectedNodeIds.has(edge.sourceId) && connectedNodeIds.has(edge.targetId))
+      .slice(0, 18)
+      .map((edge) => ({ sourceId: edge.sourceId, targetId: edge.targetId, label: edge.label }))
+  }
+}
+
 export function ExpansionProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<Record<string, NodeExpansionSession>>({})
   const graphRef = useRef<GraphNode[]>([])
+  const graphEdgesRef = useRef<Array<{ id: string; sourceId: string; targetId: string; label?: string; directed: boolean }>>([])
   const paperInsightRef = useRef<PaperInsight | null>(null)
   const paperIdRef = useRef<string | null>(null)
+  const pdfUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
     const unsub = electronApi.kg4.onExpansionProgress((event) => {
@@ -25,10 +54,18 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
     return unsub
   }, [])
 
-  const setPaperContext = useCallback((context: { graphNodes: GraphNode[]; paperInsight: PaperInsight | null; paperId: string | null }) => {
+  const setPaperContext = useCallback((context: {
+    graphNodes: GraphNode[]
+    graphEdges: Array<{ id: string; sourceId: string; targetId: string; label?: string; directed: boolean }>
+    paperInsight: PaperInsight | null
+    paperId: string | null
+    pdfUrl: string | null
+  }) => {
     graphRef.current = context.graphNodes
+    graphEdgesRef.current = context.graphEdges
     paperInsightRef.current = context.paperInsight
     paperIdRef.current = context.paperId
+    pdfUrlRef.current = context.pdfUrl
   }, [])
 
   const startExpansion = useCallback(async (nodeId: string, options: { forceRefresh?: boolean } = {}): Promise<StartExpansionUiResult | undefined> => {
@@ -62,6 +99,8 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
 
     setSessions((prev) => ({ ...prev, [session.id]: session }))
 
+    const graphNeighborhood = buildLocalGraphNeighborhood(node.id, graphRef.current, graphEdgesRef.current)
+
     const result = await electronApi.kg4.startExpansion({
       sessionId,
       nodeId: node.id,
@@ -69,6 +108,8 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
       nodeType: node.type,
       expansionType: node.expansionType,
       paperId,
+      pdfUrl: pdfUrlRef.current ?? undefined,
+      graphNeighborhood,
       searchQueries: node.searchQueries ?? [],
       forceRefresh: Boolean(options.forceRefresh),
       paperInsight: paperInsightRef.current

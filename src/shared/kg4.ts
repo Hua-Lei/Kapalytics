@@ -225,6 +225,45 @@ export interface PaperMethodDigest {
   insufficientInformation?: string
 }
 
+export interface PaperSourcePageContext {
+  pageNumber: number
+  text: string
+}
+
+export interface PaperSourceSectionContext {
+  title: string
+  text: string
+  pageRange?: string
+}
+
+export interface PaperSourceContext {
+  pdfUrl: string
+  extractedText: string
+  pages: PaperSourcePageContext[]
+  sections?: PaperSourceSectionContext[]
+}
+
+export interface PdfEvidenceRef {
+  sourceType: 'current_pdf'
+  pageNumber?: number
+  sectionTitle?: string
+  excerpt: string
+  claimSupported: string
+}
+
+export interface ModelKnowledgeEvidenceRef {
+  sourceType: 'model_knowledge'
+  note: string
+  confidence: number
+}
+
+export interface FutureRetrievalEvidenceRef {
+  sourceType: 'future_retrieval_needed'
+  reason: string
+}
+
+export type MethodLineageEvidenceRef = PdfEvidenceRef | ModelKnowledgeEvidenceRef | FutureRetrievalEvidenceRef
+
 export type MethodLineageNodeRole =
   | 'current_method'
   | 'foundation_method'
@@ -240,6 +279,7 @@ export interface MethodLineageNode {
   summary: string
   representativePaperIds: string[]
   digestIds: string[]
+  evidence?: MethodLineageEvidenceRef[]
 }
 
 export type MethodLineageRelation =
@@ -258,6 +298,7 @@ export interface MethodLineageEdge {
   explanation: string
   evidencePaperIds: string[]
   confidence: number
+  evidence?: MethodLineageEvidenceRef[]
 }
 
 export interface MethodLineageView {
@@ -265,6 +306,36 @@ export interface MethodLineageView {
   anchorNodeId: string
   title: string
   summary: string
+  problemSetup?: {
+    beginnerExplanation: string
+    whyThisProblemMatters: string
+    pdfEvidence: PdfEvidenceRef[]
+  }
+  conceptBridge?: Array<{
+    concept: string
+    explanation: string
+    whyNeededForThisLineage: string
+    pdfEvidence?: PdfEvidenceRef[]
+  }>
+  anchorPosition?: {
+    summary: string
+    whatTheCurrentPaperChanges: string
+    whatItInherits: string[]
+    whatItDoesNotSolve: string[]
+    pdfEvidence: PdfEvidenceRef[]
+  }
+  methodComparisons?: Array<{
+    methodA: string
+    methodB: string
+    keyDifference: string
+    whyItMatters: string
+    evidence: MethodLineageEvidenceRef[]
+  }>
+  confidenceAndEvidence?: {
+    groundedInCurrentPdf: string[]
+    fromModelKnowledge: string[]
+    needsFutureRetrieval: string[]
+  }
   nodes: MethodLineageNode[]
   edges: MethodLineageEdge[]
   openQuestions: string[]
@@ -527,6 +598,20 @@ export type Kg4NodeLike = Pick<GraphNode, 'id' | 'type' | 'label' | 'description
   roleInPaper?: string
 }
 
+export interface Kg4GraphNeighborhoodInput {
+  nodes: Array<{
+    id: string
+    label: string
+    type?: string
+    description?: string
+  }>
+  edges: Array<{
+    sourceId: string
+    targetId: string
+    label?: string
+  }>
+}
+
 export interface StartKg4ExpansionParams {
   sessionId?: string
   nodeId: string
@@ -534,6 +619,8 @@ export interface StartKg4ExpansionParams {
   nodeType?: NodeType
   expansionType?: GraphNode['expansionType']
   paperId?: string
+  pdfUrl?: string
+  graphNeighborhood?: Kg4GraphNeighborhoodInput
   searchQueries?: string[]
   forceRefresh?: boolean
   paperInsight?: {
@@ -820,13 +907,82 @@ function isPaperMethodDigest(value: unknown): value is PaperMethodDigest {
   )
 }
 
+function isPdfEvidenceRef(value: unknown): value is PdfEvidenceRef {
+  return (
+    isRecordObject(value) &&
+    value.sourceType === 'current_pdf' &&
+    typeof value.excerpt === 'string' &&
+    Boolean(value.excerpt.trim()) &&
+    typeof value.claimSupported === 'string' &&
+    Boolean(value.claimSupported.trim()) &&
+    (value.pageNumber === undefined || (typeof value.pageNumber === 'number' && Number.isInteger(value.pageNumber) && value.pageNumber > 0)) &&
+    isOptionalString(value.sectionTitle)
+  )
+}
+
+function isModelKnowledgeEvidenceRef(value: unknown): value is ModelKnowledgeEvidenceRef {
+  return (
+    isRecordObject(value) &&
+    value.sourceType === 'model_knowledge' &&
+    typeof value.note === 'string' &&
+    Boolean(value.note.trim()) &&
+    isNumberInRange(value.confidence, 0, 1)
+  )
+}
+
+function isFutureRetrievalEvidenceRef(value: unknown): value is FutureRetrievalEvidenceRef {
+  return (
+    isRecordObject(value) &&
+    value.sourceType === 'future_retrieval_needed' &&
+    typeof value.reason === 'string' &&
+    Boolean(value.reason.trim())
+  )
+}
+
+function isMethodLineageEvidenceRef(value: unknown): value is MethodLineageEvidenceRef {
+  return isPdfEvidenceRef(value) || isModelKnowledgeEvidenceRef(value) || isFutureRetrievalEvidenceRef(value)
+}
+
+function isMethodLineageProblemSetup(value: unknown): value is MethodLineageView['problemSetup'] {
+  return (
+    isRecordObject(value) &&
+    typeof value.beginnerExplanation === 'string' && Boolean(value.beginnerExplanation.trim()) &&
+    typeof value.whyThisProblemMatters === 'string' && Boolean(value.whyThisProblemMatters.trim()) &&
+    Array.isArray(value.pdfEvidence) && value.pdfEvidence.every(isPdfEvidenceRef)
+  )
+}
+
+function isMethodLineageAnchorPosition(value: unknown): value is NonNullable<MethodLineageView['anchorPosition']> {
+  return (
+    isRecordObject(value) &&
+    typeof value.summary === 'string' && Boolean(value.summary.trim()) &&
+    typeof value.whatTheCurrentPaperChanges === 'string' && Boolean(value.whatTheCurrentPaperChanges.trim()) &&
+    isStringArray(value.whatItInherits) &&
+    isStringArray(value.whatItDoesNotSolve) &&
+    Array.isArray(value.pdfEvidence) && value.pdfEvidence.every(isPdfEvidenceRef)
+  )
+}
+
+function isMethodComparison(value: unknown): value is NonNullable<MethodLineageView['methodComparisons']>[number] {
+  return (
+    isRecordObject(value) &&
+    typeof value.methodA === 'string' && Boolean(value.methodA.trim()) &&
+    typeof value.methodB === 'string' && Boolean(value.methodB.trim()) &&
+    typeof value.keyDifference === 'string' && Boolean(value.keyDifference.trim()) &&
+    typeof value.whyItMatters === 'string' && Boolean(value.whyItMatters.trim()) &&
+    Array.isArray(value.evidence) && value.evidence.every(isMethodLineageEvidenceRef)
+  )
+}
+
 function isMethodLineageNode(value: unknown): value is MethodLineageNode {
   return (
     isRecordObject(value) &&
     hasStringProperties(value, ['id', 'label', 'summary']) &&
     isOneOf(value.role, methodLineageNodeRoles) &&
     isStringArray(value.representativePaperIds) &&
-    isStringArray(value.digestIds)
+    isStringArray(value.digestIds) &&
+    (value.evidence === undefined ||
+      (Array.isArray(value.evidence) && value.evidence.every(isMethodLineageEvidenceRef)))
   )
 }
 
@@ -836,7 +992,9 @@ function isMethodLineageEdge(value: unknown): value is MethodLineageEdge {
     hasStringProperties(value, ['id', 'sourceId', 'targetId', 'explanation']) &&
     isOneOf(value.relation, methodLineageRelations) &&
     isStringArray(value.evidencePaperIds) &&
-    isNumberInRange(value.confidence, 0, 1)
+    isNumberInRange(value.confidence, 0, 1) &&
+    (value.evidence === undefined ||
+      (Array.isArray(value.evidence) && value.evidence.every(isMethodLineageEvidenceRef)))
   )
 }
 
@@ -844,6 +1002,27 @@ function isMethodLineageView(value: unknown): value is MethodLineageView {
   return (
     isRecordObject(value) &&
     hasStringProperties(value, ['id', 'anchorNodeId', 'title', 'summary']) &&
+    (value.problemSetup === undefined || isMethodLineageProblemSetup(value.problemSetup)) &&
+    (value.conceptBridge === undefined ||
+      (Array.isArray(value.conceptBridge) &&
+        value.conceptBridge.every((item: unknown) =>
+          isRecordObject(item) &&
+          typeof item.concept === 'string' &&
+          Boolean(item.concept.trim()) &&
+          typeof item.explanation === 'string' &&
+          Boolean(item.explanation.trim()) &&
+          typeof item.whyNeededForThisLineage === 'string' &&
+          Boolean(item.whyNeededForThisLineage.trim()) &&
+          (item.pdfEvidence === undefined || (Array.isArray(item.pdfEvidence) && item.pdfEvidence.every(isPdfEvidenceRef)))
+        ))) &&
+    (value.anchorPosition === undefined || isMethodLineageAnchorPosition(value.anchorPosition)) &&
+    (value.methodComparisons === undefined ||
+      (Array.isArray(value.methodComparisons) && value.methodComparisons.every(isMethodComparison))) &&
+    (value.confidenceAndEvidence === undefined ||
+      (isRecordObject(value.confidenceAndEvidence) &&
+        isStringArray(value.confidenceAndEvidence.groundedInCurrentPdf) &&
+        isStringArray(value.confidenceAndEvidence.fromModelKnowledge) &&
+        isStringArray(value.confidenceAndEvidence.needsFutureRetrieval))) &&
     Array.isArray(value.nodes) &&
     value.nodes.every(isMethodLineageNode) &&
     Array.isArray(value.edges) &&
