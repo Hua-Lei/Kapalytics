@@ -90,7 +90,8 @@ export interface ElectronApi {
   kg3: {
     getMemorySnapshot: () => Promise<Kg3MemorySnapshot>
     searchPapers: (query: PaperSearchQuery) => Promise<Kg3ExpansionContext>
-    saveCurrentGraph: (payload: { paperId: string; title: string; fileUrl?: string; filePath?: string; data: unknown }) => Promise<{ ok: boolean; paperId: string }>
+    saveCurrentGraph: (payload: { paperId: string; title: string; fileUrl?: string; filePath?: string; data: unknown; stageTasks?: Record<string, string> }) => Promise<{ ok: boolean; paperId: string }>
+    clearPaperAnalysis: (paperId: string) => Promise<{ ok: boolean; paperId: string }>
     fusePaperGraph: (paperId: string) => Promise<Kg3ExpansionContext>
     createLlmJob: (payload: { type: LLMJob['type']; input: unknown; paperId?: string; nodeId?: string; relatedPaperIds?: string[] }) => Promise<LLMJob>
     runLlmJob: (jobId: string) => Promise<LLMJob>

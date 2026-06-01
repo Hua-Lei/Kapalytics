@@ -1,4 +1,14 @@
 :root {
+  --font-size-ui-xs: 13px;
+  --font-size-ui-sm: 14px;
+  --font-size-ui-md: 15px;
+  --font-size-ui-lg: 18px;
+  --font-size-ui-xl: 22px;
+  --font-size-body: 16px;
+  --font-size-body-sm: 15px;
+  --font-size-title-sm: 19px;
+  --font-size-title-md: 22px;
+  --font-size-title-lg: 26px;
   --color-bg: #f4f1ea;
   --color-surface: #fbfaf6;
   --color-border: #ded8cb;
@@ -24,26 +34,136 @@
   --shadow-panel: 0 18px 45px rgba(55, 45, 34, 0.10), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
   --shadow-card: 0 10px 28px rgba(55, 45, 34, 0.08);
 
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 24px;
+  --space-xs: 5px;
+  --space-sm: 9px;
+  --space-md: 14px;
+  --space-lg: 18px;
+  --space-xl: 28px;
+  --component-gap-sm: 8px;
+  --component-gap-md: 12px;
+  --component-gap-lg: 16px;
+  --component-padding-sm: 10px;
+  --component-padding-md: 14px;
+  --component-padding-lg: 18px;
+  --control-height-sm: 32px;
+  --control-height-md: 38px;
+  --control-height-lg: 44px;
+  --workspace-sidebar-width: 230px;
+  --workspace-gap: 12px;
+  --workspace-padding: 14px;
+  --resize-handle-width: 10px;
+  --collapsed-panel-width: 40px;
 
   --radius-sm: 7px;
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  --text-xs: 12px;
-  --text-sm: 13px;
-  --text-md: 14px;
-  --text-lg: 18px;
-  --text-xl: 22px;
-  --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --text-xs: var(--font-size-ui-xs);
+  --text-sm: var(--font-size-ui-sm);
+  --text-md: var(--font-size-ui-md);
+  --text-lg: var(--font-size-ui-lg);
+  --text-xl: var(--font-size-ui-xl);
+  --font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 
-  --header-height: 48px;
-  --panel-header-height: 48px;
+  --header-height: 56px;
+  --panel-header-height: 54px;
+}
+
+:root[data-font-size='large'] {
+  --font-size-ui-xs: 14px;
+  --font-size-ui-sm: 15px;
+  --font-size-ui-md: 16px;
+  --font-size-ui-lg: 20px;
+  --font-size-ui-xl: 24px;
+  --font-size-body: 17px;
+  --font-size-body-sm: 16px;
+  --font-size-title-sm: 21px;
+  --font-size-title-md: 24px;
+  --font-size-title-lg: 28px;
+  --space-xs: 6px;
+  --space-sm: 10px;
+  --space-md: 16px;
+  --space-lg: 20px;
+  --space-xl: 32px;
+  --component-gap-sm: 9px;
+  --component-gap-md: 14px;
+  --component-gap-lg: 18px;
+  --component-padding-sm: 11px;
+  --component-padding-md: 16px;
+  --component-padding-lg: 20px;
+  --control-height-sm: 34px;
+  --control-height-md: 40px;
+  --control-height-lg: 46px;
+  --workspace-sidebar-width: 250px;
+  --workspace-gap: 14px;
+  --workspace-padding: 16px;
+  --header-height: 60px;
+  --panel-header-height: 58px;
+}
+
+:root[data-font-size='larger'] {
+  --font-size-ui-xs: 15px;
+  --font-size-ui-sm: 16px;
+  --font-size-ui-md: 17px;
+  --font-size-ui-lg: 22px;
+  --font-size-ui-xl: 26px;
+  --font-size-body: 18px;
+  --font-size-body-sm: 17px;
+  --font-size-title-sm: 23px;
+  --font-size-title-md: 27px;
+  --font-size-title-lg: 31px;
+  --space-xs: 7px;
+  --space-sm: 11px;
+  --space-md: 18px;
+  --space-lg: 22px;
+  --space-xl: 36px;
+  --component-gap-sm: 10px;
+  --component-gap-md: 16px;
+  --component-gap-lg: 20px;
+  --component-padding-sm: 12px;
+  --component-padding-md: 18px;
+  --component-padding-lg: 22px;
+  --control-height-sm: 36px;
+  --control-height-md: 44px;
+  --control-height-lg: 50px;
+  --workspace-sidebar-width: 270px;
+  --workspace-gap: 16px;
+  --workspace-padding: 18px;
+  --header-height: 66px;
+  --panel-header-height: 62px;
+}
+
+:root[data-font-size='largest'] {
+  --font-size-ui-xs: 16px;
+  --font-size-ui-sm: 17px;
+  --font-size-ui-md: 18px;
+  --font-size-ui-lg: 24px;
+  --font-size-ui-xl: 29px;
+  --font-size-body: 19px;
+  --font-size-body-sm: 18px;
+  --font-size-title-sm: 25px;
+  --font-size-title-md: 30px;
+  --font-size-title-lg: 34px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 20px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+  --component-gap-sm: 11px;
+  --component-gap-md: 18px;
+  --component-gap-lg: 22px;
+  --component-padding-sm: 13px;
+  --component-padding-md: 20px;
+  --component-padding-lg: 24px;
+  --control-height-sm: 38px;
+  --control-height-md: 48px;
+  --control-height-lg: 54px;
+  --workspace-sidebar-width: 292px;
+  --workspace-gap: 18px;
+  --workspace-padding: 20px;
+  --header-height: 72px;
+  --panel-header-height: 68px;
 }
 
 body {
@@ -71,7 +191,7 @@ textarea:focus-visible {
 
 .eyebrow {
   color: var(--color-text-tertiary);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;

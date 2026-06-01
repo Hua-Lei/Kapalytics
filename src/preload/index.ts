@@ -59,8 +59,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   kg3: {
     getMemorySnapshot: (): Promise<Kg3MemorySnapshot> => ipcRenderer.invoke('kg3:get-memory-snapshot'),
     searchPapers: (query: PaperSearchQuery): Promise<Kg3ExpansionContext> => ipcRenderer.invoke('kg3:search-papers', query),
-    saveCurrentGraph: (payload: { paperId: string; title: string; fileUrl?: string; filePath?: string; data: unknown }): Promise<{ ok: boolean; paperId: string }> =>
+    saveCurrentGraph: (payload: { paperId: string; title: string; fileUrl?: string; filePath?: string; data: unknown; stageTasks?: Record<string, string> }): Promise<{ ok: boolean; paperId: string }> =>
       ipcRenderer.invoke('kg3:save-current-graph', payload),
+    clearPaperAnalysis: (paperId: string): Promise<{ ok: boolean; paperId: string }> => ipcRenderer.invoke('kg3:clear-paper-analysis', paperId),
     fusePaperGraph: (paperId: string): Promise<Kg3ExpansionContext> => ipcRenderer.invoke('kg3:fuse-paper-graph', paperId),
     createLlmJob: (payload: { type: LLMJob['type']; input: unknown; paperId?: string; nodeId?: string; relatedPaperIds?: string[] }): Promise<LLMJob> =>
       ipcRenderer.invoke('kg3:create-llm-job', payload),

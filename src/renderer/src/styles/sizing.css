@@ -1,0 +1,254 @@
+/* Central sizing contract. Imported last so typography modes resize component geometry too. */
+.workspace-main {
+  gap: var(--workspace-gap);
+  padding: var(--workspace-padding);
+}
+
+.workspace-topbar {
+  gap: var(--component-gap-lg);
+  min-height: var(--header-height);
+  padding-inline: var(--component-padding-md);
+}
+
+.workspace-topbar__current {
+  padding: var(--space-sm) var(--component-padding-lg);
+}
+
+.workspace-topbar__status,
+.app-header__status,
+.app-header__right {
+  gap: var(--component-gap-sm);
+}
+
+.workspace-sidebar,
+.central-workspace,
+.ai-context-shell,
+.pdf-workspace-reader,
+.stage-learning-workspace__path,
+.stage-learning-workspace__detail,
+.workspace-placeholder-view,
+.expansion-reading-note,
+.learning-card,
+.ai-context-card,
+.node-detail__section,
+.expansion-paper-card,
+.method-lineage-node,
+.method-lineage-edge,
+.evidence-detail-grid article {
+  border-radius: var(--radius-lg);
+}
+
+.workspace-sidebar {
+  gap: var(--component-gap-lg);
+  padding: var(--component-padding-md);
+}
+
+.workspace-sidebar__section,
+.workspace-sidebar__nav,
+.stage-detail,
+.diagnosis-view,
+.learning-report__body,
+.ai-context-details,
+.ai-context-actions {
+  gap: var(--component-gap-md);
+}
+
+.workspace-sidebar__paper,
+.workspace-nav-item,
+.workspace-insight-stack article,
+.workspace-node-list article,
+.learning-card,
+.diagnosis-section,
+.stage-answer-saved,
+.learning-report,
+.node-detail__section,
+.ai-context-card,
+.expansion-paper-card,
+.method-lineage-node,
+.method-lineage-edge,
+.evidence-detail-grid article,
+.concept-card__formula,
+.analysis-steps {
+  padding: var(--component-padding-md);
+}
+
+.central-workspace__header,
+.panel-header,
+.panel-header--right {
+  min-height: var(--panel-header-height);
+  padding-inline: var(--component-padding-md);
+}
+
+.central-workspace__body {
+  padding: var(--component-padding-md);
+}
+
+.header-btn,
+.panel-action-btn,
+.panel-collapse-btn {
+  min-height: var(--control-height-sm);
+  padding-inline: var(--component-padding-sm);
+}
+
+.panel-collapse-btn,
+.workspace-nav-item__close,
+.graph-reset-btn {
+  height: var(--control-height-sm);
+  width: var(--control-height-sm);
+}
+
+.stage-btn,
+.modal__btn,
+.upload-btn {
+  min-height: var(--control-height-md);
+  padding: var(--space-sm) var(--component-padding-md);
+}
+
+.segmented-btn {
+  padding: var(--space-xs) var(--component-padding-lg);
+}
+
+.status-pill,
+.central-workspace__type,
+.field-memory-count,
+.ai-context-badge,
+.expansion-route-header__type,
+.expansion-route-header__confidence,
+.expansion-route-header__chips span,
+.expansion-route-header__paths span,
+.expansion-paper-card__meta span,
+.expansion-paper-card__badges span,
+.concept-card__relation-tag,
+.ra-card__role-badge {
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.pdf-workspace-toolbar,
+.analysis-progress-banner,
+.expansion-graph-toolbar,
+.expand-view__hero,
+.expansion-loading-hero,
+.field-memory-view__hero {
+  gap: var(--component-gap-lg);
+  padding: var(--component-padding-lg);
+}
+
+.stage-learning-workspace {
+  gap: var(--component-gap-lg);
+  grid-template-columns: minmax(var(--workspace-sidebar-width), calc(var(--workspace-sidebar-width) + 50px)) minmax(0, 1fr);
+}
+
+.stage-learning-workspace__path,
+.stage-learning-workspace__detail,
+.workspace-placeholder-view {
+  padding: var(--component-padding-md);
+}
+
+.stage-item {
+  gap: var(--component-gap-md);
+  padding: var(--component-padding-md);
+}
+
+.stage-number {
+  height: var(--control-height-sm);
+  width: var(--control-height-sm);
+}
+
+.task-answer-input {
+  min-height: calc(var(--control-height-lg) * 4);
+  padding: var(--component-padding-sm) var(--component-padding-md);
+}
+
+.diagnosis-banner {
+  gap: var(--component-gap-md);
+  padding: var(--component-padding-md);
+}
+
+.diagnosis-icon {
+  height: var(--control-height-sm);
+  width: var(--control-height-sm);
+}
+
+.concept-section,
+.ra-section {
+  padding: var(--component-padding-lg);
+}
+
+.concept-learning-view,
+.research-area-view,
+.expansion-graph-view,
+.expand-view,
+.kg4-workbench,
+.field-memory-view,
+.expansion-loading-view {
+  gap: var(--component-gap-lg);
+}
+
+.ra-section__stack,
+.concept-card__paper-list,
+.expansion-paper-card__meta,
+.expansion-paper-card__badges,
+.method-lineage-node-list,
+.method-lineage-edge-list,
+.field-memory-tags,
+.ai-context-query-chips {
+  gap: var(--component-gap-sm);
+}
+
+.expansion-paper-list {
+  gap: var(--component-gap-md);
+}
+
+.expansion-paper-card {
+  gap: var(--component-gap-md);
+  min-height: calc(var(--control-height-lg) * 3);
+}
+
+.expansion-paper-card__summary {
+  padding-top: var(--component-padding-sm);
+}
+
+.method-lineage-view {
+  margin-inline: auto;
+  width: min(100%, 1120px);
+}
+
+.method-lineage-section {
+  border-left: 5px solid #64748b;
+  border-top: 1px solid #e8eef7;
+  padding: var(--component-padding-lg);
+}
+
+.method-lineage-section:first-child {
+  border-top: 0;
+}
+
+.method-lineage-section--summary { border-left-color: #0ea5e9; }
+.method-lineage-section--order { border-left-color: #10b981; }
+.method-lineage-section--nodes { border-left-color: #8b5cf6; }
+.method-lineage-section--edges { border-left-color: #f59e0b; }
+.method-lineage-section--questions { border-left-color: #ef4444; }
+
+.method-lineage-node-list,
+.method-lineage-edge-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.method-lineage-node,
+.method-lineage-edge {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--component-padding-md);
+}
+
+.pdf-empty-state {
+  padding: var(--space-xl);
+}
+
+.pdf-empty-state__mark {
+  height: var(--control-height-lg);
+  width: var(--control-height-md);
+}

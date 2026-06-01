@@ -1,0 +1,140 @@
+/* Central typography contract. Keep component CSS focused on layout/color. */
+body {
+  font-size: var(--font-size-body);
+}
+
+.workspace-topbar__logo,
+.app-header__logo {
+  font-size: var(--font-size-title-sm);
+}
+
+.workspace-topbar__subtitle,
+.workspace-topbar__current span,
+.workspace-sidebar__label,
+.workspace-sidebar__paper span,
+.workspace-nav-item span,
+.workspace-sidebar__empty,
+.panel-header-subtitle,
+.eyebrow,
+.stage-number,
+.stage-badge,
+.stage-detail__meta,
+.stage-detail__mastery,
+.task-label,
+.diagnosis-label,
+.node-expansion__label,
+.ai-context-badge,
+.graph-legend__item,
+.modal__label,
+.modal__hint,
+.field-memory-card span,
+.field-memory-stats span,
+.expansion-route-header__type,
+.expansion-route-header__confidence,
+.expansion-route-header__chips span,
+.expansion-route-header__paths strong,
+.expansion-route-header__paths span,
+.expansion-paper-card__meta span,
+.expansion-paper-card__badges span,
+.method-lineage-node span,
+.method-lineage-edge span,
+.concept-card__relation-tag,
+.concept-card__paper-link,
+.ra-card__role-badge,
+.ra-card__papers {
+  font-size: var(--font-size-ui-xs);
+}
+
+.header-btn,
+.panel-action-btn,
+.panel-collapse-btn,
+.segmented-btn,
+.stage-btn,
+.modal__btn,
+.upload-btn,
+.workspace-topbar__current strong,
+.workspace-sidebar__paper strong,
+.workspace-nav-item strong,
+.analysis-step,
+.gen-progress,
+.gen-error,
+.diagnosis-title,
+.diagnosis-error-type,
+.learning-report__summary,
+.learning-report__section h4,
+.learning-report__section li,
+.learning-report__section p,
+.modal__section-title,
+.modal__value,
+.modal__input,
+.api-key-input,
+.pdf-empty-state p,
+.pdf-loading,
+.pdf-error,
+.node-detail__description,
+.ai-context-card p,
+.workspace-placeholder-view p,
+.expansion-loading-hero p,
+.expansion-step p,
+.expansion-loading-note p,
+.expansion-loading-error p,
+.expansion-paper-card p,
+.method-lineage-node p,
+.method-lineage-edge p,
+.method-lineage-order li,
+.method-lineage-section li,
+.evidence-detail-grid p,
+.concept-card__block strong,
+.concept-card__variables td,
+.ra-card__reading-reason {
+  font-size: var(--font-size-ui-sm);
+}
+
+.stage-name,
+.task-answer-input,
+.stage-detail__description,
+.task-prompt,
+.diagnosis-text,
+.stage-answer-text,
+.concept-section p,
+.ra-section p,
+.concept-card__block p,
+.ra-card p,
+.ra-card li,
+.concept-card__block li,
+.node-detail__type-badge {
+  font-size: var(--font-size-body-sm);
+}
+
+.central-workspace__header h2,
+.workspace-placeholder-view h3,
+.pdf-workspace-empty h2,
+.pdf-workspace-toolbar h3,
+.ai-context-card h3,
+.tutor-section__header h3,
+.tutor-empty-state h3,
+.stage-detail__title,
+.node-detail__title,
+.concept-learning-view h3,
+.research-area-view h3,
+.expand-view__hero h3,
+.expansion-graph-toolbar h3,
+.field-memory-view__hero h3,
+.expansion-loading-hero h3 {
+  font-size: var(--font-size-title-md);
+}
+
+.concept-section h4,
+.ra-section h4,
+.method-lineage-section h4,
+.method-lineage-view h3,
+.concept-card h4,
+.ra-card h4,
+.expansion-route-header__main h4,
+.field-memory-stats strong {
+  font-size: var(--font-size-title-sm);
+}
+
+.expansion-reading-note {
+  font-size: var(--font-size-body);
+}

@@ -13,8 +13,8 @@ export function ConceptLearningView({ concept, onSelectPaper }: Props) {
       <span className="eyebrow">Concept Teaching</span>
       <h3>{concept.title}</h3>
 
-      <section className="concept-learning-view__grid">
-        <article className="concept-card concept-card--quick">
+      <article className="concept-learning-view__article expansion-reading-note">
+        <section className="concept-section concept-section--quick">
           <h4>Quick Understanding</h4>
           <div className="concept-card__block">
             <strong>直觉 / Intuition</strong>
@@ -32,9 +32,9 @@ export function ConceptLearningView({ concept, onSelectPaper }: Props) {
             <strong>适用场景</strong>
             <p><MathText text={concept.quickExplanation.whenToUse} /></p>
           </div>
-        </article>
+        </section>
 
-        <article className="concept-card concept-card--formal">
+        <section className="concept-section concept-section--formal">
           <h4>Formal View</h4>
           {concept.formalExplanation.definition ? (
             <div className="concept-card__block">
@@ -68,10 +68,10 @@ export function ConceptLearningView({ concept, onSelectPaper }: Props) {
               </ul>
             </div>
           ) : null}
-        </article>
+        </section>
 
         {concept.misconceptions && concept.misconceptions.length ? (
-          <article className="concept-card concept-card--misconceptions">
+          <section className="concept-section concept-section--misconceptions">
             <h4>常见误区</h4>
             {concept.misconceptions.map((m, idx) => (
               <div className="concept-card__block concept-card__misconception" key={idx}>
@@ -79,11 +79,11 @@ export function ConceptLearningView({ concept, onSelectPaper }: Props) {
                 <p><MathText text={m.correction} /></p>
               </div>
             ))}
-          </article>
+          </section>
         ) : null}
 
         {concept.relationMap && concept.relationMap.length ? (
-          <article className="concept-card concept-card--relations">
+          <section className="concept-section concept-section--relations">
             <h4>Related Concepts</h4>
             {concept.relationMap.map((r, idx) => (
               <div className="concept-card__block" key={idx}>
@@ -92,10 +92,10 @@ export function ConceptLearningView({ concept, onSelectPaper }: Props) {
                 <p><MathText text={r.explanation} /></p>
               </div>
             ))}
-          </article>
+          </section>
         ) : null}
 
-        <article className="concept-card concept-card--papers">
+        <section className="concept-section concept-section--papers">
           <h4>Papers</h4>
           {concept.representativePaperIds && concept.representativePaperIds.length ? (
             <div className="concept-card__block">
@@ -131,17 +131,17 @@ export function ConceptLearningView({ concept, onSelectPaper }: Props) {
               </div>
             </div>
           ) : null}
-        </article>
+        </section>
 
         {concept.missingDataReasons && concept.missingDataReasons.length ? (
-          <article className="concept-card concept-card--missing">
+          <section className="concept-section concept-section--missing">
             <h4>Missing</h4>
             <ul>
               {concept.missingDataReasons.map((reason, idx) => <li key={idx}>{reason}</li>)}
             </ul>
-          </article>
+          </section>
         ) : null}
-      </section>
+      </article>
     </section>
   )
 }

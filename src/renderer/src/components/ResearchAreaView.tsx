@@ -19,46 +19,60 @@ export function ResearchAreaView({ area }: Props) {
       <span className="eyebrow">Research Area Map</span>
       <h3>{area.title}</h3>
 
-      <section className="research-area-view__grid">
-        <article className="ra-card ra-card--overview">
+      <article className="research-area-view__article expansion-reading-note">
+        <section className="ra-section ra-section--overview">
           <h4>Overview</h4>
           <p>{area.overview}</p>
-        </article>
+        </section>
 
         {area.keyProblems.length ? (
-          <article className="ra-card ra-card--problems">
+          <section className="ra-section ra-section--problems">
             <h4>Key Problems</h4>
             <ul>
               {area.keyProblems.map((p, i) => <li key={i}>{p}</li>)}
             </ul>
-          </article>
+          </section>
         ) : null}
 
-        {area.methodFamilies.map((family, i) => (
-          <article className="ra-card ra-card--family" key={i}>
-            <h4>{family.label}</h4>
-            <p>{family.summary}</p>
-            {family.representativePaperIds.length ? (
-              <p className="ra-card__papers">{family.representativePaperIds.length} 篇代表论文</p>
-            ) : null}
-          </article>
-        ))}
-
-        {area.recentHotDirections.map((direction, i) => (
-          <article className="ra-card ra-card--hot" key={i}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h4>{direction.label}</h4>
-              <span className="ra-card__confidence">{(direction.confidence * 100).toFixed(0)}%</span>
+        {area.methodFamilies.length ? (
+          <section className="ra-section ra-section--family">
+            <h4>Method Families</h4>
+            <div className="ra-section__stack">
+              {area.methodFamilies.map((family, i) => (
+                <div className="ra-section__item" key={i}>
+                  <strong>{family.label}</strong>
+                  <p>{family.summary}</p>
+                  {family.representativePaperIds.length ? (
+                    <p className="ra-card__papers">{family.representativePaperIds.length} 篇代表论文</p>
+                  ) : null}
+                </div>
+              ))}
             </div>
-            <p>{direction.summary}</p>
-            {direction.paperIds.length ? (
-              <p className="ra-card__papers">{direction.paperIds.length} 篇论文</p>
-            ) : null}
-          </article>
-        ))}
+          </section>
+        ) : null}
+
+        {area.recentHotDirections.length ? (
+          <section className="ra-section ra-section--hot">
+            <h4>Recent Hot Directions</h4>
+            <div className="ra-section__stack">
+              {area.recentHotDirections.map((direction, i) => (
+                <div className="ra-section__item" key={i}>
+                  <div className="ra-section__item-title">
+                    <strong>{direction.label}</strong>
+                    <span className="ra-card__confidence">{(direction.confidence * 100).toFixed(0)}%</span>
+                  </div>
+                  <p>{direction.summary}</p>
+                  {direction.paperIds.length ? (
+                    <p className="ra-card__papers">{direction.paperIds.length} 篇论文</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {area.recommendedReading.length ? (
-          <article className="ra-card ra-card--reading">
+          <section className="ra-section ra-section--reading">
             <h4>Recommended Reading</h4>
             {area.recommendedReading.map((reading, i) => (
               <div className="ra-card__reading-item" key={i}>
@@ -66,9 +80,9 @@ export function ResearchAreaView({ area }: Props) {
                 <span className="ra-card__reading-reason">{reading.reason}</span>
               </div>
             ))}
-          </article>
+          </section>
         ) : null}
-      </section>
+      </article>
     </section>
   )
 }

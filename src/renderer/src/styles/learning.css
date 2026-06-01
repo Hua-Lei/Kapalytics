@@ -1,7 +1,7 @@
 .learning-path {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .stage-item {
@@ -13,7 +13,7 @@
   cursor: pointer;
   display: flex;
   gap: 12px;
-  padding: 12px;
+  padding: 13px;
   box-shadow: 0 5px 14px rgba(55, 45, 34, 0.045);
   transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
@@ -45,7 +45,8 @@
 
 .stage-name {
   color: var(--color-text);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .stage-badge {
@@ -104,7 +105,7 @@
 .next-stage-card span,
 .next-stage-card em {
   color: var(--color-text-tertiary);
-  font-size: 12px;
+  font-size: 12.5px;
   font-style: normal;
 }
 
@@ -189,7 +190,7 @@
 
 .stage-detail__title {
   color: var(--color-text);
-  font-size: 18px;
+  font-size: 21px;
   line-height: 1.35;
   margin: 0;
 }
@@ -208,7 +209,7 @@
 }
 
 .learning-card {
-  padding: 13px;
+  padding: 15px;
 }
 
 .stage-detail__description,
@@ -216,7 +217,7 @@
 .diagnosis-text,
 .stage-answer-text {
   color: var(--color-text-muted);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.75;
   margin: 6px 0 0;
 }
@@ -230,8 +231,9 @@
 }
 
 .task-answer-input {
+  font-size: 15px;
   line-height: 1.65;
-  min-height: 132px;
+  min-height: 150px;
   padding: 10px 12px;
   resize: vertical;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) inset, 0 8px 18px rgba(55, 45, 34, 0.035);

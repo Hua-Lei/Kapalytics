@@ -397,6 +397,8 @@ export interface PaperMemoryRepository {
   getPaper(id: string): Promise<PaperRecord | null>
   listPapers(): Promise<PaperRecord[]>
   saveGraphForPaper(paperId: string, nodes: GraphNode[], edges: Array<{ id: string; sourceId: string; targetId: string; label?: string; directed: boolean }>, insight?: PaperInsight): Promise<void>
+  saveStageTasksForPaper(paperId: string, tasks: Record<string, string>): Promise<void>
+  clearAnalysisForPaper(paperId: string): Promise<void>
   saveSearchResults(query: string, results: PaperSearchResult[]): Promise<void>
   saveNodeExpansion(record: NodeExpansionRecord): Promise<void>
   saveKg4ExpansionRecord(record: Kg4NodeExpansionRecord): Promise<void>

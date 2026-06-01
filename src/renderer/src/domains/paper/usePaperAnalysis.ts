@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { AnalysisStep, GraphNode, KnowledgeGraph, PaperInsight } from '../../../../shared/paper'
 import { electronApi } from '../../modules/ipc/electronApi'
 import {
@@ -12,8 +12,9 @@ import {
 import { restoreSavedPaperAnalysis } from '../../modules/paper/savedPaperGraph'
 
 interface UsePaperAnalysisOptions {
-  setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null>
+  setStagesRef: React.MutableRefObject<((tasks: Record<string, string> | null) => void) | null>
   onAnalysisComplete: () => void
+  onPdfSelected: () => void
   setSelectedGraphNodeId: (nodeId: string | null) => void
 }
 
@@ -37,21 +38,26 @@ function inferTitleFromPdfUrl(pdfUrl: string): string {
 export function usePaperAnalysis({
   setStagesRef,
   onAnalysisComplete,
+  onPdfSelected,
   setSelectedGraphNodeId
 }: UsePaperAnalysisOptions) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [pdfPath, setPdfPath] = useState<string | null>(null)
   const [paperId, setPaperId] = useState<string | null>(null)
+  const [graphPaperId, setGraphPaperId] = useState<string | null>(null)
   const [graph, setGraph] = useState<KnowledgeGraph>(EMPTY_GRAPH)
   const [paperInsight, setPaperInsight] = useState<PaperInsight | null>(null)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
   const [genProgress, setGenProgress] = useState('')
   const [analysisSteps, setAnalysisSteps] = useState<AnalysisStep[]>(INITIAL_ANALYSIS_STEPS)
+  const selectionSeqRef = useRef(0)
 
   const selectPdf = async () => {
     const selected = await electronApi.selectPdf()
     if (!selected) return
+    const selectionSeq = selectionSeqRef.current + 1
+    selectionSeqRef.current = selectionSeq
     const nextPaperId = makeLocalPaperId(selected.fileUrl)
 
     setPdfUrl(selected.fileUrl)
@@ -61,23 +67,28 @@ export function usePaperAnalysis({
     setGenProgress('')
     setSelectedGraphNodeId(null)
     setGraph(EMPTY_GRAPH)
+    setGraphPaperId(null)
     setPaperInsight(null)
     setAnalysisSteps(INITIAL_ANALYSIS_STEPS)
+    setStagesRef.current?.(null)
+    onPdfSelected()
 
     try {
       const snapshot = await electronApi.kg3.getMemorySnapshot()
       const savedAnalysis = restoreSavedPaperAnalysis(snapshot, nextPaperId)
+      if (selectionSeqRef.current !== selectionSeq) return
       if (savedAnalysis) {
         setGraph(savedAnalysis.graph)
+        setGraphPaperId(nextPaperId)
         setPaperInsight(savedAnalysis.paperInsight ?? derivePaperInsight(savedAnalysis.graph))
+        if (Object.keys(savedAnalysis.stageTasks).length) setStagesRef.current?.(savedAnalysis.stageTasks)
         setAnalysisSteps(INITIAL_ANALYSIS_STEPS.map((step) => ({ ...step, status: 'done' as const })))
         setGenProgress('已加载本地保存的知识图谱。')
+        onAnalysisComplete()
       }
     } catch (err) {
       console.warn('[KG3] Failed to load saved graph:', err)
     }
-
-    onAnalysisComplete()
   }
 
   const analyzePaper = async () => {
@@ -85,6 +96,7 @@ export function usePaperAnalysis({
     setGenerating(true)
     setGenError('')
     setGraph(EMPTY_GRAPH)
+    setGraphPaperId(null)
     setPaperInsight(null)
     setSelectedGraphNodeId(null)
     setAnalysisSteps(updateStep(INITIAL_ANALYSIS_STEPS, 'extract', 'active'))
@@ -134,15 +146,17 @@ export function usePaperAnalysis({
           await new Promise((resolve) => setTimeout(resolve, 180))
         }
 
+        const activePaperId = makeLocalPaperId(pdfUrl)
         setAnalysisSteps((prev) => updateStep(prev, 'reveal', 'done'))
+        setGraphPaperId(activePaperId)
         setStagesRef.current?.(analysis.tasks)
         setGenProgress('分析完成：知识图谱和学习任务已生成。')
-        const activePaperId = paperId ?? makeLocalPaperId(pdfUrl)
         electronApi.kg3.saveCurrentGraph({
           paperId: activePaperId,
           title: inferTitleFromPdfUrl(pdfUrl),
           fileUrl: pdfUrl,
           filePath: pdfPath ?? undefined,
+          stageTasks: analysis.tasks,
           data: { graph: fullGraph, paperInsight: analysis.insight ?? derivePaperInsight(fullGraph) }
         }).then(() => electronApi.kg3.fusePaperGraph(activePaperId)).catch((err) => {
           console.warn('[KG3] Failed to save long-term memory:', err)
@@ -160,13 +174,29 @@ export function usePaperAnalysis({
     }
   }
 
+  const clearCurrentPaperAnalysis = async () => {
+    if (!paperId) return
+    await electronApi.kg3.clearPaperAnalysis(paperId)
+    setGraph(EMPTY_GRAPH)
+    setGraphPaperId(null)
+    setPaperInsight(null)
+    setGenError('')
+    setGenProgress('已清除当前 PDF 的已保存知识图谱。')
+    setSelectedGraphNodeId(null)
+    setAnalysisSteps(INITIAL_ANALYSIS_STEPS)
+    setStagesRef.current?.(null)
+    onPdfSelected()
+  }
+
   return {
     analysisSteps,
     analyzePaper,
+    clearCurrentPaperAnalysis,
     generating,
     genError,
     genProgress,
     graph,
+    graphPaperId,
     paperInsight,
     pdfUrl,
     paperId,

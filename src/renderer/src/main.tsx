@@ -12,6 +12,8 @@ import './styles/controls.css'
 import './styles/pdf.css'
 import './styles/graph.css'
 import './styles/learning.css'
+import './styles/typography.css'
+import './styles/sizing.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -50,7 +50,21 @@ const snapshot: Kg3MemorySnapshot = {
     }
   ],
   readingSessions: [],
-  learningTasks: [],
+  learningTasks: [
+    {
+      id: 'paper-1:stage:formula_algorithm',
+      paperId: 'paper-1',
+      taskType: 'stage_task',
+      stageId: 'formula_algorithm',
+      prompt: '解释关键公式。',
+      expectedReasoningPoints: [],
+      relatedPaperIds: [],
+      relatedMergedNodeIds: [],
+      status: 'not_started',
+      createdAt: '2026-05-30T00:00:00.000Z',
+      updatedAt: '2026-05-30T00:00:00.000Z'
+    }
+  ],
   diagnoses: [],
   nodeExpansions: [],
   paperSearchResults: [],
@@ -69,5 +83,6 @@ assert.equal(restored.graph.nodes[0].id, 'n1')
 assert.equal(restored.graph.nodes[0].label, 'Hypernetwork')
 assert.equal(restored.graph.edges[0].sourceId, 'n1')
 assert.equal(restored.paperInsight?.centralInsight, 'central')
+assert.equal(restored.stageTasks.formula_algorithm, '解释关键公式。')
 
 console.log('savedPaperGraph tests passed')

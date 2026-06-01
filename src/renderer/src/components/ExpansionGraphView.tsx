@@ -2,6 +2,7 @@ import type { ExpansionGraphNode } from '../../../shared/kg4'
 import { ConceptLearningView } from './ConceptLearningView'
 import { ResearchAreaView } from './ResearchAreaView'
 import { ExpansionRouteHeader } from './ExpansionRouteHeader'
+import { MethodLineageView } from './MethodLineageView'
 import KnowledgeGraph from './KnowledgeGraph'
 import { useWorkspace } from '../domains/workspace/useWorkspace'
 import { useExpansion } from '../domains/expansion/useExpansion'
@@ -112,6 +113,8 @@ function ExpansionGraphView() {
         <ResearchAreaView area={record.researchAreaView} nodeLabel={session.nodeLabel} />
       ) : null}
 
+      {lineage ? <MethodLineageView lineage={lineage} /> : null}
+
       <section className="expansion-graph-canvas">
         <KnowledgeGraph
           graph={graph}
@@ -125,34 +128,6 @@ function ExpansionGraphView() {
           onExpansionNodeSelect={handleSelectExpansionNode}
         />
       </section>
-
-      {lineage ? (
-        <section className="kg4-field-view">
-          <span className="eyebrow">Method Lineage</span>
-          <h4>{lineage.title}</h4>
-          <p>{lineage.summary}</p>
-          {lineage.readingOrder.length ? (
-            <div>
-              <strong>Reading Order</strong>
-              <div className="kg4-family-list">
-                {lineage.readingOrder.map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {lineage.openQuestions.length ? (
-            <div>
-              <strong>Open Questions</strong>
-              <div className="kg4-family-list">
-                {lineage.openQuestions.map((question) => (
-                  <span key={question}>{question}</span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
 
       <section className="expansion-node-list">
         {nodes.map((node) => (

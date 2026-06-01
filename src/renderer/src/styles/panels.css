@@ -158,7 +158,7 @@
   min-height: 0;
   min-width: 0;
   overflow: auto;
-  padding: 14px;
+  padding: 12px;
 }
 
 .central-workspace__body > .knowledge-graph {
@@ -166,8 +166,10 @@
 }
 
 .pdf-workspace-reader {
-  background: #10172a;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -176,13 +178,36 @@
 }
 
 .pdf-workspace-toolbar {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: flex-start;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(251, 250, 246, 0.96));
+  border-bottom: 1px solid var(--color-border-subtle);
   display: flex;
   flex-shrink: 0;
-  gap: 10px;
-  padding: 10px 16px;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.pdf-workspace-toolbar h3 {
+  color: var(--color-text);
+  font-size: 18px;
+  line-height: 1.25;
+  margin: 2px 0 5px;
+}
+
+.pdf-workspace-toolbar p {
+  color: var(--color-text-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.pdf-workspace-toolbar__actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 9px;
+  justify-content: flex-end;
 }
 
 .analysis-progress-banner {
@@ -284,8 +309,8 @@
 
 .stage-learning-workspace {
   display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 14px;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
   min-height: 100%;
   min-width: 0;
 }
@@ -302,7 +327,7 @@
 }
 
 .stage-learning-workspace__detail {
-  max-width: 760px;
+  max-width: none;
 }
 
 .ai-context-shell {
@@ -926,6 +951,37 @@
   color: #0f172a;
 }
 
+.method-lineage-node strong,
+.method-lineage-edge strong {
+  color: #0f172a;
+}
+
+.method-lineage-node span,
+.method-lineage-edge span,
+.method-lineage-node em {
+  color: #64748b;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.method-lineage-section h3,
+.method-lineage-section h4 {
+  color: #0f172a;
+  margin: 0 0 12px;
+}
+
+.method-lineage-section p,
+.method-lineage-section li {
+  color: #334155;
+  line-height: 1.7;
+}
+
+.method-lineage-order,
+.method-lineage-section ul {
+  margin: 0;
+  padding-left: 22px;
+}
+
 .expansion-paper-card p {
   margin: 4px 0 0;
   color: #475569;
@@ -1081,7 +1137,13 @@
   padding: 12px;
   border-radius: 10px;
   background: #f8fafc;
-  font-family: monospace;
+  border: 1px solid #e2e8f0;
+}
+
+.concept-card__formula .math-block {
+  display: block;
+  margin: 4px 0 10px;
+  overflow-x: auto;
 }
 
 .concept-card__formula code {
@@ -1157,6 +1219,135 @@
 .research-area-view h3 {
   color: #0f172a;
   margin: 0;
+}
+
+.expansion-reading-note {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.96));
+  border: 1px solid #dbe3ef;
+  border-radius: 18px;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.07);
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+}
+
+.concept-learning-view__article,
+.research-area-view__article {
+  margin-inline: auto;
+  width: min(100%, 1080px);
+}
+
+.concept-section,
+.ra-section {
+  border-left: 5px solid #94a3b8;
+  border-top: 1px solid #e8eef7;
+  padding: clamp(18px, 2vw, 28px);
+}
+
+.concept-section:first-child,
+.ra-section:first-child {
+  border-top: 0;
+}
+
+.concept-section h4,
+.ra-section h4 {
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1.35;
+  margin: 0 0 12px;
+}
+
+.concept-section p,
+.ra-section p {
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.75;
+  margin: 0;
+}
+
+.concept-section--quick,
+.ra-section--overview { border-left-color: #0ea5e9; }
+.concept-section--formal,
+.ra-section--family { border-left-color: #8b5cf6; }
+.concept-section--misconceptions,
+.ra-section--problems { border-left-color: #f59e0b; }
+.concept-section--relations,
+.ra-section--reading { border-left-color: #10b981; }
+.concept-section--papers,
+.ra-section--hot { border-left-color: #ef4444; }
+.concept-section--missing { border-left-color: #94a3b8; }
+
+.ra-section__stack {
+  display: grid;
+  gap: 14px;
+}
+
+.concept-section--relations .concept-card__block,
+.concept-section--papers .concept-card__block,
+.ra-section--family .ra-section__stack,
+.ra-section--hot .ra-section__stack {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.concept-section--relations,
+.concept-section--papers,
+.ra-section--family,
+.ra-section--hot {
+  display: grid;
+  gap: 16px;
+}
+
+.concept-section--relations .concept-card__block,
+.concept-section--papers .concept-card__block {
+  border-top: 1px solid #eef2f7;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-top: 14px;
+}
+
+.concept-section--relations .concept-card__block:first-of-type,
+.concept-section--papers .concept-card__block:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.concept-card__paper-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@media (min-width: 1440px) {
+  .concept-learning-view__article,
+  .research-area-view__article {
+    width: min(100%, 1120px);
+  }
+}
+
+.ra-section__item {
+  border-top: 1px solid #eef2f7;
+  display: grid;
+  gap: 6px;
+  padding-top: 14px;
+}
+
+.ra-section__item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.ra-section__item strong {
+  color: #172033;
+  font-size: 16px;
+}
+
+.ra-section__item-title {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
 }
 
 .research-area-view__grid {

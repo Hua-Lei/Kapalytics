@@ -18,12 +18,19 @@ import { useWorkspace } from './domains/workspace/useWorkspace'
 type ResizeTarget = 'left' | 'right' | null
 
 const MIN_PANEL = 200
-const DEFAULT_RIGHT = 340
+const DEFAULT_RIGHT = 380
 
-function StageSyncBridge({ setStagesRef: ref }: { setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null> }) {
-  const { setStages } = useStages()
-  ref.current = (tasks: Record<string, string>) => {
-    setStages(buildStagesFromTasks(tasks))
+function StageSyncBridge({ setStagesRef: ref }: { setStagesRef: React.MutableRefObject<((tasks: Record<string, string> | null) => void) | null> }) {
+  const { resetStages, selectStage, setStages } = useStages()
+  ref.current = (tasks: Record<string, string> | null) => {
+    if (!tasks) {
+      resetStages()
+      return
+    }
+    const nextStages = buildStagesFromTasks(tasks)
+    resetStages()
+    setStages(nextStages)
+    selectStage(nextStages[0]?.id ?? null)
   }
   return null
 }
@@ -33,12 +40,16 @@ function PaperWorkspaceBridge({
   setStagesRef
 }: {
   children: React.ReactNode
-  setStagesRef: React.MutableRefObject<((tasks: Record<string, string>) => void) | null>
+  setStagesRef: React.MutableRefObject<((tasks: Record<string, string> | null) => void) | null>
 }) {
   const { activateTab } = useWorkspace()
 
   return (
-    <PaperProvider onAnalysisComplete={() => activateTab('paper_graph')} setStagesRef={setStagesRef}>
+    <PaperProvider
+      onAnalysisComplete={() => activateTab('paper_graph')}
+      onPdfSelected={() => activateTab('pdf_reader')}
+      setStagesRef={setStagesRef}
+    >
       {children}
     </PaperProvider>
   )
@@ -50,7 +61,7 @@ function App() {
   const [hasApiConfigured, setHasApiConfigured] = useState(false)
   const [semanticScholarApiKeyConfigured, setSemanticScholarApiKeyConfigured] = useState(false)
   const [proxyUrl, setProxyUrl] = useState('')
-  const [fontScale, setFontScale] = useState(1)
+  const [fontScale, setFontScale] = useState(0)
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT)
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const workspaceStateReady = useRef(false)
@@ -64,7 +75,7 @@ function App() {
     }).catch(() => {})
   }, [])
 
-  const setStagesRef = useRef<((tasks: Record<string, string>) => void) | null>(null)
+  const setStagesRef = useRef<((tasks: Record<string, string> | null) => void) | null>(null)
 
   // Auto-save workspace state when it changes (debounced, only after hydration)
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>()
@@ -79,19 +90,14 @@ function App() {
     }
   }, [workspaceState])
 
-  const fontSizes = [0.85, 1, 1.15, 1.3]
+  const fontModes = ['comfortable', 'large', 'larger', 'largest']
 
   useEffect(() => {
-    document
-      .querySelectorAll('.panel-center .panel-body, .panel-right .panel-body')
-      .forEach((el) => {
-        ;(el as HTMLElement).style.zoom = String(fontScale)
-      })
+    document.documentElement.dataset.fontSize = fontModes[fontScale] ?? 'comfortable'
   }, [fontScale])
 
   const cycleFontSize = () => {
-    const idx = fontSizes.indexOf(fontScale)
-    setFontScale(fontSizes[(idx + 1) % fontSizes.length])
+    setFontScale((current) => (current + 1) % fontModes.length)
   }
 
   const [, setLeftWidth] = useState(DEFAULT_RIGHT)

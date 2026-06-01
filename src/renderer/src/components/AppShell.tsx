@@ -33,7 +33,7 @@ function AppShell({
       <div
         className="workspace-main"
         style={{
-          gridTemplateColumns: `190px minmax(0, 1fr) ${!rightCollapsed ? '10px' : ''} ${rightCollapsed ? '36px' : `${rightWidth}px`}`
+          gridTemplateColumns: `var(--workspace-sidebar-width) minmax(0, 1fr) ${!rightCollapsed ? 'var(--resize-handle-width)' : ''} ${rightCollapsed ? 'var(--collapsed-panel-width)' : `${rightWidth}px`}`
         }}
       >
         <WorkspaceSidebar />

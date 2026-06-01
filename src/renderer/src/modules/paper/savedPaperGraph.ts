@@ -1,10 +1,11 @@
-import type { GraphEdgeRecord, GraphNodeRecord, Kg3MemorySnapshot, PaperInsightRecord } from '../../../../shared/kg3'
+import type { GraphEdgeRecord, GraphNodeRecord, Kg3MemorySnapshot, LearningTaskRecord, PaperInsightRecord } from '../../../../shared/kg3'
 import type { GraphEdge, GraphNode, KnowledgeGraph, PaperInsight } from '../../../../shared/paper'
 import { sanitizeGraph } from './analysisState'
 
 export interface SavedPaperAnalysis {
   graph: KnowledgeGraph
   paperInsight: PaperInsight | null
+  stageTasks: Record<string, string>
 }
 
 function localNodeId(recordId: string, paperId: string): string {
@@ -53,6 +54,15 @@ function restoreInsight(record: PaperInsightRecord | undefined): PaperInsight | 
   }
 }
 
+function restoreStageTasks(records: LearningTaskRecord[], paperId: string): Record<string, string> {
+  return records
+    .filter((task) => task.paperId === paperId && task.taskType === 'stage_task' && task.stageId)
+    .reduce<Record<string, string>>((tasks, task) => {
+      tasks[task.stageId as string] = task.prompt
+      return tasks
+    }, {})
+}
+
 export function restoreSavedPaperAnalysis(snapshot: Kg3MemorySnapshot, paperId: string): SavedPaperAnalysis | null {
   const graphNodes = snapshot.graphNodes.filter((node) => node.paperId === paperId)
   if (!graphNodes.length) return null
@@ -65,6 +75,7 @@ export function restoreSavedPaperAnalysis(snapshot: Kg3MemorySnapshot, paperId: 
 
   return {
     graph,
-    paperInsight: restoreInsight(snapshot.paperInsights.find((insight) => insight.paperId === paperId))
+    paperInsight: restoreInsight(snapshot.paperInsights.find((insight) => insight.paperId === paperId)),
+    stageTasks: restoreStageTasks(snapshot.learningTasks, paperId)
   }
 }

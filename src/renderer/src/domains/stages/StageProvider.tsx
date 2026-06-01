@@ -21,6 +21,19 @@ export function StageProvider({ children }: { children: ReactNode }) {
 
   const selectStage = useCallback((id: string | null) => setSelectedStageId(id), [])
 
+  const resetStages = useCallback(() => {
+    setStages([])
+    setSelectedStageId(null)
+    setAnswers({})
+    setDrafts({})
+    setDiagnosisResults({})
+    setDiagnosedStageIds(new Set())
+    setLearningReport(null)
+    setDiagnosisError(null)
+    setDiagnosisLoading(false)
+    setPendingStageId(null)
+  }, [])
+
   const enterStage = useCallback((id: string) => {
     setDiagnosisError(null)
     setPendingStageId(null)
@@ -97,7 +110,7 @@ export function StageProvider({ children }: { children: ReactNode }) {
     <StageContext.Provider value={{
       stages, selectedStageId, answers, drafts, diagnosisResults, diagnosedStageIds, learningReport,
       diagnosisError, diagnosisLoading,
-      selectStage, enterStage, submitAnswer, confirmDiagnosis, retryStage, retryDiagnosis, markNeedsReview, updateDraft, generateReport,
+      selectStage, enterStage, submitAnswer, confirmDiagnosis, retryStage, retryDiagnosis, markNeedsReview, updateDraft, generateReport, resetStages,
       setStages, setAnswers, setDiagnosisResults
     }}>
       {children}

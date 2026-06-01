@@ -24,6 +24,7 @@ export interface StageActions {
   markNeedsReview: (id: string) => void
   updateDraft: (id: string, value: string) => void
   generateReport: () => void
+  resetStages: () => void
   setStages: React.Dispatch<React.SetStateAction<Stage[]>>
   setAnswers: React.Dispatch<React.SetStateAction<Record<string, string>>>
   setDiagnosisResults: React.Dispatch<React.SetStateAction<Record<string, DiagnosisResult>>>

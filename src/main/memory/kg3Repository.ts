@@ -277,6 +277,42 @@ export class FilePaperMemoryRepository implements PaperMemoryRepository {
     writeFileStore(this.path, snapshot)
   }
 
+  async clearAnalysisForPaper(paperId: string): Promise<void> {
+    logDb('clear_analysis_file', { paperId })
+    const snapshot = readFileStore(this.path)
+    snapshot.graphNodes = snapshot.graphNodes.filter((node) => node.paperId !== paperId)
+    snapshot.graphEdges = snapshot.graphEdges.filter((edge) => edge.paperId !== paperId)
+    snapshot.paperInsights = snapshot.paperInsights.filter((insight) => insight.paperId !== paperId)
+    snapshot.learningTasks = snapshot.learningTasks.filter((task) => task.paperId !== paperId)
+    snapshot.diagnoses = snapshot.diagnoses.filter((diagnosis) => diagnosis.paperId !== paperId)
+    snapshot.nodeExpansions = snapshot.nodeExpansions.filter((expansion) => expansion.paperId !== paperId)
+    snapshot.llmJobs = snapshot.llmJobs.filter((job) => job.paperId !== paperId)
+    snapshot.kg4NodeExpansions = (snapshot.kg4NodeExpansions ?? []).filter((expansion) => expansion.paperId !== paperId)
+    snapshot.papers = snapshot.papers.map((paper) => paper.id === paperId ? { ...paper, analysisStatus: 'not_analyzed' as const, updatedAt: now() } : paper)
+    writeFileStore(this.path, snapshot)
+  }
+
+  async saveStageTasksForPaper(paperId: string, tasks: Record<string, string>): Promise<void> {
+    logDb('save_stage_tasks_file', { paperId, taskCount: Object.keys(tasks).length })
+    const snapshot = readFileStore(this.path)
+    const timestamp = now()
+    snapshot.learningTasks = snapshot.learningTasks.filter((task) => !(task.paperId === paperId && task.taskType === 'stage_task'))
+    snapshot.learningTasks.push(...Object.entries(tasks).map(([stageId, prompt]): LearningTaskRecord => ({
+      id: `${paperId}:stage:${stageId}`,
+      paperId,
+      taskType: 'stage_task',
+      stageId,
+      prompt,
+      expectedReasoningPoints: [],
+      relatedPaperIds: [],
+      relatedMergedNodeIds: [],
+      status: 'not_started',
+      createdAt: timestamp,
+      updatedAt: timestamp
+    })))
+    writeFileStore(this.path, snapshot)
+  }
+
   async saveSearchResults(query: string, results: PaperSearchResult[]): Promise<void> {
     logDb('save_search_results_file', { query, resultCount: results.length })
     const snapshot = readFileStore(this.path)
@@ -446,6 +482,47 @@ export class SqlitePaperMemoryRepository implements PaperMemoryRepository {
         }
         this.upsertJson('paper_insights', insightRecord, { paperId })
       }
+    })
+    tx()
+  }
+
+  async clearAnalysisForPaper(paperId: string): Promise<void> {
+    logDb('clear_analysis_sqlite', { paperId })
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM graph_nodes WHERE paper_id = ?').run(paperId)
+      this.db.prepare('DELETE FROM graph_edges WHERE paper_id = ?').run(paperId)
+      this.db.prepare('DELETE FROM paper_insights WHERE paper_id = ?').run(paperId)
+      this.db.prepare('DELETE FROM learning_tasks WHERE paper_id = ?').run(paperId)
+      this.db.prepare('DELETE FROM diagnoses WHERE paper_id = ?').run(paperId)
+      this.db.prepare('DELETE FROM node_expansions WHERE paper_id = ?').run(paperId)
+      this.db.prepare('DELETE FROM kg4_node_expansions WHERE paper_id = ?').run(paperId)
+      this.db.prepare('DELETE FROM llm_jobs WHERE paper_id = ?').run(paperId)
+
+      const paper = this.getJsonById<PaperRecord>('papers', paperId)
+      if (paper) this.upsertJson('papers', { ...paper, analysisStatus: 'not_analyzed' as const, updatedAt: now() })
+    })
+    tx()
+  }
+
+  async saveStageTasksForPaper(paperId: string, tasks: Record<string, string>): Promise<void> {
+    logDb('save_stage_tasks_sqlite', { paperId, taskCount: Object.keys(tasks).length })
+    const timestamp = now()
+    const records = Object.entries(tasks).map(([stageId, prompt]): LearningTaskRecord => ({
+      id: `${paperId}:stage:${stageId}`,
+      paperId,
+      taskType: 'stage_task',
+      stageId,
+      prompt,
+      expectedReasoningPoints: [],
+      relatedPaperIds: [],
+      relatedMergedNodeIds: [],
+      status: 'not_started',
+      createdAt: timestamp,
+      updatedAt: timestamp
+    }))
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM learning_tasks WHERE paper_id = ? AND id LIKE ?').run(paperId, `${paperId}:stage:%`)
+      this.insertSnapshotRows('learning_tasks', records, (record) => ({ paperId: record.paperId, nodeId: record.nodeId }))
     })
     tx()
   }

@@ -451,7 +451,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     return toRetrievalConnectionTestResult({ query, candidates, providerStatus })
   })
 
-  ipcMain.handle('kg3:save-current-graph', async (_e, payload: { paperId: string; title: string; fileUrl?: string; filePath?: string; data: unknown }) => {
+  ipcMain.handle('kg3:save-current-graph', async (_e, payload: { paperId: string; title: string; fileUrl?: string; filePath?: string; data: unknown; stageTasks?: Record<string, string> }) => {
     const data = payload.data as {
       graph?: { nodes?: GraphNode[]; edges?: GraphEdge[] }
       paperInsight?: PaperInsight | null
@@ -466,6 +466,14 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
     })
     await paperMemoryRepository.savePaper(createPaperRecord(paperId, payload.title || paperId, payload.fileUrl, payload.filePath))
     await paperMemoryRepository.saveGraphForPaper(paperId, data.graph?.nodes ?? [], data.graph?.edges ?? [], data.paperInsight ?? undefined)
+    if (payload.stageTasks) await paperMemoryRepository.saveStageTasksForPaper(paperId, payload.stageTasks)
+    return { ok: true, paperId }
+  })
+
+  ipcMain.handle('kg3:clear-paper-analysis', async (_e, paperId: string) => {
+    if (!paperId || typeof paperId !== 'string') throw new Error('paperId required')
+    logBackend('kg3_clear_paper_analysis', { paperId })
+    await paperMemoryRepository.clearAnalysisForPaper(paperId)
     return { ok: true, paperId }
   })
 

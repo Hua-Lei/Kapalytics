@@ -72,6 +72,8 @@ export const electronApi = {
       getApi()?.kg3?.searchPapers?.(query) ?? Promise.reject(new Error('KG3 API unavailable')),
     saveCurrentGraph: (payload: Parameters<ElectronApi['kg3']['saveCurrentGraph']>[0]) =>
       getApi()?.kg3?.saveCurrentGraph?.(payload) ?? Promise.resolve({ ok: false, paperId: payload.paperId }),
+    clearPaperAnalysis: (paperId: string) =>
+      getApi()?.kg3?.clearPaperAnalysis?.(paperId) ?? Promise.resolve({ ok: false, paperId }),
     fusePaperGraph: (paperId: string) => getApi()?.kg3?.fusePaperGraph?.(paperId) ?? Promise.reject(new Error('KG3 API unavailable')),
     createLlmJob: (payload: Parameters<ElectronApi['kg3']['createLlmJob']>[0]) =>
       getApi()?.kg3?.createLlmJob?.(payload) ?? Promise.reject(new Error('KG3 API unavailable')),

@@ -15,6 +15,7 @@ import IdeaCardGrid from './IdeaCardGrid'
 import ComparisonTable from './ComparisonTable'
 import FeedbackPanel from './FeedbackPanel'
 import MemorySavePanel from './MemorySavePanel'
+import { MethodLineageView } from './MethodLineageView'
 import { useExpansion } from '../domains/expansion/useExpansion'
 import { usePaper } from '../domains/paper/usePaper'
 import { useWorkspace } from '../domains/workspace/useWorkspace'
@@ -183,6 +184,8 @@ function ExpandView() {
           ))}
         </div>
       </div>
+
+      {record.methodLineageView ? <MethodLineageView lineage={record.methodLineageView} /> : null}
 
       <IdeaCardGrid cards={ideaCards} selectedIds={selectedIds} onToggle={toggleCard} />
       <div className="kg4-selected-tray">

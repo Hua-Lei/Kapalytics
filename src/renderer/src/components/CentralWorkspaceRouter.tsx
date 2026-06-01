@@ -1,4 +1,5 @@
 import KnowledgeGraph from './KnowledgeGraph'
+import { useEffect } from 'react'
 import LearningPath from './LearningPath'
 import StageDetail from './StageDetail'
 import ExpansionLoadingView from './ExpansionLoadingView'
@@ -14,6 +15,7 @@ import { useWorkspace } from '../domains/workspace/useWorkspace'
 import { usePaper } from '../domains/paper/usePaper'
 import { useStages } from '../domains/stages/useStages'
 import { useExpansion } from '../domains/expansion/useExpansion'
+import { hasCurrentPaperAnalysis } from '../domains/paper/paperSelectionState'
 
 function WorkspaceHeader() {
   const { activeTab } = useWorkspace()
@@ -32,6 +34,13 @@ function StageLearningWorkspace() {
   const { selectObject } = useWorkspace()
   const { stages, selectedStageId, selectStage, answers, drafts, diagnosisResults, diagnosedStageIds, diagnosisError, diagnosisLoading, confirmDiagnosis, enterStage, markNeedsReview, retryDiagnosis, retryStage, submitAnswer, updateDraft } = useStages()
   const selectedStage = stages.find((s) => s.id === selectedStageId) ?? null
+
+  useEffect(() => {
+    if (!selectedStageId && stages[0]) {
+      selectStage(stages[0].id)
+      selectObject({ type: 'learning_stage', id: stages[0].id })
+    }
+  }, [selectObject, selectStage, selectedStageId, stages])
 
   const handleSelectStage = (stageId: string) => {
     selectStage(stageId)
@@ -62,7 +71,15 @@ function StageLearningWorkspace() {
             stage={selectedStage}
           />
         ) : (
-          <div className="workspace-placeholder-view"><h3>选择一个阶段开始学习</h3><p>阶段作答和诊断现在位于中央 Stage Learning Workspace。</p></div>
+          <div className="workspace-placeholder-view workspace-placeholder-view--learning">
+            <span className="eyebrow">Stage Learning</span>
+            <h3>{stages.length ? '选择一个阶段开始学习' : '先分析一篇 PDF 生成学习阶段'}</h3>
+            <p>
+              {stages.length
+                ? '左侧阶段列表已准备好，选择任意阶段后可以查看目标、作答并获得诊断反馈。'
+                : '在 PDF Reader 中选择论文并点击“分析论文”，系统会生成知识图谱和 7 个阶段任务。'}
+            </p>
+          </div>
         )}
       </div>
     </div>
@@ -71,7 +88,7 @@ function StageLearningWorkspace() {
 
 function CentralWorkspaceRouter() {
   const { activeTab, state, selectObject } = useWorkspace()
-  const { graph, paperInsight } = usePaper()
+  const { graph, graphPaperId, paperId, paperInsight } = usePaper()
   const { sessions } = useExpansion()
 
   const type = activeTab?.type ?? 'paper_graph'
@@ -92,7 +109,7 @@ function CentralWorkspaceRouter() {
         {type === 'pdf_reader' && <PdfReaderWorkspace />}
         {type === 'paper_graph' && (
           <KnowledgeGraph
-            graph={graph}
+            graph={hasCurrentPaperAnalysis({ graph, graphPaperId, paperId }) ? graph : { nodes: [], edges: [] }}
             paperInsight={paperInsight}
             selectedNodeId={selectedNodeId}
             view="argument"
