@@ -9,7 +9,28 @@
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "typecheck": "tsc -b --noEmit",
-    "preview": "electron-vite preview"
+    "preview": "electron-vite preview",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.kapalytics.app",
+    "productName": "Kapalytics",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",
@@ -27,6 +48,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^33.2.1",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^3.1.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.5"
