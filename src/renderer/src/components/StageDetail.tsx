@@ -97,14 +97,14 @@ function StageDetail({
         ) : (
           <div className="stage-task-area">
             <section className="learning-card learning-card--task">
-              <div className="task-label">阶段任务</div>
+              <div className="task-label">思考问题</div>
               <p className="task-prompt"><MathText text={stage.task} /></p>
             </section>
             <label className="task-label" htmlFor={`answer-${stage.id}`}>你的回答</label>
             <textarea
               id={`answer-${stage.id}`}
               className="task-answer-input"
-              placeholder="像写研究笔记一样回答：指出关键概念、推理链条和论文证据。"
+              placeholder="用自己的话回答，并覆盖题目检查点；尽量写出论文证据、公式或实验结果。"
               rows={6}
               value={currentAnswer}
               onChange={(e) => onUpdateDraft(e.target.value)}
@@ -131,7 +131,7 @@ function StageDetail({
                 disabled={!draft.trim() || diagnosisLoading}
                 onClick={onSubmitAnswer}
               >
-                {diagnosisLoading ? '诊断中...' : '提交答案'}
+                {diagnosisLoading ? '诊断中...' : '提交回答'}
               </button>
               {stage.status === 'in_progress' && (
                 <button

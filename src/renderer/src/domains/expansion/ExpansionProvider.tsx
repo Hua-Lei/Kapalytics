@@ -1,7 +1,7 @@
 import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { GraphNode, PaperInsight } from '../../../../shared/paper'
 import type { ExpansionGraphNode } from '../../../../shared/kg4'
-import { createReadySessionFromRecord, EXPANSION_STEPS, updateSessionFromJobProgress } from '../../domains/expansion/nodeExpansionSessions'
+import { createReadySessionFromRecord, EXPANSION_STEPS, isReusableExpansionRecord, updateSessionFromJobProgress } from '../../domains/expansion/nodeExpansionSessions'
 import type { NodeExpansionSession } from '../../domains/expansion/nodeExpansionSessions'
 import type { ExpansionContextValue, StartExpansionUiResult } from './types'
 import { electronApi } from '../../modules/ipc/electronApi'
@@ -75,7 +75,7 @@ export function ExpansionProvider({ children }: { children: ReactNode }) {
 
     if (paperId && !options.forceRefresh) {
       const record = await electronApi.kg4.getExpansionRecord({ paperId, nodeId: node.id })
-      if (record) {
+      if (record && isReusableExpansionRecord(record)) {
         const session = createReadySessionFromRecord(record, node)
         setSessions((prev) => ({ ...prev, [session.id]: session }))
         return { sessionId: session.id, status: 'ready-from-cache' }

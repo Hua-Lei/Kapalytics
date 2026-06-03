@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import type { ExpansionProgressEvent } from '../../../../shared/electron-api'
 import { buildExpansionLoadingTelemetry } from './loadingTelemetry'
-import { EXPANSION_STEPS, updateSessionFromJobProgress, type NodeExpansionSession } from './nodeExpansionSessions'
+import { EXPANSION_STEPS, isReusableExpansionRecord, updateSessionFromJobProgress, type NodeExpansionSession } from './nodeExpansionSessions'
 
 function session(): NodeExpansionSession {
   return {
@@ -47,5 +47,8 @@ assert.equal(persistingSession.steps.find((step) => step.id === 'synthesizing')?
 assert.equal(persistingSession.steps.find((step) => step.id === 'generating')?.status, 'done')
 assert.equal(persistingSession.steps.find((step) => step.id === 'persisting')?.status, 'running')
 assert.equal(buildExpansionLoadingTelemetry(persistingSession).completedStepCount, 8)
+
+assert.equal(isReusableExpansionRecord({ expansionGraphNodes: [] } as any), false)
+assert.equal(isReusableExpansionRecord({ expansionGraphNodes: [{ id: 'node-a' }] } as any), true)
 
 console.log('nodeExpansionSessions tests passed')

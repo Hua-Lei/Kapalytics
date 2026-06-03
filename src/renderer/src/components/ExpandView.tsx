@@ -20,12 +20,14 @@ import { useExpansion } from '../domains/expansion/useExpansion'
 import { usePaper } from '../domains/paper/usePaper'
 import { useWorkspace } from '../domains/workspace/useWorkspace'
 import { useStages } from '../domains/stages/useStages'
+import { useMemories } from '../domains/memory/useMemories'
 
 function ExpandView() {
   const { activeTab, activateTab, openTab, selectObject } = useWorkspace()
   const { sessions } = useExpansion()
   const { graph, paperInsight } = usePaper()
   const { setStages, selectStage } = useStages()
+  const { saveMemory: persistMemory } = useMemories()
 
   const session = activeTab?.expansionId ? sessions[activeTab.expansionId] : undefined
   const anchorNodeId = activeTab?.anchorNodeId ?? session?.nodeId
@@ -121,8 +123,12 @@ function ExpandView() {
   const saveMemory = async () => {
     if (!feedback) return
     const memory = buildNodeUnderstandingMemory({ node: anchorNode, workspace, feedback, userReflection: reflection, editedNote: noteDraft })
-    const result = await electronApi.kg4.saveNodeUnderstandingMemory(memory)
-    setSaveStatus(result.ok ? '已保存到 Node Understanding Memory。' : '保存失败：KG4 IPC 不可用。')
+    try {
+      await persistMemory(memory)
+      setSaveStatus('已保存到长期理解记忆。')
+    } catch (error) {
+      setSaveStatus(error instanceof Error ? error.message : '保存长期理解记忆失败。')
+    }
   }
 
   const openExpansionGraph = () => {

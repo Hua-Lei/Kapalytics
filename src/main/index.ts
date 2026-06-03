@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { pathToFileURL, fileURLToPath } from 'url'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'fs'
 import { createHash } from 'crypto'
 import { aiAnalyzePaper, aiDiagnose } from './llm/generate'
 import {
@@ -33,6 +33,7 @@ import { normalizeConceptLearningView } from './kg4/conceptTeaching'
 import { normalizeResearchAreaView } from './kg4/researchArea'
 import { KG4_EXPANSION_TOKEN_BUDGETS } from './kg4/tokenBudgets'
 import { compactRetrievedPapersForLineage } from './kg4/llmInput'
+import { buildHybridMethodLineageSynthesisInput } from './kg4/methodLineageSynthesisInput'
 import { buildMethodLineageContext, buildPaperSourceContext } from './kg4/paperSourceContext'
 import type { GraphEdge, GraphNode, PaperInsight } from '../shared/paper'
 import type { LLMJob, PaperRecord } from '../shared/kg3'
@@ -162,40 +163,56 @@ function normalizeMethodLineageView(value: unknown): MethodLineageView | undefin
     'evidence_insufficient'
   ])
   const isStringArray = (input: unknown): input is string[] => Array.isArray(input) && input.every((item) => typeof item === 'string')
+  const isValidPdfEvidenceRef = (input: unknown): boolean => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return false
+    const ref = input as Record<string, unknown>
+    return ref.sourceType === 'current_pdf' &&
+      typeof ref.excerpt === 'string' && Boolean(ref.excerpt.trim()) &&
+      typeof ref.claimSupported === 'string' && Boolean(ref.claimSupported.trim())
+  }
+  const isValidEvidenceRef = (input: unknown): boolean => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return false
+    const ref = input as Record<string, unknown>
+    if (ref.sourceType === 'current_pdf') return isValidPdfEvidenceRef(input)
+    if (ref.sourceType === 'model_knowledge') {
+      return typeof ref.note === 'string' && Boolean(ref.note.trim()) &&
+        typeof ref.confidence === 'number' && Number.isFinite(ref.confidence)
+    }
+    if (ref.sourceType === 'future_retrieval_needed') {
+      return typeof ref.reason === 'string' && Boolean(ref.reason.trim())
+    }
+    return false
+  }
   const isValidNode = (input: unknown): boolean => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) return false
     const node = input as Record<string, unknown>
-    return (
-      typeof node.id === 'string' &&
-      Boolean(node.id.trim()) &&
-      typeof node.label === 'string' &&
-      Boolean(node.label.trim()) &&
-      typeof node.summary === 'string' &&
-      Boolean(node.summary.trim()) &&
-      typeof node.role === 'string' &&
-      allowedNodeRoles.has(node.role as MethodLineageView['nodes'][number]['role']) &&
-      isStringArray(node.representativePaperIds) &&
-      isStringArray(node.digestIds)
-    )
+    if (
+      typeof node.id !== 'string' || !node.id.trim() ||
+      typeof node.label !== 'string' || !node.label.trim() ||
+      typeof node.summary !== 'string' || !node.summary.trim() ||
+      typeof node.role !== 'string' ||
+      !allowedNodeRoles.has(node.role as MethodLineageView['nodes'][number]['role']) ||
+      !isStringArray(node.representativePaperIds) ||
+      !isStringArray(node.digestIds)
+    ) return false
+    if (node.evidence !== undefined && (!Array.isArray(node.evidence) || !node.evidence.every(isValidEvidenceRef))) return false
+    return true
   }
   const isValidEdge = (input: unknown): boolean => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) return false
     const edge = input as Record<string, unknown>
-    return (
-      typeof edge.id === 'string' &&
-      Boolean(edge.id.trim()) &&
-      typeof edge.sourceId === 'string' &&
-      Boolean(edge.sourceId.trim()) &&
-      typeof edge.targetId === 'string' &&
-      Boolean(edge.targetId.trim()) &&
-      typeof edge.explanation === 'string' &&
-      Boolean(edge.explanation.trim()) &&
-      typeof edge.relation === 'string' &&
-      allowedEdgeRelations.has(edge.relation as MethodLineageView['edges'][number]['relation']) &&
-      isStringArray(edge.evidencePaperIds) &&
-      typeof edge.confidence === 'number' &&
-      Number.isFinite(edge.confidence)
-    )
+    if (
+      typeof edge.id !== 'string' || !edge.id.trim() ||
+      typeof edge.sourceId !== 'string' || !edge.sourceId.trim() ||
+      typeof edge.targetId !== 'string' || !edge.targetId.trim() ||
+      typeof edge.explanation !== 'string' || !edge.explanation.trim() ||
+      typeof edge.relation !== 'string' ||
+      !allowedEdgeRelations.has(edge.relation as MethodLineageView['edges'][number]['relation']) ||
+      !isStringArray(edge.evidencePaperIds) ||
+      typeof edge.confidence !== 'number' || !Number.isFinite(edge.confidence)
+    ) return false
+    if (edge.evidence !== undefined && (!Array.isArray(edge.evidence) || !edge.evidence.every(isValidEvidenceRef))) return false
+    return true
   }
 
   if (!hasString('id') || !hasString('anchorNodeId') || !hasString('title') || !hasString('summary')) return undefined
@@ -206,6 +223,67 @@ function normalizeMethodLineageView(value: unknown): MethodLineageView | undefin
   const nodes = record.nodes as unknown[]
   const edges = record.edges as unknown[]
   if (!nodes.every(isValidNode) || !edges.every(isValidEdge)) return undefined
+
+  // Validate optional PDF-grounded fields; strip any that are malformed
+  // so the record passes isMethodLineageView check later.
+  if (record.problemSetup !== undefined) {
+    const ps = record.problemSetup as Record<string, unknown> | null
+    if (!ps || typeof ps !== 'object' || Array.isArray(ps) ||
+        typeof ps.beginnerExplanation !== 'string' || !ps.beginnerExplanation.trim() ||
+        typeof ps.whyThisProblemMatters !== 'string' || !ps.whyThisProblemMatters.trim() ||
+        !Array.isArray(ps.pdfEvidence) || !ps.pdfEvidence.every(isValidPdfEvidenceRef)) {
+      delete record.problemSetup
+    }
+  }
+
+  if (record.anchorPosition !== undefined) {
+    const ap = record.anchorPosition as Record<string, unknown> | null
+    if (!ap || typeof ap !== 'object' || Array.isArray(ap) ||
+        typeof ap.summary !== 'string' || !ap.summary.trim() ||
+        typeof ap.whatTheCurrentPaperChanges !== 'string' || !ap.whatTheCurrentPaperChanges.trim() ||
+        !isStringArray(ap.whatItInherits) ||
+        !isStringArray(ap.whatItDoesNotSolve) ||
+        !Array.isArray(ap.pdfEvidence) || !ap.pdfEvidence.every(isValidPdfEvidenceRef)) {
+      delete record.anchorPosition
+    }
+  }
+
+  if (record.conceptBridge !== undefined) {
+    if (!Array.isArray(record.conceptBridge) || !record.conceptBridge.every((item: unknown) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false
+      const cb = item as Record<string, unknown>
+      return typeof cb.concept === 'string' && Boolean(cb.concept.trim()) &&
+        typeof cb.explanation === 'string' && Boolean(cb.explanation.trim()) &&
+        typeof cb.whyNeededForThisLineage === 'string' && Boolean(cb.whyNeededForThisLineage.trim()) &&
+        (cb.pdfEvidence === undefined || (Array.isArray(cb.pdfEvidence) && cb.pdfEvidence.every(isValidPdfEvidenceRef)))
+    })) {
+      delete record.conceptBridge
+    }
+  }
+
+  if (record.confidenceAndEvidence !== undefined) {
+    const ce = record.confidenceAndEvidence as Record<string, unknown> | null
+    if (!ce || typeof ce !== 'object' || Array.isArray(ce) ||
+        !isStringArray(ce.groundedInCurrentPdf) ||
+        !isStringArray(ce.fromModelKnowledge) ||
+        !isStringArray(ce.needsFutureRetrieval)) {
+      delete record.confidenceAndEvidence
+    }
+  }
+
+  if (record.methodComparisons !== undefined) {
+    if (!Array.isArray(record.methodComparisons) || !record.methodComparisons.every((item: unknown) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false
+      const mc = item as Record<string, unknown>
+      return typeof mc.methodA === 'string' && Boolean(mc.methodA.trim()) &&
+        typeof mc.methodB === 'string' && Boolean(mc.methodB.trim()) &&
+        typeof mc.keyDifference === 'string' && Boolean(mc.keyDifference.trim()) &&
+        typeof mc.whyItMatters === 'string' && Boolean(mc.whyItMatters.trim()) &&
+        Array.isArray(mc.evidence) && mc.evidence.every(isValidEvidenceRef)
+    })) {
+      delete record.methodComparisons
+    }
+  }
 
   return record as unknown as MethodLineageView
 }
@@ -263,7 +341,25 @@ function isKg4ExpansionRecordQuery(value: unknown): value is Kg4ExpansionRecordQ
 const KG4_JOB_TERMINAL_STATUSES = new Set<LLMJob['status']>(['succeeded', 'cache_hit', 'failed', 'cancelled'])
 
 function logBackend(event: string, details: Record<string, unknown>): void {
-  console.info(`[Backend] ${event}`, details)
+  const line = `${new Date().toISOString()} [Backend] ${event} ${JSON.stringify(details)}\n`
+  // Write raw UTF-8 bytes to stdout — this is the only reliable way to get
+  // correct encoding on Windows regardless of console code page or pipe target.
+  process.stdout.write(Buffer.from(line, 'utf-8'))
+  // Also append to project-local log file with guaranteed UTF-8 encoding.
+  try {
+    appendFileSync(getLogPath(), line, 'utf-8')
+  } catch {
+    // Ignore file write failures
+  }
+}
+
+let _logPath: string | null = null
+function getLogPath(): string {
+  if (_logPath) return _logPath
+  const dir = join(process.cwd(), 'logs')
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  _logPath = join(dir, 'backend.log')
+  return _logPath
 }
 
 async function waitForJobTerminalState(jobId: string, timeoutMs = 130000): Promise<LLMJob> {
@@ -615,8 +711,8 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           mainWindow.webContents.send('expansion:progress', {
             sessionId,
             jobId,
-            step: 'synthesizing',
-            message: '正在基于 PDF 原文生成方法谱系...'
+            step: 'retrieving',
+            message: '正在准备 PDF 原文并检索相关论文...'
           })
 
           const extractedPaper = await extractPdfContent(params.pdfUrl)
@@ -634,15 +730,109 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             graphNeighborhood: params.graphNeighborhood
           })
 
-          const lineageJob = await llmTaskOrchestrator.createJob({
-            type: 'synthesize_method_lineage',
-            input: {
-              requestNonce: params.forceRefresh ? Date.now() : undefined,
-              methodLineageContext
-            },
+          const retrievalPlan = buildStrategyRetrievalPlan({
+            classification: expansionClassification,
+            node: {
+              id: params.nodeId,
+              label: params.nodeLabel,
+              searchQueries: params.searchQueries ?? []
+            }
+          })
+          const { candidates, providerStatus } = await searchPapers({
+            query: retrievalPlan.primaryQuery,
             nodeId: params.nodeId,
             paperId: params.paperId,
-            relatedPaperIds: [],
+            searchQueries: retrievalPlan.searchQueries,
+            maxResults: retrievalPlan.maxResults,
+            requireAbstract: retrievalPlan.requireAbstract
+          })
+          const relatedPaperIds = candidates.map(candidatePaperId)
+          const s2Candidates = candidates.map((c) => ({
+            canonicalId: candidatePaperId(c),
+            semanticScholarId: c.mergedFrom.find((m) => m.semanticScholarPaperId)?.semanticScholarPaperId
+          }))
+          const enrichedMetadata = await enrichCandidatesWithSemanticScholar(s2Candidates)
+          const qualitySignals = annotatePaperQuality(candidates, { enrichedMetadata })
+          const relatedPaperRecommendations = buildRelatedPaperRecommendations(candidates, qualitySignals)
+          logBackend('kg4_pdf_grounded_lineage_retrieval_result', {
+            sessionId,
+            nodeId: params.nodeId,
+            query: retrievalPlan.primaryQuery,
+            candidateCount: candidates.length,
+            relatedPaperIds,
+            providerStatus
+          })
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'digesting',
+            message: candidates.length
+              ? '正在消化相关论文方法摘要...'
+              : '未检索到外部论文，继续基于当前 PDF 生成谱系...'
+          })
+
+          const digestJobs = await mapWithConcurrency(
+            candidates,
+            3,
+            async (candidate) => {
+              const paperId = candidatePaperId(candidate)
+              const digestJob = await llmTaskOrchestrator.createJob({
+                type: 'digest_paper_method',
+                input: {
+                  currentNode: {
+                    ...currentExpansionNodeInput(params)
+                  },
+                  currentPaperInsight: params.paperInsight,
+                  retrievedPaper: candidate
+                },
+                nodeId: params.nodeId,
+                paperId: params.paperId,
+                relatedPaperIds: [paperId],
+                sessionId,
+                model: 'deepseek-v4-flash',
+                maxTokens: KG4_EXPANSION_TOKEN_BUDGETS.digestPaperMethod,
+                temperature: 0.1
+              })
+
+              let digestResult = await llmTaskOrchestrator.runJob(digestJob.id)
+              if (digestResult.status === 'queued' || digestResult.status === 'running') {
+                digestResult = await waitForJobTerminalState(digestJob.id)
+              }
+
+              return {
+                jobId: digestJob.id,
+                digest:
+                  digestResult.status === 'succeeded' || digestResult.status === 'cache_hit'
+                    ? normalizePaperMethodDigest(digestResult.resultJson, { id: paperId, paperTitle: candidate.title })
+                    : null
+              }
+            }
+          )
+          const paperMethodDigests = digestJobs
+            .map((item) => item.digest)
+            .filter((digest): digest is PaperMethodDigest => digest !== null)
+          const digestJobIds = digestJobs.map((item) => item.jobId)
+
+          mainWindow.webContents.send('expansion:progress', {
+            sessionId,
+            jobId,
+            step: 'synthesizing',
+            message: '正在综合当前 PDF 与相关论文生成谱系/演进图...'
+          })
+
+          const lineageJob = await llmTaskOrchestrator.createJob({
+            type: 'synthesize_method_lineage',
+            input: buildHybridMethodLineageSynthesisInput({
+              requestNonce: params.forceRefresh ? Date.now() : undefined,
+              methodLineageContext,
+              retrievedPapers: compactRetrievedPapersForLineage(candidates),
+              paperMethodDigests,
+              qualitySignals
+            }),
+            nodeId: params.nodeId,
+            paperId: params.paperId,
+            relatedPaperIds,
             sessionId,
             model: 'deepseek-v4-pro',
             maxTokens: KG4_EXPANSION_TOKEN_BUDGETS.synthesizeMethodLineage,
@@ -668,13 +858,41 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           const record = assembleLineageExpansionRecord({
             paperId: params.paperId ?? 'current-paper',
             nodeId: params.nodeId,
-            jobIds: [classifyJob.id, lineageJob.id],
+            nodeLabel: params.nodeLabel,
+            jobIds: [classifyJob.id, ...digestJobIds, lineageJob.id],
             intent: expansionIntent,
-            retrievedPapers: [],
-            paperMethodDigests: [],
+            retrievedPapers: candidates,
+            paperMethodDigests,
             methodLineageView,
-            classification: expansionClassification
+            classification: expansionClassification,
+            qualitySignals,
+            relatedPaperRecommendations,
+            missingLineageReason: !methodLineageView
+              ? (
+                  lineageResult.status === 'failed'
+                    ? `方法谱系 LLM 输出校验未通过 (${lineageResult.errorCode ?? 'unknown'}): ${lineageResult.errorMessage ?? '无详细信息'}`
+                    : '方法谱系 LLM 输出校验未通过，生成内容不符合结构要求。'
+                )
+              : undefined
           })
+
+          const usedFallbackLineage = !methodLineageView && Boolean(record.methodLineageView)
+          if (usedFallbackLineage) {
+            record.missingDataReasons = [
+              ...record.missingDataReasons,
+              '已使用相关论文方法摘要构造兜底谱系；建议稍后重新运行以获得更精细的 PDF-grounded 谱系。'
+            ]
+          } else if (!methodLineageView) {
+            record.missingDataReasons = [
+              ...record.missingDataReasons,
+              '方法谱系 LLM 输出校验未通过，且缺少可用于构造兜底谱系的外部方法摘要。'
+            ]
+          } else if (!candidates.length) {
+            record.missingDataReasons = [
+              ...record.missingDataReasons,
+              '未检索到外部相关论文，本次谱系主要基于当前 PDF 与模型背景知识。'
+            ]
+          }
 
           mainWindow.webContents.send('expansion:progress', {
             sessionId,
@@ -890,7 +1108,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           return
         }
 
-        if (expansionIntent.kind === 'generic_related_papers' || candidates.length < 2) {
+        if (expansionIntent.kind === 'generic_related_papers' || candidates.length === 0) {
           mainWindow.webContents.send('expansion:progress', {
             sessionId,
             jobId,
@@ -901,6 +1119,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           const record = assembleLineageExpansionRecord({
             paperId: params.paperId ?? 'current-paper',
             nodeId: params.nodeId,
+            nodeLabel: params.nodeLabel,
             jobIds: [classifyJob.id],
             intent: expansionIntent,
             retrievedPapers: candidates,
@@ -910,7 +1129,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             qualitySignals,
             relatedPaperRecommendations,
           })
-          if (candidates.length < 2) record.missingDataReasons = ['可用论文不足，未生成方法谱系。']
+          if (candidates.length === 0) record.missingDataReasons = ['未检索到可用于方法谱系展开的相关论文。']
           logBackend('kg4_expansion_record_built', {
             sessionId,
             jobId,
@@ -1004,6 +1223,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           const record = assembleLineageExpansionRecord({
             paperId: params.paperId ?? 'current-paper',
             nodeId: params.nodeId,
+            nodeLabel: params.nodeLabel,
             jobIds: [classifyJob.id, ...digestJobIds],
             intent: expansionIntent,
             retrievedPapers: candidates,
@@ -1012,8 +1232,14 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
             classification: expansionClassification,
             qualitySignals,
             relatedPaperRecommendations,
+            missingLineageReason: '可用方法摘要少于 2 个，使用已有摘要构造低置信兜底谱系。'
           })
-          record.missingDataReasons = ['可用方法摘要少于 2 个，未生成方法谱系。']
+          record.missingDataReasons = record.methodLineageView
+            ? [
+                ...record.missingDataReasons,
+                '可用方法摘要少于 2 个，已生成低置信兜底谱系；建议重新检索以获得更完整的演进关系。'
+              ]
+            : ['可用方法摘要不足，未生成方法谱系。']
           logBackend('kg4_expansion_record_built', {
             sessionId,
             jobId,
@@ -1095,6 +1321,7 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
         const record = assembleLineageExpansionRecord({
           paperId: params.paperId ?? 'current-paper',
           nodeId: params.nodeId,
+          nodeLabel: params.nodeLabel,
           jobIds: [classifyJob.id, ...digestJobIds, lineageJob.id],
           intent: expansionIntent,
           retrievedPapers: candidates,
@@ -1103,9 +1330,19 @@ function registerIpcHandlers(mainWindow: BrowserWindow): void {
           classification: expansionClassification,
           qualitySignals,
           relatedPaperRecommendations,
+          missingLineageReason: !methodLineageView ? '方法谱系汇总失败，使用论文方法摘要构造兜底谱系。' : undefined,
         })
-        if (!methodLineageView) {
-          record.missingDataReasons = ['方法谱系汇总失败，展示论文方法摘要。']
+        const usedFallbackLineage = !methodLineageView && Boolean(record.methodLineageView)
+        if (usedFallbackLineage) {
+          record.missingDataReasons = [
+            ...record.missingDataReasons,
+            '已使用相关论文方法摘要构造兜底谱系；建议稍后重新运行以获得更精细的谱系。'
+          ]
+        } else if (!methodLineageView) {
+          record.missingDataReasons = [
+            ...record.missingDataReasons,
+            '方法谱系汇总失败，且缺少可用于构造兜底谱系的外部方法摘要。'
+          ]
         }
         logBackend('kg4_expansion_record_built', {
           sessionId,

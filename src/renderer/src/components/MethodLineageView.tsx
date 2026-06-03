@@ -98,6 +98,11 @@ export function MethodLineageView({ lineage }: { lineage: MethodLineageViewType 
               <span>{ROLE_LABELS[node.role]}</span>
               <strong>{node.label}</strong>
               <p><MathText text={node.summary} /></p>
+              {node.evidence?.length ? (
+                <div className="method-lineage-evidence-list">
+                  {node.evidence.map((evidence, index) => <EvidenceItem evidence={evidence} key={index} />)}
+                </div>
+              ) : null}
               {node.representativePaperIds.length ? <em>{node.representativePaperIds.length} 篇代表论文</em> : null}
             </article>
           ))}
@@ -116,6 +121,11 @@ export function MethodLineageView({ lineage }: { lineage: MethodLineageViewType 
                   <strong>{source?.label ?? edge.sourceId} {'->'} {target?.label ?? edge.targetId}</strong>
                   <span>{edge.relation.replace(/_/g, ' ')} · {Math.round(edge.confidence * 100)}%</span>
                   <p><MathText text={edge.explanation} /></p>
+                  {edge.evidence?.length ? (
+                    <div className="method-lineage-evidence-list">
+                      {edge.evidence.map((evidence, index) => <EvidenceItem evidence={evidence} key={index} />)}
+                    </div>
+                  ) : null}
                 </article>
               )
             })}

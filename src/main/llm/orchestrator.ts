@@ -103,7 +103,7 @@ export class LLMTaskOrchestrator {
 
     let running = await this.markRunning(job, progressForJob(job.type))
     try {
-      const result = await executeJob(running)
+      const result = normalizeJobOutput(running, await executeJob(running))
       const validation = validateJobOutput(running, result)
       if (!validation.ok) {
         const errorCode = validation.hallucinatedIds.length || validation.hallucinatedTitles.length ? 'hallucinated_paper' : 'schema_validation_failed'
@@ -215,6 +215,7 @@ function parseJsonObject(text: string): unknown {
 
 export function validateReferencedPapers(output: unknown, allowedPaperIds: string[]): ReferencedPaperValidationResult {
   const allowed = new Set(allowedPaperIds)
+  const allowedCanonical = buildPaperIdCanonicalMap(allowedPaperIds)
   const referencedIds = new Set<string>()
   const suspiciousTitles: string[] = []
 
@@ -233,49 +234,102 @@ export function validateReferencedPapers(output: unknown, allowedPaperIds: strin
   }
 
   visit(output)
-  const hallucinatedIds = [...referencedIds].filter((id) => !allowed.has(id))
+  const hallucinatedIds = [...referencedIds].filter((id) => !allowed.has(id) && !allowedCanonical.has(canonicalPaperIdKey(id)))
   const errors = hallucinatedIds.map((id) => `输出引用了候选列表外的论文 ID: ${id}`)
 
   return { ok: errors.length === 0, hallucinatedIds, hallucinatedTitles: suspiciousTitles, errors }
 }
 
+function buildPaperIdCanonicalMap(allowedPaperIds: string[]): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const paperId of allowedPaperIds) map.set(canonicalPaperIdKey(paperId), paperId)
+  return map
+}
+
+function canonicalPaperIdKey(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/^(?:https?:\/\/)?(?:dx\.)?doi\.org\//, 'doi:')
+    .replace(/^doi:\s*(?:https?:\/\/)?(?:dx\.)?doi\.org\//, 'doi:')
+    .replace(/^doi:\s*https?\s+doi\s+org\s+/, 'doi:')
+    .replace(/^arxiv:\s*/, 'arxiv:')
+    .replace(/v\d+$/i, '')
+  const arxivMatch = normalized.match(/(?:arxiv|abs)\s*[:./ ]\s*(\d{4})[.\s-]?(\d{4,5})/)
+  if (arxivMatch) return `arxiv ${arxivMatch[1]} ${arxivMatch[2]}`
+  const doiMatch = normalized.match(/^(?:doi:\s*)?(10[.\s][a-z0-9][a-z0-9.\s/_:-]+)$/i)
+  if (doiMatch) return `doi ${doiMatch[1].replace(/[^a-z0-9]+/g, ' ').trim()}`
+  return normalized
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function isCurrentPaperAlias(value: string): boolean {
+  return /^(current[_\s-]*(pdf|paper)|paper[_\s-]*source|source[_\s-]*pdf)$/i.test(value.trim())
+}
+
+function canonicalSuppliedPaperId(value: string, allowedPaperIds: string[], currentPaperId?: string, aliasMap?: Map<string, string>): string {
+  if (currentPaperId && isCurrentPaperAlias(value)) return currentPaperId
+  const aliasPaperId = aliasMap?.get(canonicalPaperIdKey(value))
+  if (aliasPaperId) return aliasPaperId
+  return buildPaperIdCanonicalMap(allowedPaperIds).get(canonicalPaperIdKey(value)) ?? value
+}
+
 export function validateJobOutput(job: LLMJob, output: unknown): ReferencedPaperValidationResult {
+  const allowedPaperIds = [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]
   if (job.type === 'classify_expansion_intent') {
     return validateExpansionIntent(output)
   }
   if (job.type === 'digest_paper_method') {
+    const outputForValidation = normalizePaperMethodDigestOutput(output, allowedPaperIds)
     return mergeValidationResults(
-      validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
-      validatePaperMethodDigest(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])], expectedRetrievedPaperTitle(job.inputJson))
+      validateReferencedPapers(outputForValidation, allowedPaperIds),
+      validatePaperMethodDigest(outputForValidation, allowedPaperIds, expectedRetrievedPaperTitle(job.inputJson))
     )
   }
   if (job.type === 'teach_concept') {
     return mergeValidationResults(
-      validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
+      validateReferencedPapers(output, allowedPaperIds),
       validateConceptLearning(output)
     )
   }
   if (job.type === 'map_research_area') {
     return mergeValidationResults(
-      validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
+      validateReferencedPapers(output, allowedPaperIds),
       validateResearchArea(output)
     )
   }
   if (job.type === 'synthesize_method_lineage') {
+    const normalizedLineage = hasPdfGroundingInput(job.inputJson)
+      ? normalizePdfGroundedMethodLineageOutput(output)
+      : output
+    const outputForValidation = normalizeMethodLineagePaperIds(normalizedLineage, allowedPaperIds, job.paperId, paperAliasMap(job.inputJson))
     return mergeValidationResults(
-      validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]),
+      validateReferencedPapers(outputForValidation, allowedPaperIds),
       validateMethodLineageView(
-        output,
-        [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])],
+        outputForValidation,
+        allowedPaperIds,
         allowedDigestIds(job.inputJson),
         { requirePdfGrounding: hasPdfGroundingInput(job.inputJson) }
       )
     )
   }
   if (['expand_node', 'compare_papers', 'generate_transfer_task', 'diagnose_answer'].includes(job.type) || isKg4JobType(job.type)) {
-    return validateReferencedPapers(output, [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])])
+    return validateReferencedPapers(output, allowedPaperIds)
   }
   return { ok: true, hallucinatedIds: [], hallucinatedTitles: [], errors: [] }
+}
+
+function normalizeJobOutput(job: LLMJob, output: unknown): unknown {
+  const allowedPaperIds = [...job.relatedPaperIds, ...(job.paperId ? [job.paperId] : [])]
+  if (job.type === 'digest_paper_method') {
+    return normalizePaperMethodDigestOutput(output, allowedPaperIds)
+  }
+  if (job.type === 'synthesize_method_lineage') {
+    const lineage = hasPdfGroundingInput(job.inputJson) ? normalizePdfGroundedMethodLineageOutput(output) : output
+    return normalizeMethodLineagePaperIds(lineage, allowedPaperIds, job.paperId, paperAliasMap(job.inputJson))
+  }
+  return output
 }
 
 function validateExpansionIntent(output: unknown): ReferencedPaperValidationResult {
@@ -339,10 +393,20 @@ function validatePaperMethodDigest(output: unknown, allowedPaperIds: string[], e
   return schemaErrors(...errors)
 }
 
+function normalizePaperMethodDigestOutput(output: unknown, allowedPaperIds: string[]): unknown {
+  if (!isRecord(output)) return output
+  const normalized: Record<string, unknown> = { ...output }
+  if (typeof normalized.paperId === 'string') normalized.paperId = canonicalSuppliedPaperId(normalized.paperId, allowedPaperIds)
+  return normalized
+}
+
 function normalizeConfidence(value: unknown): number | undefined {
   if (typeof value === 'number') return value
   if (typeof value !== 'string') return undefined
   const normalized = value.trim().toLowerCase()
+  if (/高|high/.test(normalized)) return 0.85
+  if (/中|medium|moderate/.test(normalized)) return 0.6
+  if (/低|low/.test(normalized)) return 0.35
   if (normalized === 'high') return 0.85
   if (normalized === 'medium') return 0.6
   if (normalized === 'low') return 0.35
@@ -350,8 +414,286 @@ function normalizeConfidence(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+function normalizePdfGroundedMethodLineageOutput(output: unknown): unknown {
+  if (!isRecord(output)) return output
+  const normalized: Record<string, unknown> = { ...output }
+  normalized.openQuestions = stringArrayFrom(normalized.openQuestions)
+  normalized.readingOrder = stringArrayFrom(normalized.readingOrder)
+  normalized.missingDataReasons = stringArrayFrom(normalized.missingDataReasons)
+  normalized.dataCompleteness = normalizeCompleteness(normalized.dataCompleteness)
+  normalized.problemSetup = normalizeProblemSetup(normalized.problemSetup)
+  normalized.anchorPosition = normalizeAnchorPosition(normalized.anchorPosition)
+  normalized.conceptBridge = normalizeConceptBridge(normalized.conceptBridge)
+  normalized.methodComparisons = normalizeMethodComparisons(normalized.methodComparisons)
+  normalized.nodes = normalizeLineageNodes(normalized.nodes)
+  normalized.edges = normalizeLineageEdges(normalized.edges)
+  return normalized
+}
+
+function normalizeMethodLineagePaperIds(output: unknown, allowedPaperIds: string[], currentPaperId?: string, aliasMap?: Map<string, string>): unknown {
+  if (!isRecord(output)) return output
+  const normalizeIds = (value: unknown): string[] => stringArrayFrom(value).map((paperId) => canonicalSuppliedPaperId(paperId, allowedPaperIds, currentPaperId, aliasMap))
+  const nodes = Array.isArray(output.nodes)
+    ? output.nodes.map((node) => isRecord(node)
+      ? { ...node, representativePaperIds: normalizeIds(node.representativePaperIds) }
+      : node)
+    : output.nodes
+  return {
+    ...output,
+    readingOrder: normalizeReadingOrder(output.readingOrder, nodes, normalizeIds),
+    nodes,
+    edges: Array.isArray(output.edges)
+      ? output.edges.map((edge) => isRecord(edge)
+        ? { ...edge, evidencePaperIds: normalizeIds(edge.evidencePaperIds) }
+        : edge)
+      : output.edges
+  }
+}
+
+function normalizeReadingOrder(
+  value: unknown,
+  nodes: unknown,
+  normalizeIds: (value: unknown) => string[]
+): string[] {
+  const rawItems = stringArrayFrom(value)
+  const directPaperIds = normalizeIds(rawItems).filter((paperId) => isKnownPaperId(paperId))
+  if (directPaperIds.length) return [...new Set(directPaperIds)]
+  if (!Array.isArray(nodes)) return []
+  const nodeById = new Map<string, Record<string, unknown>>()
+  nodes.forEach((node) => {
+    if (isRecord(node) && typeof node.id === 'string' && node.id.trim()) {
+      nodeById.set(node.id, node)
+    }
+  })
+  const fromNodeOrder = rawItems.flatMap((item) => {
+    const node = nodeById.get(item)
+    return node ? stringArrayFrom(node.representativePaperIds).filter((paperId) => isKnownPaperId(paperId)) : []
+  })
+  return [...new Set(fromNodeOrder)]
+}
+
+function normalizeCompleteness(value: unknown): 'complete' | 'partial' | 'insufficient' {
+  if (value === 'complete' || value === 'partial' || value === 'insufficient') return value
+  if (typeof value !== 'string') return 'partial'
+  const normalized = value.trim().toLowerCase()
+  if (/partial|部分/.test(normalized)) return 'partial'
+  if (/insufficient|不足|不完整|缺/.test(normalized)) return 'insufficient'
+  if (/complete|完整/.test(normalized)) return 'complete'
+  return 'partial'
+}
+
+function stringArrayFrom(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string')
+  if (typeof value === 'string' && value.trim()) return [value.trim()]
+  return []
+}
+
+function nonEmptyStringFrom(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return undefined
+}
+
+function normalizePdfEvidenceArray(value: unknown, fallbackClaim: string): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const excerpt = nonEmptyStringFrom(item.excerpt)
+    if (!excerpt) return []
+    return [{
+      ...item,
+      sourceType: 'current_pdf',
+      excerpt,
+      claimSupported: nonEmptyStringFrom(item.claimSupported, fallbackClaim) ?? fallbackClaim
+    }]
+  })
+}
+
+function normalizeEvidenceArray(value: unknown, fallbackClaim: string): Record<string, unknown>[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const evidence: Record<string, unknown>[] = []
+  value.forEach((item) => {
+    if (!isRecord(item)) return
+    if (item.sourceType === 'model_knowledge') {
+      evidence.push({
+        ...item,
+        note: nonEmptyStringFrom(item.note, item.claimSupported, item.excerpt, fallbackClaim) ?? fallbackClaim,
+        confidence: normalizeConfidence(item.confidence) ?? 0.6
+      })
+      return
+    }
+    if (item.sourceType === 'future_retrieval_needed') {
+      evidence.push({ ...item, reason: nonEmptyStringFrom(item.reason, fallbackClaim) ?? fallbackClaim })
+      return
+    }
+    const excerpt = nonEmptyStringFrom(item.excerpt)
+    if (!excerpt) return
+    evidence.push({
+      ...item,
+      sourceType: 'current_pdf',
+      excerpt,
+      claimSupported: nonEmptyStringFrom(item.claimSupported, fallbackClaim) ?? fallbackClaim
+    })
+  })
+  return evidence.length ? evidence : undefined
+}
+
+function normalizeProblemSetup(value: unknown): Record<string, unknown> {
+  if (isRecord(value)) {
+    const beginnerExplanation = nonEmptyStringFrom(value.beginnerExplanation, value.explanation, value.summary, value.problem) ?? '当前论文围绕一个需要从原文中进一步解释的研究问题展开。'
+    const whyThisProblemMatters = nonEmptyStringFrom(value.whyThisProblemMatters, value.whyItMatters, value.motivation, value.summary) ?? beginnerExplanation
+    return {
+      ...value,
+      beginnerExplanation,
+      whyThisProblemMatters,
+      pdfEvidence: normalizePdfEvidenceArray(value.pdfEvidence ?? value.evidence, beginnerExplanation)
+    }
+  }
+  const text = nonEmptyStringFrom(value) ?? '当前论文围绕一个需要从原文中进一步解释的研究问题展开。'
+  return { beginnerExplanation: text, whyThisProblemMatters: text, pdfEvidence: [] }
+}
+
+function normalizeAnchorPosition(value: unknown): Record<string, unknown> {
+  if (isRecord(value)) {
+    const summary = nonEmptyStringFrom(value.summary, value.explanation, value.position) ?? '当前论文方法处在该谱系中的当前位置需要结合原文理解。'
+    const whatTheCurrentPaperChanges = nonEmptyStringFrom(value.whatTheCurrentPaperChanges, value.change, value.contribution, value.summary) ?? summary
+    return {
+      ...value,
+      summary,
+      whatTheCurrentPaperChanges,
+      whatItInherits: stringArrayFrom(value.whatItInherits),
+      whatItDoesNotSolve: stringArrayFrom(value.whatItDoesNotSolve),
+      pdfEvidence: normalizePdfEvidenceArray(value.pdfEvidence ?? value.evidence, summary)
+    }
+  }
+  const text = nonEmptyStringFrom(value) ?? '当前论文方法处在该谱系中的当前位置需要结合原文理解。'
+  return {
+    summary: text,
+    whatTheCurrentPaperChanges: text,
+    whatItInherits: [],
+    whatItDoesNotSolve: [],
+    pdfEvidence: []
+  }
+}
+
+function normalizeConceptBridge(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (!isRecord(item)) return []
+      const concept = nonEmptyStringFrom(item.concept, item.label, item.title) ?? '谱系背景概念'
+      const explanation = nonEmptyStringFrom(item.explanation, item.summary, item.description) ?? concept
+      const whyNeededForThisLineage = nonEmptyStringFrom(item.whyNeededForThisLineage, item.whyNeeded, item.relevance, item.explanation) ?? explanation
+      return [{
+        ...item,
+        concept,
+        explanation,
+        whyNeededForThisLineage,
+        pdfEvidence: normalizePdfEvidenceArray(item.pdfEvidence, explanation)
+      }]
+    })
+  }
+  const explanation = nonEmptyStringFrom(value)
+  return explanation
+    ? [{ concept: '谱系背景概念', explanation, whyNeededForThisLineage: explanation }]
+    : undefined
+}
+
+function normalizeMethodComparisons(value: unknown): unknown {
+  if (!Array.isArray(value)) return undefined
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const methodA = nonEmptyStringFrom(item.methodA, item.sourceMethod)
+    const methodB = nonEmptyStringFrom(item.methodB, item.targetMethod)
+    const keyDifference = nonEmptyStringFrom(item.keyDifference, item.comparison, item.difference, item.summary)
+    if (!methodA || !methodB || !keyDifference) return []
+    const whyItMatters = nonEmptyStringFrom(item.whyItMatters, item.importance, item.comparison, item.summary) ?? keyDifference
+    return [{
+      ...item,
+      methodA,
+      methodB,
+      keyDifference,
+      whyItMatters,
+      evidence: normalizeEvidenceArray(item.evidence, keyDifference) ?? []
+    }]
+  })
+}
+
+function normalizeLineageNodes(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+  return value.map((node) => {
+    if (!isRecord(node)) return node
+    const summary = nonEmptyStringFrom(node.summary, node.explanation, node.description) ?? ''
+    const next: Record<string, unknown> = {
+      ...node,
+      summary,
+      representativePaperIds: stringArrayFrom(node.representativePaperIds),
+      digestIds: stringArrayFrom(node.digestIds)
+    }
+    const evidence = normalizeEvidenceArray(node.evidence, summary)
+    if (evidence) next.evidence = evidence
+    return next
+  })
+}
+
+function normalizeLineageEdges(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+  return value.map((edge) => {
+    if (!isRecord(edge)) return edge
+    const explanation = nonEmptyStringFrom(edge.explanation, edge.summary, edge.description) ?? ''
+    const next: Record<string, unknown> = {
+      ...edge,
+      relation: normalizeLineageRelation(edge.relation),
+      explanation,
+      evidencePaperIds: stringArrayFrom(edge.evidencePaperIds),
+      confidence: normalizeConfidence(edge.confidence) ?? 0.5
+    }
+    const evidence = normalizeEvidenceArray(edge.evidence, explanation)
+    if (evidence) next.evidence = evidence
+    return next
+  })
+}
+
+function normalizeLineageRelation(value: unknown): unknown {
+  if (value === 'foundation_method' || value === 'extends' || value === 'improvement') return 'extends'
+  if (value === 'parallel_variant') return 'contrasts_with'
+  if (value === 'application_variant') return 'applies_to_new_context'
+  if (value === 'open_problem') return 'evidence_insufficient'
+  return value
+}
+
+function isKnownPaperId(value: string): boolean {
+  return /^(paper|local|doi|arxiv|openalex|semantic_scholar|s2)[\s:_-]/i.test(value) || /^10[\s.]/.test(value)
+}
+
 function hasPdfGroundingInput(input: unknown): boolean {
   return isRecord(input) && isRecord(input.methodLineageContext) && isRecord(input.methodLineageContext.paperSource)
+}
+
+function paperAliasMap(input: unknown): Map<string, string> {
+  const map = new Map<string, string>()
+  const addAlias = (alias: unknown, paperId: unknown): void => {
+    if (typeof alias !== 'string' || typeof paperId !== 'string' || !alias.trim() || !paperId.trim()) return
+    map.set(canonicalPaperIdKey(alias), paperId)
+  }
+  if (!isRecord(input)) return map
+  if (Array.isArray(input.paperMethodDigests)) {
+    input.paperMethodDigests.forEach((digest) => {
+      if (!isRecord(digest) || typeof digest.paperId !== 'string') return
+      addAlias(digest.id, digest.paperId)
+      addAlias(digest.paperTitle, digest.paperId)
+      addAlias(digest.methodName, digest.paperId)
+      addAlias(digest.paperId, digest.paperId)
+    })
+  }
+  if (Array.isArray(input.retrievedPapers)) {
+    input.retrievedPapers.forEach((paper) => {
+      if (!isRecord(paper) || typeof paper.id !== 'string') return
+      addAlias(paper.id, paper.id)
+      addAlias(paper.title, paper.id)
+    })
+  }
+  return map
 }
 
 function validatePdfEvidenceRef(value: unknown, path: string, errors: string[]): void {
@@ -418,8 +760,11 @@ function validateMethodLineageView(output: unknown, allowedPaperIds: string[], a
   if (!isStringArray(output.openQuestions)) errors.push('synthesize_method_lineage.openQuestions must be a string array')
   if (!isStringArray(output.readingOrder)) {
     errors.push('synthesize_method_lineage.readingOrder must be a string array')
-  } else if (output.readingOrder.some((paperId) => !allowedPaperIds.includes(paperId))) {
-    errors.push('synthesize_method_lineage.readingOrder must only reference supplied papers')
+  } else {
+    const unknownReadingOrderIds = output.readingOrder.filter((paperId) => !allowedPaperIds.includes(paperId))
+    if (unknownReadingOrderIds.length) {
+      errors.push(`synthesize_method_lineage.readingOrder must only reference supplied papers: ${unknownReadingOrderIds.join(', ')}`)
+    }
   }
   if (!isOneOf(output.dataCompleteness, METHOD_LINEAGE_COMPLETENESS)) errors.push('synthesize_method_lineage.dataCompleteness must be complete, partial, or insufficient')
   if (!isStringArray(output.missingDataReasons)) errors.push('synthesize_method_lineage.missingDataReasons must be a string array')
@@ -431,7 +776,7 @@ function validateMethodLineageView(output: unknown, allowedPaperIds: string[], a
     } else {
       if (!isNonEmptyString(problemSetup.beginnerExplanation)) errors.push('synthesize_method_lineage.problemSetup.beginnerExplanation must be a non-empty string')
       if (!isNonEmptyString(problemSetup.whyThisProblemMatters)) errors.push('synthesize_method_lineage.problemSetup.whyThisProblemMatters must be a non-empty string')
-      if (!Array.isArray(problemSetup.pdfEvidence) || !problemSetup.pdfEvidence.length) errors.push('synthesize_method_lineage.problemSetup.pdfEvidence must contain at least one PDF evidence item')
+      if (!Array.isArray(problemSetup.pdfEvidence)) errors.push('synthesize_method_lineage.problemSetup.pdfEvidence must be an array')
       ;(Array.isArray(problemSetup.pdfEvidence) ? problemSetup.pdfEvidence : []).forEach((item, index) => validatePdfEvidenceRef(item, `synthesize_method_lineage.problemSetup.pdfEvidence[${index}]`, errors))
     }
 
@@ -443,7 +788,7 @@ function validateMethodLineageView(output: unknown, allowedPaperIds: string[], a
       if (!isNonEmptyString(anchorPosition.whatTheCurrentPaperChanges)) errors.push('synthesize_method_lineage.anchorPosition.whatTheCurrentPaperChanges must be a non-empty string')
       if (!isStringArray(anchorPosition.whatItInherits)) errors.push('synthesize_method_lineage.anchorPosition.whatItInherits must be a string array')
       if (!isStringArray(anchorPosition.whatItDoesNotSolve)) errors.push('synthesize_method_lineage.anchorPosition.whatItDoesNotSolve must be a string array')
-      if (!Array.isArray(anchorPosition.pdfEvidence) || !anchorPosition.pdfEvidence.length) errors.push('synthesize_method_lineage.anchorPosition.pdfEvidence must contain at least one PDF evidence item')
+      if (!Array.isArray(anchorPosition.pdfEvidence)) errors.push('synthesize_method_lineage.anchorPosition.pdfEvidence must be an array')
       ;(Array.isArray(anchorPosition.pdfEvidence) ? anchorPosition.pdfEvidence : []).forEach((item, index) => validatePdfEvidenceRef(item, `synthesize_method_lineage.anchorPosition.pdfEvidence[${index}]`, errors))
     }
   }

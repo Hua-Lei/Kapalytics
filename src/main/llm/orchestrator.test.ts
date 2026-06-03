@@ -35,6 +35,9 @@ assert.match(lineagePrompt, /methodLineageContext/i)
 assert.match(lineagePrompt, /paperSource\.extractedText/i)
 assert.match(lineagePrompt, /problemSetup/i)
 assert.match(lineagePrompt, /anchorPosition/i)
+assert.match(lineagePrompt, /not a literature list/i)
+assert.match(lineagePrompt, /typed method nodes/i)
+assert.match(lineagePrompt, /relationship edges/i)
 assert.match(lineagePrompt, /current_pdf/i)
 assert.match(lineagePrompt, /model_knowledge/i)
 assert.match(lineagePrompt, /future_retrieval_needed/i)
@@ -257,6 +260,344 @@ assert.equal(
     }
   ).ok,
   false
+)
+
+const suppliedDoiPaperId = 'doi:10 1109 tip 2026 3672375'
+const modelDoiPaperId = 'doi:10.1109/TIP.2026.3672375'
+const modelBareDoiPaperId = '10.1109/TIP.2026.3672375'
+assert.equal(
+  validateJobOutput(
+    makeJob({
+      type: 'digest_paper_method',
+      relatedPaperIds: [suppliedDoiPaperId],
+      inputJson: {
+        retrievedPaper: { id: suppliedDoiPaperId, title: 'TIP Paper' }
+      }
+    }),
+    {
+      id: 'digest-tip',
+      paperId: modelDoiPaperId,
+      paperTitle: 'TIP Paper',
+      methodName: 'TIP Method',
+      problemSetting: 'Image restoration with parameter generation.',
+      coreMechanism: 'Uses a hypernetwork-like generator.',
+      relationHints: ['application_variant'],
+      evidenceSummary: 'The DOI is equivalent to the supplied candidate id.',
+      confidence: 0.7
+    }
+  ).ok,
+  true
+)
+
+assert.equal(
+  validateJobOutput(
+    makeJob({
+      type: 'synthesize_method_lineage',
+      paperId: 'paper-main',
+      relatedPaperIds: ['paper-a'],
+      inputJson: {
+        methodLineageContext: {
+          paperSource: {
+            pdfUrl: 'file:///paper.pdf',
+            extractedText: '[Page 1]\ntext',
+            pages: [{ pageNumber: 1, text: 'text' }]
+          }
+        },
+        retrievedPapers: [{ id: 'paper-a', title: 'Related Paper A' }],
+        paperMethodDigests: [{ id: 'digest-a', paperId: 'paper-a', paperTitle: 'Related Paper A' }]
+      }
+    }),
+    {
+      id: 'lineage-node-reading-order',
+      anchorNodeId: 'n-current',
+      title: 'Node reading order lineage',
+      summary: 'The model returned a lineage node order instead of paper ids.',
+      problemSetup: {
+        beginnerExplanation: 'The current paper studies efficient adaptation.',
+        whyThisProblemMatters: 'Efficient adaptation reduces inference cost.',
+        pdfEvidence: []
+      },
+      anchorPosition: {
+        summary: 'The current method is the PDF anchor.',
+        whatTheCurrentPaperChanges: 'It generates adapters from context.',
+        whatItInherits: [],
+        whatItDoesNotSolve: [],
+        pdfEvidence: []
+      },
+      nodes: [{
+        id: 'n-current',
+        label: 'Current Method',
+        role: 'current_method',
+        summary: 'The current PDF method.',
+        representativePaperIds: [],
+        digestIds: [],
+        evidence: [{
+          sourceType: 'current_pdf',
+          pageNumber: 1,
+          excerpt: 'We propose a lightweight hypernetwork.',
+          claimSupported: 'The current method is grounded in the PDF.'
+        }]
+      }, {
+        id: 'n-paper',
+        label: 'Related Method',
+        role: 'parallel_variant',
+        summary: 'A related method from a retrieved paper.',
+        representativePaperIds: ['paper-a'],
+        digestIds: ['digest-a']
+      }],
+      edges: [{
+        id: 'edge-parallel',
+        sourceId: 'n-current',
+        targetId: 'n-paper',
+        relation: 'parallel_variant',
+        explanation: 'The methods are parallel variants.',
+        evidencePaperIds: ['paper-a'],
+        confidence: 0.7
+      }],
+      openQuestions: [],
+      readingOrder: ['n-current', 'n-paper'],
+      dataCompleteness: 'partial',
+      missingDataReasons: []
+    }
+  ).ok,
+  true
+)
+
+assert.equal(
+  validateJobOutput(
+    makeJob({
+      type: 'synthesize_method_lineage',
+      paperId: 'paper-main',
+      relatedPaperIds: [suppliedDoiPaperId],
+      inputJson: {
+        methodLineageContext: {
+          paperSource: {
+            pdfUrl: 'file:///paper.pdf',
+            extractedText: '[Page 1]\ntext',
+            pages: [{ pageNumber: 1, text: 'text' }]
+          }
+        },
+        paperMethodDigests: [{ id: 'digest-tip' }]
+      }
+    }),
+    {
+      id: 'lineage-doi',
+      anchorNodeId: 'node-a',
+      title: 'DOI equivalent lineage',
+      summary: 'The model used a DOI spelling that is equivalent to the supplied paper id.',
+      problemSetup: {
+        beginnerExplanation: 'The paper studies efficient adaptation.',
+        whyThisProblemMatters: 'Efficient adaptation reduces cost.',
+        pdfEvidence: []
+      },
+      anchorPosition: {
+        summary: 'The current paper is the anchor method.',
+        whatTheCurrentPaperChanges: 'It changes how context is internalized.',
+        whatItInherits: [],
+        whatItDoesNotSolve: [],
+        pdfEvidence: []
+      },
+      nodes: [{
+        id: 'node-current',
+        label: 'Current Method',
+        role: 'current_method',
+        summary: 'The current PDF method.',
+        representativePaperIds: ['paper-main'],
+        digestIds: []
+      }, {
+        id: 'node-tip',
+        label: 'TIP Method',
+        role: 'application_variant',
+        summary: 'An external method whose paper id is written as a DOI.',
+        representativePaperIds: [modelDoiPaperId],
+        digestIds: ['digest-tip']
+      }],
+      edges: [{
+        id: 'edge-tip',
+        sourceId: 'node-current',
+        targetId: 'node-tip',
+        relation: 'applies_to_new_context',
+        explanation: 'The external method applies a related idea in another context.',
+        evidencePaperIds: [modelBareDoiPaperId],
+        confidence: 0.62
+      }],
+      openQuestions: [],
+      readingOrder: [modelDoiPaperId, modelBareDoiPaperId],
+      dataCompleteness: 'partial',
+      missingDataReasons: []
+    }
+  ).ok,
+  true
+)
+
+const suppliedArxivDoiPaperId = 'doi:https doi org 10 48550 arxiv 2203 00759'
+const modelArxivPaperId = 'arXiv:2203.00759'
+const modelArxivDoiUrlPaperId = 'https://doi.org/10.48550/arXiv.2203.00759'
+
+assert.equal(
+  validateJobOutput(
+    makeJob({
+      type: 'digest_paper_method',
+      relatedPaperIds: [suppliedArxivDoiPaperId],
+      inputJson: {
+        retrievedPaper: { id: suppliedArxivDoiPaperId, title: 'HyperPrompt: Prompt-based Task-Conditioning of Transformers' }
+      }
+    }),
+    {
+      id: 'digest-hyperprompt',
+      paperId: modelArxivPaperId,
+      paperTitle: 'HyperPrompt: Prompt-based Task-Conditioning of Transformers',
+      methodName: 'HyperPrompt',
+      problemSetting: 'Task-conditioned transformer prompting.',
+      coreMechanism: 'A hypernetwork generates task-specific prompt parameters.',
+      relationHints: ['parallel_variant'],
+      evidenceSummary: 'The arXiv id is equivalent to the supplied DOI-style candidate id.',
+      confidence: 0.78
+    }
+  ).ok,
+  true
+)
+
+assert.equal(
+  validateJobOutput(
+    makeJob({
+      type: 'synthesize_method_lineage',
+      paperId: 'paper-main',
+      relatedPaperIds: [suppliedArxivDoiPaperId],
+      inputJson: {
+        methodLineageContext: {
+          paperSource: {
+            pdfUrl: 'file:///paper.pdf',
+            extractedText: '[Page 1]\ntext',
+            pages: [{ pageNumber: 1, text: 'text' }]
+          }
+        },
+        paperMethodDigests: [{ id: 'digest-hyperprompt' }]
+      }
+    }),
+    {
+      id: 'lineage-arxiv-alias',
+      anchorNodeId: 'node-a',
+      title: 'ArXiv alias lineage',
+      summary: 'The model used arXiv and DOI URL spellings equivalent to supplied paper ids.',
+      problemSetup: {
+        beginnerExplanation: 'The paper studies efficient adaptation.',
+        whyThisProblemMatters: 'Efficient adaptation reduces cost.',
+        pdfEvidence: []
+      },
+      anchorPosition: {
+        summary: 'The current paper is the anchor method.',
+        whatTheCurrentPaperChanges: 'It changes how context is internalized.',
+        whatItInherits: [],
+        whatItDoesNotSolve: [],
+        pdfEvidence: []
+      },
+      nodes: [{
+        id: 'node-current',
+        label: 'Current Method',
+        role: 'current_method',
+        summary: 'The current PDF method.',
+        representativePaperIds: ['paper-main'],
+        digestIds: []
+      }, {
+        id: 'node-hyperprompt',
+        label: 'HyperPrompt',
+        role: 'parallel_variant',
+        summary: 'An external method whose paper id is written as an arXiv id.',
+        representativePaperIds: [modelArxivPaperId],
+        digestIds: ['digest-hyperprompt']
+      }],
+      edges: [{
+        id: 'edge-hyperprompt',
+        sourceId: 'node-current',
+        targetId: 'node-hyperprompt',
+        relation: 'contrasts_with',
+        explanation: 'The external method uses a related hypernetwork idea for task conditioning.',
+        evidencePaperIds: [modelArxivDoiUrlPaperId],
+        confidence: 0.62
+      }],
+      openQuestions: [],
+      readingOrder: ['current_pdf', modelArxivPaperId, modelArxivDoiUrlPaperId],
+      dataCompleteness: 'partial',
+      missingDataReasons: []
+    }
+  ).ok,
+  true
+)
+
+assert.equal(
+  validateJobOutput(
+    makeJob({
+      type: 'synthesize_method_lineage',
+      paperId: 'paper-main',
+      relatedPaperIds: [suppliedArxivDoiPaperId],
+      inputJson: {
+        methodLineageContext: {
+          paperSource: {
+            pdfUrl: 'file:///paper.pdf',
+            extractedText: '[Page 1]\ntext',
+            pages: [{ pageNumber: 1, text: 'text' }]
+          }
+        },
+        retrievedPapers: [{
+          id: suppliedArxivDoiPaperId,
+          title: 'HyperPrompt: Prompt-based Task-Conditioning of Transformers'
+        }],
+        paperMethodDigests: [{
+          id: 'digest-hyperprompt',
+          paperId: suppliedArxivDoiPaperId,
+          paperTitle: 'HyperPrompt: Prompt-based Task-Conditioning of Transformers'
+        }]
+      }
+    }),
+    {
+      id: 'lineage-digest-id-order',
+      anchorNodeId: 'node-a',
+      title: 'Digest id lineage',
+      summary: 'The model used digest ids and supplied titles in paper-id slots.',
+      problemSetup: {
+        beginnerExplanation: 'The paper studies efficient adaptation.',
+        whyThisProblemMatters: 'Efficient adaptation reduces cost.',
+        pdfEvidence: []
+      },
+      anchorPosition: {
+        summary: 'The current paper is the anchor method.',
+        whatTheCurrentPaperChanges: 'It changes how context is internalized.',
+        whatItInherits: [],
+        whatItDoesNotSolve: [],
+        pdfEvidence: []
+      },
+      nodes: [{
+        id: 'node-current',
+        label: 'Current Method',
+        role: 'current_method',
+        summary: 'The current PDF method.',
+        representativePaperIds: ['current_paper'],
+        digestIds: []
+      }, {
+        id: 'node-hyperprompt',
+        label: 'HyperPrompt',
+        role: 'parallel_variant',
+        summary: 'An external method whose paper id is recoverable from the digest.',
+        representativePaperIds: ['digest-hyperprompt'],
+        digestIds: ['digest-hyperprompt']
+      }],
+      edges: [{
+        id: 'edge-hyperprompt',
+        sourceId: 'node-current',
+        targetId: 'node-hyperprompt',
+        relation: 'contrasts_with',
+        explanation: 'The external method uses a related hypernetwork idea.',
+        evidencePaperIds: ['HyperPrompt: Prompt-based Task-Conditioning of Transformers'],
+        confidence: 0.62
+      }],
+      openQuestions: [],
+      readingOrder: ['digest-hyperprompt', 'HyperPrompt: Prompt-based Task-Conditioning of Transformers'],
+      dataCompleteness: 'partial',
+      missingDataReasons: []
+    }
+  ).ok,
+  true
 )
 
 // New strategy classification shape should validate
@@ -533,6 +874,85 @@ assert.equal(
       }
     }),
     pdfGroundedLineageOutput
+  ).ok,
+  true
+)
+
+const loosePdfGroundedLineageOutput = {
+  id: 'lineage-loose',
+  anchorNodeId: 'node-a',
+  title: 'Loose PDF grounded lineage',
+  summary: 'A lineage grounded in the current paper, but shaped like a real model response.',
+  problemSetup: 'The paper frames long-context modeling as a tradeoff between loss quality and inference latency.',
+  conceptBridge: 'The method connects test-time training, meta-learning, and sliding-window attention.',
+  anchorPosition: 'The current paper turns test-time training into an end-to-end next-token objective.',
+  methodComparisons: [{
+    methodA: 'Full attention',
+    methodB: 'TTT-E2E',
+    comparison: 'Full attention uses quadratic context interaction while TTT-E2E compresses context into updated weights.',
+    evidence: [{
+      sourceType: 'current_pdf',
+      pageNumber: 1,
+      excerpt: 'TTT-E2E has constant inference latency regardless of context length.'
+    }]
+  }],
+  nodes: [{
+    id: 'stage-current',
+    label: 'TTT-E2E',
+    role: 'current_method',
+    summary: 'The current paper trains the model at test time with a next-token prediction loss.',
+    representativePaperIds: [],
+    digestIds: [],
+    evidence: [{
+      sourceType: 'current_pdf',
+      pageNumber: 2,
+      excerpt: 'Our inner loop directly optimizes the next-token prediction loss.'
+    }]
+  }, {
+    id: 'stage-foundation',
+    label: 'Sliding-window attention',
+    role: 'foundation_method',
+    summary: 'A local attention baseline with constant inference latency.',
+    representativePaperIds: [],
+    digestIds: []
+  }],
+  edges: [{
+    id: 'edge-current-foundation',
+    sourceId: 'stage-foundation',
+    targetId: 'stage-current',
+    relation: 'extends',
+    explanation: 'TTT-E2E keeps the sliding-window backbone while adding test-time optimization.',
+    evidencePaperIds: [],
+    confidence: '高',
+    evidence: [{
+      sourceType: 'current_pdf',
+      pageNumber: 1,
+      excerpt: 'Under this formulation, we only use a standard architecture - a Transformer with sliding-window attention.'
+    }]
+  }],
+  openQuestions: [],
+  readingOrder: [],
+  dataCompleteness: '部分完整',
+  missingDataReasons: 'External retrieval evidence is reserved for a later phase.'
+}
+
+assert.equal(
+  validateJobOutput(
+    makeJob({
+      type: 'synthesize_method_lineage',
+      paperId: 'paper-main',
+      relatedPaperIds: [],
+      inputJson: {
+        methodLineageContext: {
+          paperSource: {
+            pdfUrl: 'file:///paper.pdf',
+            extractedText: '[Page 1]\ntext',
+            pages: [{ pageNumber: 1, text: 'text' }]
+          }
+        }
+      }
+    }),
+    loosePdfGroundedLineageOutput
   ).ok,
   true
 )

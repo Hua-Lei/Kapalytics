@@ -2,6 +2,7 @@ import { createContext, useCallback, useEffect, useState, type ReactNode } from 
 import { electronApi } from '../../modules/ipc/electronApi'
 import type { NodeUnderstandingMemory } from '../../../../shared/kg4'
 import type { MemoryContextValue } from './types'
+import { saveMemoryAndRefresh } from './memoryPersistence'
 
 export const MemoryContext = createContext<MemoryContextValue | null>(null)
 
@@ -22,8 +23,10 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const saveMemory = useCallback(async (memory: NodeUnderstandingMemory) => {
-    await electronApi.kg4.saveNodeUnderstandingMemory(memory)
-    await loadMemories()
+    await saveMemoryAndRefresh(memory, {
+      save: electronApi.kg4.saveNodeUnderstandingMemory,
+      reload: loadMemories
+    })
   }, [loadMemories])
 
   const selectMemory = useCallback((_memory: NodeUnderstandingMemory) => {

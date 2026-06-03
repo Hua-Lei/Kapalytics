@@ -52,6 +52,76 @@ export const STAGE_DEFINITIONS: StageDefinition[] = [
   },
 ]
 
+const STAGE_QUESTION_CHECKPOINTS: Record<string, string[]> = {
+  field_positioning: [
+    '具体研究方向或子领域',
+    '本文要解决的问题或方法位置',
+    '它与已有方法/相邻领域的关系',
+    '论文证据、公式或实验结果'
+  ],
+  problem_motivation: [
+    '核心瓶颈是什么',
+    '作者为什么认为这个瓶颈重要',
+    '已有方法在这里哪里不够',
+    '论文证据、公式或实验结果'
+  ],
+  method_overview: [
+    '输入是什么',
+    '核心模块或关键步骤是什么',
+    '输出是什么',
+    '训练目标或优化方式如何连接这些步骤',
+    '论文证据、公式或实验结果'
+  ],
+  formula_algorithm: [
+    '关键公式或算法目标是什么',
+    '每个核心符号/变量的含义',
+    '公式在方法流程中的作用',
+    '论文证据、公式或实验结果'
+  ],
+  experiment_analysis: [
+    '两个关键实验分别验证什么 claim',
+    '实验设置或对比对象是什么',
+    '结果如何支持或削弱 claim',
+    '论文证据、公式或实验结果'
+  ],
+  contribution_limitation: [
+    '本文相对已有工作的真正贡献',
+    '方法适用边界或失败条件',
+    '哪些结论仍需要谨慎看待',
+    '论文证据、公式或实验结果'
+  ],
+  transfer_comparison: [
+    '这个方法可迁移的模块或思想',
+    '迁移到新任务时需要改变什么',
+    '它与相关方法在泛化方式上的差异',
+    '论文证据、公式或实验结果'
+  ]
+}
+
+const STRUCTURED_QUESTION_MARKERS = [/请回答[:：]/, /回答要覆盖[:：]/]
+
+function isStructuredQuestion(task: string): boolean {
+  return STRUCTURED_QUESTION_MARKERS.every((marker) => marker.test(task))
+}
+
+export function formatStageTaskAsQuestion(stageId: string, stageName: string, task: string | undefined): string {
+  const trimmed = task?.trim()
+  if (trimmed && isStructuredQuestion(trimmed)) return trimmed
+
+  const question = trimmed || `请根据论文内容说明“${stageName}”阶段最关键的理解点。`
+  const checkpoints = STAGE_QUESTION_CHECKPOINTS[stageId] ?? [
+    '你的核心判断',
+    '支撑这个判断的推理链条',
+    '论文中的具体证据'
+  ]
+
+  return [
+    `请回答：${question}`,
+    '回答要覆盖：',
+    ...checkpoints.map((checkpoint, index) => `${index + 1}. ${checkpoint}`)
+  ].join('\n')
+}
+
 /**
  * Combine static stage definitions with per-paper tasks to produce Stage objects.
  *
@@ -66,6 +136,6 @@ export function buildStagesFromTasks(tasks: Record<string, string>): Stage[] {
     status: 'not_started' as const,
     mastery: 0,
     description: def.description,
-    task: tasks[def.id] ?? `请根据论文内容完成"${def.name}"阶段的学习任务。`,
+    task: formatStageTaskAsQuestion(def.id, def.name, tasks[def.id]),
   }))
 }

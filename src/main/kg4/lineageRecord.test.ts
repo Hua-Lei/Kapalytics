@@ -54,6 +54,20 @@ const digestB: PaperMethodDigest = {
   confidence: 0.79
 }
 
+const digestC: PaperMethodDigest = {
+  id: 'digest_c',
+  paperId: 'paper-c',
+  paperTitle: 'Unclear RL Method',
+  methodName: 'Unclear RL',
+  problemSetting: 'Sparse reward policy learning with incomplete method evidence.',
+  coreMechanism: 'Mentions a related training recipe without enough detail to infer lineage direction.',
+  claimedImprovement: 'Unclear from the available digest.',
+  limitation: 'The relationship to the current method needs further verification.',
+  relationHints: ['unclear'],
+  evidenceSummary: 'This paper is related, but the digest does not support a stable lineage relation.',
+  confidence: 0.42
+}
+
 const lineage: MethodLineageView = {
   id: 'lineage_n1',
   anchorNodeId: 'n1',
@@ -196,7 +210,12 @@ const digestCollisionFallback = assembleLineageExpansionRecord({
   paperId: 'paper-main',
   nodeId: 'n1',
   jobIds: ['job-digest-fallback'],
-  intent,
+  intent: {
+    kind: 'generic_related_papers',
+    confidence: 0.4,
+    queryFocus: 'related papers',
+    rationale: 'This case verifies digest-node id uniqueness outside lineage fallback.'
+  },
   retrievedPapers: [],
   paperMethodDigests: [
     { ...digestA, id: 'digest:a', paperId: 'paper-a' },
@@ -206,6 +225,31 @@ const digestCollisionFallback = assembleLineageExpansionRecord({
 
 assert.equal(digestCollisionFallback.expansionGraphNodes.length, 2)
 assert.notEqual(digestCollisionFallback.expansionGraphNodes[0].id, digestCollisionFallback.expansionGraphNodes[1].id)
+
+const digestBackedLineageFallback = assembleLineageExpansionRecord({
+  paperId: 'paper-main',
+  nodeId: 'n-context',
+  nodeLabel: '参数高效上下文内化',
+  jobIds: ['job-lineage-failed'],
+  intent,
+  retrievedPapers: [
+    candidate('paper-a', 'Foundation RL Method', longAbstract),
+    candidate('paper-b', 'Variant RL Method', longAbstract),
+    candidate('paper-c', 'Unclear RL Method', longAbstract)
+  ],
+  paperMethodDigests: [digestA, digestB, digestC],
+  missingLineageReason: '方法谱系 LLM 输出校验未通过，使用论文方法摘要构造兜底谱系。'
+})
+
+assert.ok(digestBackedLineageFallback.methodLineageView)
+assert.equal(digestBackedLineageFallback.methodLineageView?.anchorNodeId, 'n-context')
+assert.match(digestBackedLineageFallback.methodLineageView?.title ?? '', /参数高效上下文内化/)
+assert.ok(digestBackedLineageFallback.methodLineageView?.nodes.some((node) => node.role === 'current_method'))
+assert.ok(digestBackedLineageFallback.methodLineageView?.nodes.some((node) => node.digestIds.includes('digest_a')))
+assert.ok(digestBackedLineageFallback.methodLineageView?.edges.some((edge) => edge.relation === 'evidence_insufficient'))
+assert.match(digestBackedLineageFallback.methodLineageView?.missingDataReasons.join('\n') ?? '', /LLM 输出校验未通过/)
+assert.equal(digestBackedLineageFallback.expansionGraphNodes[0].type, 'algorithm_idea')
+assert.equal(digestBackedLineageFallback.expansionGraphNodes[0].visualStyle, 'highlighted')
 
 const qualitySignals: PaperQualitySignal[] = [
   {

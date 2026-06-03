@@ -42,6 +42,10 @@ export const EXPANSION_STEPS: NodeExpansionStep[] = [
   { id: 'done', label: '完成', status: 'pending', detail: '展开结果已就绪' }
 ]
 
+export function isReusableExpansionRecord(record: Kg4NodeExpansionRecord): boolean {
+  return record.expansionGraphNodes.length > 0
+}
+
 export function createReadySessionFromRecord(record: Kg4NodeExpansionRecord, node: GraphNode): NodeExpansionSession {
   const now = new Date().toISOString()
   return {

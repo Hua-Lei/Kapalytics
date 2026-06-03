@@ -109,6 +109,12 @@ tasks 必须包含下面 7 个 key，不能改名、不能缺失：
 - "contribution_limitation"
 - "transfer_comparison"
 
+tasks 的每个 value 必须是面向学生作答的结构化作答问题，不是替学生总结答案：
+- 必须以“请回答：”开头，提出一个需要学生用自己的话回答的主问题。
+- 必须包含“回答要覆盖：”，后面列出 3-5 个检查点。
+- 检查点必须要求学生使用当前论文的具体实体、公式、实验或结果作为证据。
+- 不要把 tasks 写成阶段摘要、概念讲解、论文总结或直接答案。
+
 禁止：
 - 不要把 nodes/edges 放到顶层。
 - 不要使用 knowledgeGraph、knowledge_graph、vertices、links、stageTasks、learningPath 等替代字段名。
@@ -164,13 +170,13 @@ JSON 示例：
     ]
   },
   "tasks": {
-    "field_positioning": "解释论文处在什么具体研究方向，以及它和已有适配方法的关系。",
-    "problem_motivation": "指出论文要解决的核心瓶颈，并说明为什么该瓶颈重要。",
-    "method_overview": "用论文中的核心模块串起整体方法流程。",
-    "formula_algorithm": "解释论文最关键的公式或训练目标中每个符号的含义。",
-    "experiment_analysis": "选择两个关键实验说明它们分别验证了什么 claim。",
-    "contribution_limitation": "总结论文贡献和方法适用边界。",
-    "transfer_comparison": "比较该方法与相关方法在迁移/泛化方式上的差异。"
+    "field_positioning": "请回答：这篇论文处在什么具体研究方向，它和已有适配方法是什么关系？\\n回答要覆盖：\\n1. 具体研究方向或子领域\\n2. 本文要解决的问题或方法位置\\n3. 与已有适配方法的关系\\n4. 论文中的具体证据",
+    "problem_motivation": "请回答：作者为什么认为任务级 LoRA 重新训练成本是一个值得解决的核心瓶颈？\\n回答要覆盖：\\n1. 核心瓶颈是什么\\n2. 已有方法哪里不够\\n3. 该瓶颈为什么重要\\n4. 论文中的具体证据",
+    "method_overview": "请回答：Text-to-LoRA 方法如何从任务描述生成可用的 LoRA 适配参数？\\n回答要覆盖：\\n1. 输入是什么\\n2. 核心模块和处理流程\\n3. 输出是什么\\n4. 训练目标如何连接这些步骤\\n5. 论文中的具体证据",
+    "formula_algorithm": "请回答：论文最关键的训练目标如何约束 LoRA 参数生成？\\n回答要覆盖：\\n1. 关键公式或目标函数\\n2. 核心符号的含义\\n3. 公式在方法流程中的作用\\n4. 论文中的具体证据",
+    "experiment_analysis": "请回答：哪两个关键实验最能支撑论文的主要 claim？\\n回答要覆盖：\\n1. 两个实验分别验证什么 claim\\n2. 实验设置或对比对象\\n3. 结果如何支持 claim\\n4. 论文中的具体证据",
+    "contribution_limitation": "请回答：本文真正的贡献是什么，它的适用边界在哪里？\\n回答要覆盖：\\n1. 相对已有工作的改进\\n2. 方法适用边界或失败条件\\n3. 哪些结论需要谨慎看待\\n4. 论文中的具体证据",
+    "transfer_comparison": "请回答：这个方法的哪些思想可以迁移到其他任务，它和相关方法的泛化方式有什么差异？\\n回答要覆盖：\\n1. 可迁移的模块或思想\\n2. 迁移时需要改变什么\\n3. 与相关方法在泛化方式上的差异\\n4. 论文中的具体证据"
   }
 }`
 
@@ -196,7 +202,7 @@ ${ANALYSIS_JSON_SCHEMA_PROMPT}
 - limitation 节点 detail.failureConditions 应列出失败条件或适用边界。
 边设计规则：边要表达学习依赖或论文论证关系，例如“动机”“解决”“生成”“训练目标”“验证”“限制”。不要生成松散同义关系。
 阶段 ID 必须完整包含且只能使用：field_positioning, problem_motivation, method_overview, formula_algorithm, experiment_analysis, contribution_limitation, transfer_comparison。
-每个阶段任务必须引用当前论文的具体实体/实验/公式，不得使用 Transformer、RNN 翻译等模板内容，除非论文本身讨论它。
+每个阶段任务必须是结构化作答问题，不是替学生总结答案；必须包含“请回答：”和“回答要覆盖：”，并引用当前论文的具体实体/实验/公式，不得使用 Transformer、RNN 翻译等模板内容，除非论文本身讨论它。不要把 tasks 写成阶段摘要、讲义段落或直接答案。
 如果论文是 Text-to-LoRA/T2L，图谱应区分：任务描述嵌入、hypernetwork、LoRA A/B 矩阵生成、LoRA reconstruction loss、SFT loss、压缩比实验、zero-shot benchmark、任务描述消融。
 要求：10-14 个节点，12-18 条边；至少包含 1 个 formula 节点和 2 个 experiment 节点。必须包含 insight 顶层字段。`
 

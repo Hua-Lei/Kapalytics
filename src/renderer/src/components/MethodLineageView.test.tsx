@@ -52,10 +52,30 @@ const lineage: MethodLineageViewType = {
       role: 'foundation_method',
       summary: '用网络生成另一个网络的权重。',
       representativePaperIds: ['paper-a'],
-      digestIds: ['digest-a']
+      digestIds: ['digest-a'],
+      evidence: [{
+        sourceType: 'current_pdf',
+        pageNumber: 5,
+        excerpt: 'The module predicts another module weights.',
+        claimSupported: 'Node mechanism comes from the PDF.'
+      }]
     }
   ],
-  edges: [],
+  edges: [{
+    id: 'edge-a',
+    sourceId: 'lineage-foundation',
+    targetId: 'lineage-foundation',
+    relation: 'extends',
+    explanation: 'Self edge used only to verify inline edge evidence rendering.',
+    evidencePaperIds: [],
+    confidence: 0.8,
+    evidence: [{
+      sourceType: 'current_pdf',
+      pageNumber: 6,
+      excerpt: 'The method extends the foundation mechanism.',
+      claimSupported: 'Edge relation comes from the PDF.'
+    }]
+  }],
   openQuestions: [],
   readingOrder: ['paper-a'],
   dataCompleteness: 'partial',
@@ -72,5 +92,7 @@ assert.match(html, /Page 2/)
 assert.match(html, /当前论文位于动态适配器生成这一步/)
 assert.match(html, /Static adapters/)
 assert.match(html, /model_knowledge/)
+assert.match(html, /The module predicts another module weights/)
+assert.match(html, /The method extends the foundation mechanism/)
 
 console.log('MethodLineageView tests passed')
