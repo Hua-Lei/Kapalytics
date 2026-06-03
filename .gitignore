@@ -43,3 +43,9 @@ Thumbs.db
 # Local worktrees and previews
 .worktrees/
 design-previews/
+
+# Non-project assets
+docs/
+pdf/
+testpng
+output.txt
